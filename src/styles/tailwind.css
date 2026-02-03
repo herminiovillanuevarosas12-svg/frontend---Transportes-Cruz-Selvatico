@@ -1,0 +1,1209 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   BASE STYLES - Estilos fundamentales
+   ============================================ */
+@layer base {
+  :root {
+    /* Primary Colors - Verde Selva (Cruz Selvatico) */
+    --color-primary-25: #F0F9F1;
+    --color-primary-50: #E8F5E9;
+    --color-primary-100: #C8E6C9;
+    --color-primary-200: #A5D6A7;
+    --color-primary-500: #4A9B52;
+    --color-primary-600: #3A7D44;
+    --color-primary-700: #2E6B36;
+
+    /* Secondary Colors - Rojo Transporte (Cruz Selvatico) */
+    --color-secondary-500: #E53935;
+    --color-secondary-600: #D32F2F;
+
+    /* Neutral */
+    --color-gray-50: #F9FAFB;
+    --color-gray-100: #F2F4F7;
+    --color-gray-200: #EAECF0;
+    --color-gray-300: #D0D5DD;
+    --color-gray-400: #98A2B3;
+    --color-gray-500: #667085;
+    --color-gray-600: #475467;
+    --color-gray-700: #344054;
+    --color-gray-800: #1D2939;
+    --color-gray-900: #101828;
+
+    /* Shadows */
+    --shadow-xs: 0px 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-sm: 0px 1px 3px rgba(16, 24, 40, 0.1), 0px 1px 2px rgba(16, 24, 40, 0.06);
+    --shadow-md: 0px 4px 8px -2px rgba(16, 24, 40, 0.1), 0px 2px 4px -2px rgba(16, 24, 40, 0.06);
+    --shadow-lg: 0px 12px 16px -4px rgba(16, 24, 40, 0.08), 0px 4px 6px -2px rgba(16, 24, 40, 0.03);
+    --shadow-xl: 0px 20px 24px -4px rgba(16, 24, 40, 0.08), 0px 8px 8px -4px rgba(16, 24, 40, 0.03);
+
+    /* Transitions */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * {
+    @apply border-gray-200;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full transition-colors;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+
+  /* Focus visible */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+  }
+
+  /* Selection */
+  ::selection {
+    @apply bg-primary-100 text-primary-900;
+  }
+}
+
+/* ============================================
+   COMPONENT STYLES - Componentes reutilizables
+   ============================================ */
+@layer components {
+  /* ---- BUTTONS ---- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 font-semibold rounded-xl
+           transition-all duration-200 ease-smooth
+           focus:outline-none focus:ring-4
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none
+           active:scale-[0.98];
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-600 text-white
+           hover:bg-primary-700 hover:shadow-lg hover:-translate-y-0.5
+           focus:ring-primary-100;
+  }
+
+  .btn-secondary {
+    @apply btn bg-white text-gray-700 border border-gray-300
+           hover:bg-gray-50 hover:border-gray-400 hover:shadow-md
+           focus:ring-gray-100;
+  }
+
+  .btn-success {
+    @apply btn bg-success-600 text-white
+           hover:bg-success-700 hover:shadow-lg hover:-translate-y-0.5
+           focus:ring-success-100;
+  }
+
+  .btn-danger {
+    @apply btn bg-error-600 text-white
+           hover:bg-error-700 hover:shadow-lg hover:-translate-y-0.5
+           focus:ring-error-100;
+  }
+
+  .btn-warning {
+    @apply btn bg-warning-500 text-white
+           hover:bg-warning-600 hover:shadow-lg hover:-translate-y-0.5
+           focus:ring-warning-100;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-gray-600
+           hover:bg-gray-100 hover:text-gray-900
+           focus:ring-gray-100;
+  }
+
+  .btn-outline {
+    @apply btn bg-transparent text-primary-600 border-2 border-primary-600
+           hover:bg-primary-50 hover:border-primary-700
+           focus:ring-primary-100;
+  }
+
+  /* Button Sizes */
+  .btn-xs { @apply px-2.5 py-1.5 text-xs rounded-lg gap-1; }
+  .btn-sm { @apply px-3.5 py-2 text-sm rounded-lg gap-1.5; }
+  .btn-md { @apply px-4 py-2.5 text-sm; }
+  .btn-lg { @apply px-5 py-3 text-base; }
+  .btn-xl { @apply px-6 py-3.5 text-lg rounded-2xl; }
+
+  /* Icon Button */
+  .btn-icon {
+    @apply btn p-2.5 rounded-xl;
+  }
+
+  /* ---- INPUTS ---- */
+  .input {
+    @apply w-full px-4 py-2.5 text-gray-900 bg-white
+           border border-gray-300 rounded-xl
+           placeholder:text-gray-400
+           transition-all duration-200
+           focus:outline-none focus:ring-4 focus:ring-primary-100 focus:border-primary-500
+           hover:border-gray-400
+           disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed;
+  }
+
+  .input-error {
+    @apply input border-error-300
+           focus:ring-error-100 focus:border-error-500;
+  }
+
+  .input-success {
+    @apply input border-success-300
+           focus:ring-success-100 focus:border-success-500;
+  }
+
+  /* Input with icon */
+  .input-icon-wrapper {
+    @apply relative;
+  }
+
+  .input-icon-wrapper .input {
+    @apply pl-11;
+  }
+
+  .input-icon-wrapper .input-icon {
+    @apply absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none;
+  }
+
+  /* ---- LABELS ---- */
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1.5;
+  }
+
+  .label-required::after {
+    content: " *";
+    @apply text-error-500;
+  }
+
+  /* Helper text */
+  .helper-text {
+    @apply mt-1.5 text-sm text-gray-500;
+  }
+
+  .helper-text-error {
+    @apply helper-text text-error-600;
+  }
+
+  /* ---- CARDS ---- */
+  .card {
+    @apply bg-white rounded-2xl border border-gray-200 shadow-sm
+           transition-all duration-200;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-lg hover:border-gray-300 hover:-translate-y-1;
+  }
+
+  .card-interactive {
+    @apply card-hover cursor-pointer;
+  }
+
+  .card-header {
+    @apply px-6 py-4 border-b border-gray-100;
+  }
+
+  .card-body {
+    @apply p-6;
+  }
+
+  .card-footer {
+    @apply px-6 py-4 border-t border-gray-100 bg-gray-25;
+  }
+
+  /* Gradient Card */
+  .card-gradient {
+    @apply card bg-gradient-to-br from-primary-600 to-primary-800 text-white border-0;
+  }
+
+  /* ---- TABLES ---- */
+  .table-container {
+    @apply overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm;
+  }
+
+  .table {
+    @apply min-w-full divide-y divide-gray-200;
+  }
+
+  .table thead {
+    @apply bg-gray-50;
+  }
+
+  .table th {
+    @apply px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider;
+  }
+
+  .table td {
+    @apply px-6 py-4 text-sm text-gray-700;
+  }
+
+  .table tbody tr {
+    @apply border-b border-gray-100 last:border-0 transition-colors;
+  }
+
+  .table tbody tr:hover {
+    @apply bg-gray-50;
+  }
+
+  /* Table variants */
+  .table-striped tbody tr:nth-child(even) {
+    @apply bg-gray-25;
+  }
+
+  .table-compact th,
+  .table-compact td {
+    @apply px-4 py-2.5;
+  }
+
+  /* ---- BADGES ---- */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold
+           transition-colors duration-200;
+  }
+
+  .badge-primary { @apply bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-200; }
+  .badge-secondary { @apply bg-secondary-50 text-secondary-700 ring-1 ring-inset ring-secondary-200; }
+  .badge-success { @apply bg-success-50 text-success-700 ring-1 ring-inset ring-success-200; }
+  .badge-warning { @apply bg-warning-50 text-warning-700 ring-1 ring-inset ring-warning-200; }
+  .badge-error { @apply bg-error-50 text-error-700 ring-1 ring-inset ring-error-200; }
+  .badge-info { @apply bg-info-50 text-info-700 ring-1 ring-inset ring-info-200; }
+  .badge-gray { @apply bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200; }
+
+  /* Badge with dot */
+  .badge-dot::before {
+    content: "";
+    @apply w-1.5 h-1.5 rounded-full bg-current;
+  }
+
+  /* ---- MODALS ---- */
+  .modal-backdrop {
+    @apply fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-40
+           animate-fade-in;
+  }
+
+  .modal {
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+  }
+
+  .modal-content {
+    @apply bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden
+           animate-scale-in;
+  }
+
+  .modal-header {
+    @apply flex items-center justify-between px-6 py-4 border-b border-gray-100;
+  }
+
+  .modal-body {
+    @apply p-6 overflow-y-auto;
+  }
+
+  .modal-footer {
+    @apply flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50;
+  }
+
+  /* ---- ALERTS ---- */
+  .alert {
+    @apply flex items-start gap-3 p-4 rounded-xl border;
+  }
+
+  .alert-success { @apply bg-success-50 border-success-200 text-success-800; }
+  .alert-warning { @apply bg-warning-50 border-warning-200 text-warning-800; }
+  .alert-error { @apply bg-error-50 border-error-200 text-error-800; }
+  .alert-info { @apply bg-info-50 border-info-200 text-info-800; }
+
+  /* ---- NAVIGATION ---- */
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl
+           transition-all duration-200
+           hover:bg-gray-100 hover:text-gray-900;
+  }
+
+  .nav-item-active {
+    @apply nav-item bg-primary-50 text-primary-700 font-medium
+           hover:bg-primary-100;
+  }
+
+  /* ---- AVATAR ---- */
+  .avatar {
+    @apply relative inline-flex items-center justify-center rounded-full
+           bg-gradient-to-br from-primary-500 to-primary-700 text-white font-semibold;
+  }
+
+  .avatar-xs { @apply w-6 h-6 text-xs; }
+  .avatar-sm { @apply w-8 h-8 text-sm; }
+  .avatar-md { @apply w-10 h-10 text-base; }
+  .avatar-lg { @apply w-12 h-12 text-lg; }
+  .avatar-xl { @apply w-16 h-16 text-xl; }
+
+  /* ---- PROGRESS ---- */
+  .progress {
+    @apply h-2 bg-gray-200 rounded-full overflow-hidden;
+  }
+
+  .progress-bar {
+    @apply h-full bg-primary-600 rounded-full transition-all duration-500;
+  }
+
+  /* ---- DIVIDER ---- */
+  .divider {
+    @apply border-t border-gray-200 my-6;
+  }
+
+  .divider-vertical {
+    @apply border-l border-gray-200 mx-4 h-auto self-stretch;
+  }
+
+  /* ---- SKELETON ---- */
+  .skeleton {
+    @apply bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200
+           bg-[length:200%_100%] animate-shimmer rounded-lg;
+  }
+
+  /* ---- TOOLTIP ---- */
+  .tooltip {
+    @apply absolute z-50 px-3 py-2 text-xs font-medium text-white
+           bg-gray-900 rounded-lg shadow-lg
+           opacity-0 invisible transition-all duration-200
+           group-hover:opacity-100 group-hover:visible;
+  }
+}
+
+/* ============================================
+   UTILITY CLASSES - Utilidades adicionales
+   ============================================ */
+@layer utilities {
+  /* Hide scrollbar but keep functionality */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent;
+  }
+
+  .text-gradient-warm {
+    @apply bg-gradient-to-r from-secondary-600 to-secondary-400 bg-clip-text text-transparent;
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-white/80 backdrop-blur-lg border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-gray-900/80 backdrop-blur-lg border border-gray-700/50;
+  }
+
+  /* Glow effects - Verde Selva */
+  .glow-sm {
+    box-shadow: 0 0 15px rgba(58, 125, 68, 0.2);
+  }
+
+  .glow-md {
+    box-shadow: 0 0 30px rgba(58, 125, 68, 0.25);
+  }
+
+  .glow-lg {
+    box-shadow: 0 0 50px rgba(58, 125, 68, 0.3);
+  }
+
+  /* Pattern backgrounds */
+  .pattern-dots {
+    background-image: radial-gradient(circle, #D0D5DD 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  .pattern-grid {
+    background-image:
+      linear-gradient(to right, #EAECF0 1px, transparent 1px),
+      linear-gradient(to bottom, #EAECF0 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Hover lift effect */
+  .hover-lift {
+    @apply transition-all duration-300;
+  }
+
+  .hover-lift:hover {
+    @apply -translate-y-1 shadow-lg;
+  }
+
+  /* Line clamp */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  /* Safe area for mobile */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Focus ring custom */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-4 focus:ring-primary-100 focus:ring-offset-0;
+  }
+
+  /* Aspect ratios */
+  .aspect-square { aspect-ratio: 1/1; }
+  .aspect-video { aspect-ratio: 16/9; }
+  .aspect-portrait { aspect-ratio: 3/4; }
+}
+
+/* ============================================
+   ANIMATIONS - Animaciones personalizadas
+   ============================================ */
+@layer utilities {
+  /* Stagger animation delays */
+  .stagger-1 { animation-delay: 50ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 150ms; }
+  .stagger-4 { animation-delay: 200ms; }
+  .stagger-5 { animation-delay: 250ms; }
+  .stagger-6 { animation-delay: 300ms; }
+
+  /* Pulse animation for notifications */
+  .pulse-dot {
+    @apply relative;
+  }
+
+  .pulse-dot::after {
+    content: "";
+    @apply absolute top-0 right-0 w-2 h-2 bg-error-500 rounded-full;
+    animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    75%, 100% {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
+}
+
+/* ============================================
+   PRINT STYLES - Estilos para impresion
+   ============================================ */
+
+/* Clase para elementos que no deben imprimirse */
+.no-print {
+  /* visible en pantalla */
+}
+
+/* Clase para elementos que solo se ven al imprimir */
+.print-only {
+  display: none !important;
+}
+
+/* Area de impresion - OCULTA en pantalla, VISIBLE al imprimir */
+.print-area {
+  display: none !important;
+  visibility: hidden;
+  position: absolute;
+  left: -9999px;
+}
+
+@media print {
+  /* ====== RESET TOTAL PARA IMPRESION ====== */
+
+  /* Configuracion de pagina - Tamaño ticket termico 80mm */
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  /* Pagina especifica para guia de encomienda */
+  @page guia-encomienda {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  /* Reset base */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    width: 80mm !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* OCULTAR TODO usando visibility (permite que hijos se muestren) */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* Ocultar elementos especificos completamente */
+  .no-print,
+  .modal-backdrop,
+  [class*="backdrop"],
+  [role="dialog"],
+  header,
+  nav,
+  aside,
+  footer,
+  .sidebar {
+    display: none !important;
+  }
+
+  /* ====== MOSTRAR SOLO EL AREA DE IMPRESION ====== */
+
+  /* Hacer visible el area de impresion y todos sus hijos */
+  .print-area,
+  .print-area *,
+  #comprobante-print-area,
+  #comprobante-print-area * {
+    visibility: visible !important;
+    color: black !important;
+  }
+
+  .print-area,
+  #comprobante-print-area {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 3mm !important;
+    background: white !important;
+    z-index: 999999 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    page: guia-encomienda !important;
+  }
+
+  /* Compatibilidad con contenedor antiguo */
+  #comprobante-print-container,
+  #comprobante-print-container * {
+    visibility: visible !important;
+    color: black !important;
+  }
+
+  #comprobante-print-container {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 3mm !important;
+    background: white !important;
+    z-index: 999999 !important;
+    page-break-inside: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Ajustes internos del comprobante */
+  #comprobante-print-container #comprobante-print,
+  .print-area #comprobante-print,
+  #comprobante-print-area #comprobante-print {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Ajustes de tipografia para comprobante */
+  #comprobante-print-container .text-xs {
+    font-size: 7pt !important;
+  }
+
+  #comprobante-print-container .text-sm {
+    font-size: 8pt !important;
+  }
+
+  #comprobante-print-container .text-base {
+    font-size: 9pt !important;
+  }
+
+  #comprobante-print-container .text-lg {
+    font-size: 10pt !important;
+  }
+
+  #comprobante-print-container .text-xl {
+    font-size: 12pt !important;
+  }
+
+  #comprobante-print-container .text-2xl {
+    font-size: 14pt !important;
+  }
+
+  /* Logo mas pequeño para impresion */
+  #comprobante-print-container img {
+    max-height: 10mm !important;
+    width: auto !important;
+  }
+
+  /* Bordes para comprobante */
+  #comprobante-print-container .border-dashed {
+    border-style: dashed !important;
+    border-color: #999 !important;
+  }
+
+  /* Fondo gris para total */
+  #comprobante-print-container .bg-gray-50 {
+    background-color: #eee !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ====== ESTILOS PARA PRINT-AREA (guias, tickets) ====== */
+
+  .print-area {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: white !important;
+    z-index: 999999 !important;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+
+  /* Mostrar elementos marcados como print-only */
+  .print-only {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* ====== TICKET PRINT ====== */
+  #ticket-print-container {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 3mm !important;
+    background: white !important;
+    z-index: 999999 !important;
+  }
+
+  #ticket-print-container,
+  #ticket-print-container * {
+    visibility: visible !important;
+  }
+
+  /* ====== GUIA PRINT ====== */
+  #guia-print-container {
+    display: block !important;
+    visibility: visible !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 5mm !important;
+    background: white !important;
+    z-index: 999999 !important;
+  }
+
+  #guia-print-container,
+  #guia-print-container * {
+    visibility: visible !important;
+  }
+
+  /* ====== GUIA ENCOMIENDA TICKET PRINT ====== */
+  #guia-encomienda-print,
+  #guia-encomienda-print * {
+    visibility: visible !important;
+  }
+
+  #guia-encomienda-print {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    z-index: 999999 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    page: guia-encomienda !important;
+  }
+
+  #guia-encomienda-print .guia-ticket-cs {
+    width: 100% !important;
+    padding: 2mm !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Politicas sin corte */
+  #guia-encomienda-print .guia-cs-politicas,
+  #guia-encomienda-print .guia-cs-politicas-content {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    page-break-inside: auto !important;
+  }
+
+  #guia-encomienda-print .guia-cs-politicas-content p {
+    page-break-inside: avoid !important;
+  }
+
+  /* Colores especificos para impresion */
+  #guia-encomienda-print .guia-cs-value-primary,
+  #guia-encomienda-print .guia-cs-precio-currency,
+  #guia-encomienda-print .guia-cs-precio-monto,
+  #guia-encomienda-print .guia-cs-puntos-ganados {
+    color: #2d5a27 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #guia-encomienda-print .guia-cs-empresa-nombre {
+    color: #c41e3a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #guia-encomienda-print .guia-cs-divider {
+    border-color: #d4a5a5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* ============================================
+   GUIA ENCOMIENDA - ESTILO CRUZ SELVATICO
+   Ticket termico 80mm con diseño corporativo
+   ============================================ */
+
+/* Importar fuente Nunito Sans para el estilo limpio */
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap');
+
+.guia-ticket-cs {
+  width: 76mm;
+  max-width: 76mm;
+  margin: 0 auto;
+  padding: 3mm 2mm;
+  font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 9pt;
+  line-height: 1.35;
+  color: #1a1a1a;
+  background: #fff;
+}
+
+/* ══════ HEADER CON LOGO ══════ */
+.guia-cs-header {
+  text-align: center;
+  margin-bottom: 2mm;
+}
+
+.guia-cs-logo {
+  width: 22mm;
+  height: auto;
+  margin: 0 auto 1.5mm;
+  display: block;
+}
+
+.guia-cs-empresa-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 8pt;
+  color: #444;
+  line-height: 1.4;
+  margin-bottom: 2mm;
+}
+
+.guia-cs-doc-title {
+  font-size: 11pt;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-top: 1mm;
+}
+
+/* ══════ DIVIDERS - Estilo punteado rosa/gris ══════ */
+.guia-cs-divider {
+  border: none;
+  border-top: 1px dashed #d4a5a5;
+  margin: 2.5mm 0;
+}
+
+/* ══════ SECTIONS ══════ */
+.guia-cs-section {
+  margin: 2mm 0;
+}
+
+.guia-cs-centered {
+  text-align: center;
+}
+
+/* ══════ LABELS ══════ */
+.guia-cs-label {
+  display: block;
+  font-size: 7.5pt;
+  font-weight: 400;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 0.5mm;
+}
+
+/* ══════ VALUES ══════ */
+.guia-cs-value-primary {
+  display: block;
+  font-size: 10pt;
+  font-weight: 700;
+  color: #2d5a27;
+}
+
+.guia-cs-value-secondary {
+  display: block;
+  font-size: 8.5pt;
+  color: #555;
+}
+
+.guia-cs-value-bold {
+  font-size: 10pt;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+/* ══════ TRACKING CODE ══════ */
+.guia-cs-tracking {
+  font-size: 13pt;
+  font-weight: 800;
+  font-family: 'Nunito Sans', monospace;
+  color: #1a1a1a;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+
+/* ══════ RUTA (ORIGEN → DESTINO) ══════ */
+.guia-cs-ruta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3mm;
+  margin: 2.5mm 0;
+  padding: 1.5mm 0;
+}
+
+.guia-cs-ruta-col {
+  text-align: center;
+  flex: 1;
+}
+
+.guia-cs-ruta-arrow {
+  font-size: 12pt;
+  color: #888;
+  font-weight: 300;
+}
+
+/* ══════ ROW 2 COLUMNAS ══════ */
+.guia-cs-row-2col {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  margin: 2mm 0;
+}
+
+.guia-cs-col {
+  flex: 1;
+}
+
+/* ══════ DATOS (REMITENTE/DESTINATARIO) ══════ */
+.guia-cs-datos {
+  margin-top: 1mm;
+}
+
+.guia-cs-dato-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 8.5pt;
+  padding: 0.3mm 0;
+}
+
+.guia-cs-dato-label {
+  color: #555;
+  flex-shrink: 0;
+}
+
+.guia-cs-dato-value {
+  font-weight: 600;
+  color: #1a1a1a;
+  text-align: right;
+  word-break: break-word;
+}
+
+/* ══════ CONTENIDO ══════ */
+.guia-cs-contenido {
+  font-size: 8.5pt;
+  color: #333;
+  font-style: italic;
+  margin-top: 0.5mm;
+}
+
+/* ══════ PRECIO BOX ══════ */
+.guia-cs-precio-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2.5mm 2mm;
+  margin: 2mm 0;
+}
+
+.guia-cs-precio-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.guia-cs-precio-label {
+  font-size: 9pt;
+  color: #555;
+  line-height: 1.2;
+}
+
+.guia-cs-precio-right {
+  display: flex;
+  align-items: baseline;
+  gap: 1mm;
+}
+
+.guia-cs-precio-currency {
+  font-size: 14pt;
+  font-weight: 700;
+  color: #2d5a27;
+}
+
+.guia-cs-precio-monto {
+  font-size: 20pt;
+  font-weight: 800;
+  color: #2d5a27;
+  line-height: 1;
+}
+
+/* ══════ ESTADO DE PAGO ══════ */
+.guia-cs-estado {
+  text-align: center;
+  font-size: 9pt;
+  font-weight: 700;
+  padding: 1.5mm 2mm;
+  margin: 1mm 0 2mm;
+  border-radius: 1mm;
+}
+
+.guia-cs-estado-pagado {
+  background: #e8f5e9;
+  color: #2d5a27;
+  border: 1px solid #a5d6a7;
+}
+
+.guia-cs-estado-pendiente {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffcc80;
+}
+
+/* ══════ QR SECTION ══════ */
+.guia-cs-qr-section {
+  display: flex;
+  justify-content: center;
+  padding: 2mm 0;
+}
+
+.guia-cs-qr,
+.guia-cs-qr-section img,
+.guia-cs-qr-section svg,
+.guia-cs-qr-section canvas {
+  width: 24mm !important;
+  height: 24mm !important;
+  max-width: 24mm !important;
+  max-height: 24mm !important;
+}
+
+/* ══════ PUNTOS ══════ */
+.guia-cs-puntos-ganados {
+  color: #2d5a27 !important;
+  font-weight: 700 !important;
+}
+
+/* ══════ FECHA ══════ */
+.guia-cs-fecha {
+  text-align: center;
+  font-size: 8pt;
+  color: #666;
+  padding: 1mm 0;
+}
+
+/* ══════ POLITICAS ══════ */
+.guia-cs-politicas {
+  margin-top: 2mm;
+  padding-top: 1mm;
+}
+
+.guia-cs-politicas-title {
+  font-size: 7pt;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  color: #555;
+  letter-spacing: 0.2px;
+  margin-bottom: 1.5mm;
+}
+
+.guia-cs-politicas-content {
+  font-size: 6pt;
+  line-height: 1.3;
+  color: #555;
+  text-align: justify;
+}
+
+.guia-cs-politicas-content p {
+  margin: 0;
+  margin-bottom: 0.4mm;
+  text-indent: -2mm;
+  padding-left: 2mm;
+}
+
+/* ══════ FOOTER ══════ */
+.guia-cs-footer {
+  text-align: center;
+  margin-top: 3mm;
+  padding-top: 2mm;
+  border-top: 1px dashed #d4a5a5;
+}
+
+.guia-cs-empresa-nombre {
+  display: block;
+  font-size: 10pt;
+  font-weight: 700;
+  color: #c41e3a;
+  margin-bottom: 0.5mm;
+}
+
+.guia-cs-gracias {
+  display: block;
+  font-size: 8pt;
+  color: #666;
+}
+
+/* ══════ PRINT OVERRIDES ══════ */
+@media print {
+  .guia-ticket-cs {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    padding: 2mm !important;
+    margin: 0 !important;
+    font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  }
+
+  .guia-cs-logo {
+    width: 20mm !important;
+  }
+
+  .guia-cs-tracking {
+    font-size: 12pt !important;
+  }
+
+  .guia-cs-precio-monto {
+    font-size: 18pt !important;
+  }
+
+  .guia-cs-qr,
+  .guia-cs-qr-section img,
+  .guia-cs-qr-section svg,
+  .guia-cs-qr-section canvas {
+    width: 22mm !important;
+    height: 22mm !important;
+    max-width: 22mm !important;
+    max-height: 22mm !important;
+  }
+
+  .guia-cs-politicas-content {
+    font-size: 5.5pt !important;
+  }
+
+  .guia-cs-estado-pagado {
+    background: #e8f5e9 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .guia-cs-estado-pendiente {
+    background: #fff3e0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

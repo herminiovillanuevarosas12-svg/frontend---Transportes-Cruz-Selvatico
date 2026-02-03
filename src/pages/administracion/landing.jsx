@@ -1,0 +1,874 @@
+/**
+ * Landing Admin Page
+ * Panel de administración de landing page (Banners + Configuración)
+ */
+
+import { useState, useEffect, useRef } from 'react'
+import { toast } from 'react-hot-toast'
+import MainLayout from '../../components/layout/MainLayout'
+import landingService from '../../services/landingService'
+import { UPLOADS_URL, getUploadUrl } from '../../services/apiClient'
+import {
+  Image,
+  Images,
+  Settings,
+  Plus,
+  Trash2,
+  Edit3,
+  GripVertical,
+  Eye,
+  EyeOff,
+  Upload,
+  X,
+  Save,
+  Link as LinkIcon,
+  Calendar,
+  Clock,
+  Facebook,
+  Instagram,
+  Youtube,
+  Phone,
+  Mail,
+  MessageCircle,
+  ChevronUp,
+  ChevronDown
+} from 'lucide-react'
+
+const LandingAdminPage = () => {
+  const [activeTab, setActiveTab] = useState('banners')
+  const [banners, setBanners] = useState([])
+  const [gallery, setGallery] = useState([])
+  const [config, setConfig] = useState({
+    slogan: '',
+    emailContacto: '',
+    whatsapp: '',
+    facebookUrl: '',
+    instagramUrl: '',
+    youtubeUrl: '',
+    tiempoRotacionBanner: 5
+  })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  // Modal de banner/galería
+  const [showModal, setShowModal] = useState(false)
+  const [modalType, setModalType] = useState('banner') // 'banner' o 'gallery'
+  const [editingBanner, setEditingBanner] = useState(null)
+  const [bannerForm, setBannerForm] = useState({
+    titulo: '',
+    subtitulo: '',
+    urlDestino: '',
+    activo: true,
+    fechaInicio: '',
+    fechaFin: '',
+    imagenPreview: null,
+    imagenFile: null
+  })
+
+  const fileInputRef = useRef(null)
+
+  useEffect(() => {
+    cargarDatos()
+  }, [])
+
+  const cargarDatos = async () => {
+    try {
+      setLoading(true)
+      const [bannersRes, galleryRes, configRes] = await Promise.all([
+        landingService.listarBanners('banner'),
+        landingService.listarBanners('gallery'),
+        landingService.getConfigLanding()
+      ])
+      setBanners(bannersRes.banners || [])
+      setGallery(galleryRes.banners || [])
+      if (configRes.config) {
+        setConfig({
+          slogan: configRes.config.slogan || '',
+          emailContacto: configRes.config.emailContacto || '',
+          whatsapp: configRes.config.whatsapp || '',
+          facebookUrl: configRes.config.facebookUrl || '',
+          instagramUrl: configRes.config.instagramUrl || '',
+          youtubeUrl: configRes.config.youtubeUrl || '',
+          tiempoRotacionBanner: configRes.config.tiempoRotacionBanner || 5
+        })
+      }
+    } catch (error) {
+      console.error('Error cargando datos:', error)
+      toast.error('Error al cargar datos')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ============================================
+  // BANNERS
+  // ============================================
+
+  const abrirModalBanner = (banner = null, tipo = 'banner') => {
+    setModalType(tipo)
+    if (banner) {
+      setEditingBanner(banner)
+      setBannerForm({
+        titulo: banner.titulo || '',
+        subtitulo: banner.subtitulo || '',
+        urlDestino: banner.urlDestino || '',
+        activo: banner.activo !== false,
+        fechaInicio: banner.fechaInicio ? banner.fechaInicio.split('T')[0] : '',
+        fechaFin: banner.fechaFin ? banner.fechaFin.split('T')[0] : '',
+        imagenPreview: banner.imagenPath ? getUploadUrl(banner.imagenPath) : null,
+        imagenFile: null
+      })
+    } else {
+      setEditingBanner(null)
+      setBannerForm({
+        titulo: '',
+        subtitulo: '',
+        urlDestino: '',
+        activo: true,
+        fechaInicio: '',
+        fechaFin: '',
+        imagenPreview: null,
+        imagenFile: null
+      })
+    }
+    setShowModal(true)
+  }
+
+  const cerrarModal = () => {
+    setShowModal(false)
+    setEditingBanner(null)
+    setBannerForm({
+      titulo: '',
+      subtitulo: '',
+      urlDestino: '',
+      activo: true,
+      fechaInicio: '',
+      fechaFin: '',
+      imagenPreview: null,
+      imagenFile: null
+    })
+  }
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('La imagen no debe superar los 5MB')
+        return
+      }
+      setBannerForm(prev => ({
+        ...prev,
+        imagenFile: file,
+        imagenPreview: URL.createObjectURL(file)
+      }))
+    }
+  }
+
+  const guardarBanner = async () => {
+    try {
+      if (!editingBanner && !bannerForm.imagenFile) {
+        toast.error(`Se requiere una imagen para ${modalType === 'gallery' ? 'la galería' : 'el banner'}`)
+        return
+      }
+
+      setSaving(true)
+
+      const listaActual = modalType === 'gallery' ? gallery : banners
+      const formData = new FormData()
+      formData.append('titulo', bannerForm.titulo)
+      formData.append('subtitulo', bannerForm.subtitulo)
+      formData.append('urlDestino', bannerForm.urlDestino)
+      formData.append('activo', bannerForm.activo)
+      formData.append('tipo', modalType)
+      formData.append('orden', editingBanner?.orden || listaActual.length)
+      if (bannerForm.fechaInicio) formData.append('fechaInicio', bannerForm.fechaInicio)
+      if (bannerForm.fechaFin) formData.append('fechaFin', bannerForm.fechaFin)
+      if (bannerForm.imagenFile) formData.append('imagen', bannerForm.imagenFile)
+
+      if (editingBanner) {
+        await landingService.actualizarBanner(editingBanner.id, formData)
+        toast.success(modalType === 'gallery' ? 'Imagen actualizada' : 'Banner actualizado')
+      } else {
+        await landingService.crearBanner(formData)
+        toast.success(modalType === 'gallery' ? 'Imagen agregada' : 'Banner creado')
+      }
+
+      cerrarModal()
+      cargarDatos()
+    } catch (error) {
+      console.error('Error guardando:', error)
+      toast.error('Error al guardar')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const eliminarBanner = async (id) => {
+    if (!confirm('¿Está seguro de eliminar este banner?')) return
+
+    try {
+      await landingService.eliminarBanner(id)
+      toast.success('Banner eliminado')
+      cargarDatos()
+    } catch (error) {
+      console.error('Error eliminando banner:', error)
+      toast.error('Error al eliminar banner')
+    }
+  }
+
+  const toggleActivoBanner = async (banner) => {
+    try {
+      await landingService.actualizarBanner(banner.id, {
+        ...banner,
+        activo: !banner.activo
+      })
+      toast.success(banner.activo ? 'Banner desactivado' : 'Banner activado')
+      cargarDatos()
+    } catch (error) {
+      console.error('Error actualizando banner:', error)
+      toast.error('Error al actualizar banner')
+    }
+  }
+
+  const moverBanner = async (index, direction) => {
+    if (
+      (direction === -1 && index === 0) ||
+      (direction === 1 && index === banners.length - 1)
+    ) return
+
+    const newBanners = [...banners]
+    const temp = newBanners[index]
+    newBanners[index] = newBanners[index + direction]
+    newBanners[index + direction] = temp
+
+    const ordenes = newBanners.map((b, i) => ({ id: b.id, orden: i }))
+
+    try {
+      await landingService.reordenarBanners(ordenes)
+      setBanners(newBanners)
+      toast.success('Orden actualizado')
+    } catch (error) {
+      console.error('Error reordenando:', error)
+      toast.error('Error al reordenar')
+    }
+  }
+
+  const moverGallery = async (index, direction) => {
+    if (
+      (direction === -1 && index === 0) ||
+      (direction === 1 && index === gallery.length - 1)
+    ) return
+
+    const newGallery = [...gallery]
+    const temp = newGallery[index]
+    newGallery[index] = newGallery[index + direction]
+    newGallery[index + direction] = temp
+
+    const ordenes = newGallery.map((g, i) => ({ id: g.id, orden: i }))
+
+    try {
+      await landingService.reordenarBanners(ordenes)
+      setGallery(newGallery)
+      toast.success('Orden actualizado')
+    } catch (error) {
+      console.error('Error reordenando:', error)
+      toast.error('Error al reordenar')
+    }
+  }
+
+  // ============================================
+  // CONFIGURACIÓN
+  // ============================================
+
+  const guardarConfig = async () => {
+    try {
+      setSaving(true)
+      await landingService.actualizarConfigLanding(config)
+      toast.success('Configuración guardada')
+    } catch (error) {
+      console.error('Error guardando config:', error)
+      toast.error('Error al guardar configuración')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ============================================
+  // RENDER
+  // ============================================
+
+  return (
+    <MainLayout>
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">Landing Page</h1>
+          <p className="mt-1 text-gray-500">Gestiona el contenido de la página de inicio pública</p>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-6 border-b border-gray-200">
+          <nav className="flex gap-4">
+            <button
+              onClick={() => setActiveTab('banners')}
+              className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'banners'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Image className="w-4 h-4" />
+                Banners
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('gallery')}
+              className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'gallery'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Images className="w-4 h-4" />
+                Galería
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('config')}
+              className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'config'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Configuración
+              </div>
+            </button>
+          </nav>
+        </div>
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Tab: Banners */}
+        {!loading && activeTab === 'banners' && (
+          <div className="space-y-6">
+            {/* Botón agregar */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => abrirModalBanner()}
+                className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Agregar Banner
+              </button>
+            </div>
+
+            {/* Lista de banners */}
+            {banners.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+                <Image className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900">No hay banners</h3>
+                <p className="text-gray-500 mt-1">Agrega tu primer banner para el carrusel</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {banners.map((banner, index) => (
+                  <div
+                    key={banner.id}
+                    className={`bg-white rounded-xl border ${banner.activo ? 'border-gray-200' : 'border-gray-200 bg-gray-50'} p-4 flex items-center gap-4`}
+                  >
+                    {/* Imagen thumbnail */}
+                    <div className="w-32 h-20 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                      <img
+                        src={getUploadUrl(banner.imagenPath)}
+                        alt={banner.titulo || 'Banner'}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.src = '/placeholder-banner.jpg'
+                        }}
+                      />
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-semibold ${banner.activo ? 'text-gray-900' : 'text-gray-500'}`}>
+                        {banner.titulo || '(Sin título)'}
+                      </h3>
+                      <p className="text-sm text-gray-500 truncate">
+                        {banner.subtitulo || '(Sin subtítulo)'}
+                      </p>
+                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                        {banner.urlDestino && (
+                          <span className="flex items-center gap-1">
+                            <LinkIcon className="w-3 h-3" />
+                            Con enlace
+                          </span>
+                        )}
+                        {banner.fechaInicio && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {banner.fechaInicio.split('T')[0]}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Estado */}
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        banner.activo
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {banner.activo ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </div>
+
+                    {/* Acciones */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => moverBanner(index, -1)}
+                        disabled={index === 0}
+                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-30"
+                        title="Subir"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => moverBanner(index, 1)}
+                        disabled={index === banners.length - 1}
+                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-30"
+                        title="Bajar"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => toggleActivoBanner(banner)}
+                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                        title={banner.activo ? 'Desactivar' : 'Activar'}
+                      >
+                        {banner.activo ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={() => abrirModalBanner(banner)}
+                        className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg"
+                        title="Editar"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => eliminarBanner(banner.id)}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Galería */}
+        {!loading && activeTab === 'gallery' && (
+          <div className="space-y-6">
+            {/* Botón agregar */}
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-500">
+                Imágenes que se mostrarán en la sección de galería de la landing page
+              </p>
+              <button
+                onClick={() => abrirModalBanner(null, 'gallery')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Agregar Imagen
+              </button>
+            </div>
+
+            {/* Lista de imágenes */}
+            {gallery.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+                <Images className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900">No hay imágenes</h3>
+                <p className="text-gray-500 mt-1">Agrega imágenes para mostrar en la galería</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {gallery.map((img, index) => (
+                  <div
+                    key={img.id}
+                    className={`bg-white rounded-xl border ${img.activo ? 'border-gray-200' : 'border-gray-200 opacity-60'} overflow-hidden group`}
+                  >
+                    {/* Imagen */}
+                    <div className="aspect-[4/3] relative overflow-hidden">
+                      <img
+                        src={getUploadUrl(img.imagenPath)}
+                        alt={img.titulo || 'Imagen'}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null
+                          e.target.src = '/placeholder-banner.jpg'
+                        }}
+                      />
+                      {/* Overlay con acciones */}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => abrirModalBanner(img, 'gallery')}
+                          className="p-2 bg-white rounded-lg text-gray-700 hover:bg-primary-50 hover:text-primary-600"
+                          title="Editar"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => toggleActivoBanner(img)}
+                          className="p-2 bg-white rounded-lg text-gray-700 hover:bg-gray-100"
+                          title={img.activo ? 'Desactivar' : 'Activar'}
+                        >
+                          {img.activo ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => eliminarBanner(img.id)}
+                          className="p-2 bg-white rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-600"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* Info */}
+                    <div className="p-3">
+                      <p className={`text-sm font-medium truncate ${img.activo ? 'text-gray-900' : 'text-gray-500'}`}>
+                        {img.titulo || '(Sin título)'}
+                      </p>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className={`text-xs ${img.activo ? 'text-green-600' : 'text-gray-400'}`}>
+                          {img.activo ? 'Activa' : 'Inactiva'}
+                        </span>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => moverGallery(index, -1)}
+                            disabled={index === 0}
+                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                          >
+                            <ChevronUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => moverGallery(index, 1)}
+                            disabled={index === gallery.length - 1}
+                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                          >
+                            <ChevronDown className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Configuración */}
+        {!loading && activeTab === 'config' && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-8">
+            {/* Slogan */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Slogan</h3>
+              <input
+                type="text"
+                value={config.slogan}
+                onChange={(e) => setConfig(prev => ({ ...prev, slogan: e.target.value }))}
+                placeholder="Viaja seguro, envía confiado"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Contacto */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Datos de Contacto</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={config.emailContacto}
+                    onChange={(e) => setConfig(prev => ({ ...prev, emailContacto: e.target.value }))}
+                    placeholder="Email de contacto"
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="relative">
+                  <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={config.whatsapp}
+                    onChange={(e) => setConfig(prev => ({ ...prev, whatsapp: e.target.value }))}
+                    placeholder="WhatsApp (+51 999 999 999)"
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Redes Sociales */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Redes Sociales</h3>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div className="relative">
+                  <Facebook className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="url"
+                    value={config.facebookUrl}
+                    onChange={(e) => setConfig(prev => ({ ...prev, facebookUrl: e.target.value }))}
+                    placeholder="URL de Facebook"
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="relative">
+                  <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="url"
+                    value={config.instagramUrl}
+                    onChange={(e) => setConfig(prev => ({ ...prev, instagramUrl: e.target.value }))}
+                    placeholder="URL de Instagram"
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="relative">
+                  <Youtube className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="url"
+                    value={config.youtubeUrl}
+                    onChange={(e) => setConfig(prev => ({ ...prev, youtubeUrl: e.target.value }))}
+                    placeholder="URL de YouTube"
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Carrusel */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Carrusel de Banners</h3>
+              <div className="max-w-xs">
+                <label className="block text-sm text-gray-500 mb-2">
+                  Tiempo de rotación (segundos)
+                </label>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="number"
+                    min="2"
+                    max="30"
+                    value={config.tiempoRotacionBanner}
+                    onChange={(e) => setConfig(prev => ({ ...prev, tiempoRotacionBanner: parseInt(e.target.value) || 5 }))}
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Botón guardar */}
+            <div className="flex justify-end pt-4 border-t border-gray-100">
+              <button
+                onClick={guardarConfig}
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-3 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
+                Guardar Configuración
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal Banner */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">
+                {modalType === 'gallery'
+                  ? (editingBanner ? 'Editar Imagen' : 'Nueva Imagen')
+                  : (editingBanner ? 'Editar Banner' : 'Nuevo Banner')
+                }
+              </h2>
+              <button
+                onClick={cerrarModal}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenido */}
+            <div className="p-6 space-y-6">
+              {/* Preview de imagen */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Imagen del Banner *
+                </label>
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative w-full h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors"
+                >
+                  {bannerForm.imagenPreview ? (
+                    <>
+                      <img
+                        src={bannerForm.imagenPreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white font-medium">Cambiar imagen</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                      <Upload className="w-10 h-10 mb-2" />
+                      <span className="text-sm">Clic para seleccionar imagen</span>
+                      <span className="text-xs mt-1">Recomendado: 1920x600px, max 5MB</span>
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+              </div>
+
+              {/* Título y Subtítulo */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Título
+                  </label>
+                  <input
+                    type="text"
+                    value={bannerForm.titulo}
+                    onChange={(e) => setBannerForm(prev => ({ ...prev, titulo: e.target.value }))}
+                    placeholder="Título del banner"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Subtítulo
+                  </label>
+                  <input
+                    type="text"
+                    value={bannerForm.subtitulo}
+                    onChange={(e) => setBannerForm(prev => ({ ...prev, subtitulo: e.target.value }))}
+                    placeholder="Subtítulo del banner"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* URL destino */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  URL de destino (opcional)
+                </label>
+                <input
+                  type="url"
+                  value={bannerForm.urlDestino}
+                  onChange={(e) => setBannerForm(prev => ({ ...prev, urlDestino: e.target.value }))}
+                  placeholder="https://..."
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Fechas */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fecha inicio (opcional)
+                  </label>
+                  <input
+                    type="date"
+                    value={bannerForm.fechaInicio}
+                    onChange={(e) => setBannerForm(prev => ({ ...prev, fechaInicio: e.target.value }))}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Fecha fin (opcional)
+                  </label>
+                  <input
+                    type="date"
+                    value={bannerForm.fechaFin}
+                    onChange={(e) => setBannerForm(prev => ({ ...prev, fechaFin: e.target.value }))}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              {/* Estado */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="activo"
+                  checked={bannerForm.activo}
+                  onChange={(e) => setBannerForm(prev => ({ ...prev, activo: e.target.checked }))}
+                  className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <label htmlFor="activo" className="text-sm font-medium text-gray-700">
+                  Banner activo
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <button
+                onClick={cerrarModal}
+                className="px-4 py-2.5 text-gray-700 font-medium hover:bg-gray-200 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarBanner}
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
+                {editingBanner ? 'Actualizar' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </MainLayout>
+  )
+}
+
+export default LandingAdminPage
