@@ -62,9 +62,9 @@ const ConfiguracionIndexPage = () => {
   // Estado para simulador de cotizacion
   const [simulador, setSimulador] = useState({
     peso: '2',
-    alto: '30',
-    ancho: '20',
-    largo: '40'
+    alto: '10',
+    ancho: '15',
+    largo: '25'
   })
 
   useEffect(() => {
