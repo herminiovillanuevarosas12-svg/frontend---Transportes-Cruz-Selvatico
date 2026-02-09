@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import publicService from '../services/publicService'
+import { getUploadUrl } from '../services/apiClient'
 import BannerCarousel from '../components/common/BannerCarousel'
 import {
   ExperienceSection,
@@ -510,7 +511,7 @@ const LandingPage = () => {
       </section>
 
       {/* Sección de Experiencia de Viaje */}
-      <ExperienceSection />
+      <ExperienceSection imagenUrl={config.imagenExperiencia ? getUploadUrl(config.imagenExperiencia) : null} />
 
       {/* Galería de Imágenes */}
       <GallerySection imagenes={gallery} />

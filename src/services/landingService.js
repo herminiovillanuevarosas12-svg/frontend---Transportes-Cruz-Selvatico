@@ -88,6 +88,25 @@ const landingService = {
   actualizarConfigLanding: async (config) => {
     const response = await apiClient.put('/landing/config', config)
     return response.data
+  },
+
+  /**
+   * Subir/actualizar imagen de la sección experiencia
+   * @param {FormData} formData - FormData con campo 'imagen'
+   */
+  subirImagenExperiencia: async (formData) => {
+    const response = await apiClient.put('/landing/config/imagen-experiencia', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  /**
+   * Eliminar imagen de la sección experiencia
+   */
+  eliminarImagenExperiencia: async () => {
+    const response = await apiClient.delete('/landing/config/imagen-experiencia')
+    return response.data
   }
 }
 

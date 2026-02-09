@@ -1,6 +1,6 @@
 /**
  * ExperienceSection - Seccion de experiencia de viaje
- * Layout de 2 columnas con imagen y lista de beneficios
+ * Layout de 2 columnas con imagen configurable y lista de beneficios
  */
 
 import { useNavigate } from 'react-router-dom'
@@ -15,8 +15,11 @@ const caracteristicas = [
   'Paradas estrategicas en ruta'
 ]
 
-const ExperienceSection = () => {
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&h=600&fit=crop'
+
+const ExperienceSection = ({ imagenUrl }) => {
   const navigate = useNavigate()
+  const src = imagenUrl || FALLBACK_IMAGE
 
   return (
     <section className="py-16 md:py-24 bg-gray-50">
@@ -26,9 +29,15 @@ const ExperienceSection = () => {
           <div className="relative order-2 lg:order-1">
             <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl">
               <img
-                src="https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&h=600&fit=crop"
+                src={src}
                 alt="Interior de bus moderno"
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  if (e.target.src !== FALLBACK_IMAGE) {
+                    e.target.onerror = null
+                    e.target.src = FALLBACK_IMAGE
+                  }
+                }}
               />
             </div>
 

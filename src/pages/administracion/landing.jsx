@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import MainLayout from '../../components/layout/MainLayout'
 import landingService from '../../services/landingService'
-import { UPLOADS_URL, getUploadUrl } from '../../services/apiClient'
+import { getUploadUrl } from '../../services/apiClient'
 import {
   Image,
   Images,
@@ -15,7 +15,6 @@ import {
   Plus,
   Trash2,
   Edit3,
-  GripVertical,
   Eye,
   EyeOff,
   Upload,
@@ -27,7 +26,6 @@ import {
   Facebook,
   Instagram,
   Youtube,
-  Phone,
   Mail,
   MessageCircle,
   ChevronUp,
@@ -45,10 +43,13 @@ const LandingAdminPage = () => {
     facebookUrl: '',
     instagramUrl: '',
     youtubeUrl: '',
-    tiempoRotacionBanner: 5
+    tiempoRotacionBanner: 5,
+    imagenExperiencia: null
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingImgExp, setSavingImgExp] = useState(false)
+  const [imgExpPreview, setImgExpPreview] = useState(null)
 
   // Modal de banner/galería
   const [showModal, setShowModal] = useState(false)
@@ -66,6 +67,7 @@ const LandingAdminPage = () => {
   })
 
   const fileInputRef = useRef(null)
+  const imgExpInputRef = useRef(null)
 
   useEffect(() => {
     cargarDatos()
@@ -89,8 +91,12 @@ const LandingAdminPage = () => {
           facebookUrl: configRes.config.facebookUrl || '',
           instagramUrl: configRes.config.instagramUrl || '',
           youtubeUrl: configRes.config.youtubeUrl || '',
-          tiempoRotacionBanner: configRes.config.tiempoRotacionBanner || 5
+          tiempoRotacionBanner: configRes.config.tiempoRotacionBanner || 5,
+          imagenExperiencia: configRes.config.imagenExperiencia || null
         })
+        if (configRes.config.imagenExperiencia) {
+          setImgExpPreview(getUploadUrl(configRes.config.imagenExperiencia))
+        }
       }
     } catch (error) {
       console.error('Error cargando datos:', error)
@@ -273,6 +279,54 @@ const LandingAdminPage = () => {
     } catch (error) {
       console.error('Error reordenando:', error)
       toast.error('Error al reordenar')
+    }
+  }
+
+  // ============================================
+  // IMAGEN EXPERIENCIA
+  // ============================================
+
+  const handleImgExpChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('La imagen no debe superar los 5MB')
+        return
+      }
+      subirImagenExperiencia(file)
+    }
+  }
+
+  const subirImagenExperiencia = async (file) => {
+    try {
+      setSavingImgExp(true)
+      const formData = new FormData()
+      formData.append('imagen', file)
+      const res = await landingService.subirImagenExperiencia(formData)
+      setConfig(prev => ({ ...prev, imagenExperiencia: res.imagenExperiencia }))
+      setImgExpPreview(getUploadUrl(res.imagenExperiencia))
+      toast.success('Imagen de experiencia actualizada')
+    } catch (error) {
+      console.error('Error subiendo imagen de experiencia:', error)
+      toast.error('Error al subir imagen')
+    } finally {
+      setSavingImgExp(false)
+    }
+  }
+
+  const eliminarImgExperiencia = async () => {
+    if (!confirm('¿Eliminar la imagen de la sección Experiencia?')) return
+    try {
+      setSavingImgExp(true)
+      await landingService.eliminarImagenExperiencia()
+      setConfig(prev => ({ ...prev, imagenExperiencia: null }))
+      setImgExpPreview(null)
+      toast.success('Imagen eliminada')
+    } catch (error) {
+      console.error('Error eliminando imagen:', error)
+      toast.error('Error al eliminar imagen')
+    } finally {
+      setSavingImgExp(false)
     }
   }
 
@@ -680,6 +734,58 @@ const LandingAdminPage = () => {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Imagen Sección Experiencia */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">Imagen Sección "Haz de tus Viajes una Gran Experiencia"</h3>
+              <p className="text-xs text-gray-500 mb-4">Esta imagen se muestra en la sección de experiencia del landing page. Recomendado: 800x600px, max 5MB.</p>
+              <div className="flex items-start gap-6">
+                <div
+                  onClick={() => !savingImgExp && imgExpInputRef.current?.click()}
+                  className="relative w-64 h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors flex-shrink-0"
+                >
+                  {savingImgExp && (
+                    <div className="absolute inset-0 z-10 bg-white/70 flex items-center justify-center">
+                      <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                  {imgExpPreview ? (
+                    <>
+                      <img
+                        src={imgExpPreview}
+                        alt="Imagen experiencia"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white font-medium text-sm">Cambiar imagen</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                      <Upload className="w-8 h-8 mb-2" />
+                      <span className="text-xs">Clic para subir imagen</span>
+                    </div>
+                  )}
+                </div>
+                {imgExpPreview && (
+                  <button
+                    onClick={eliminarImgExperiencia}
+                    disabled={savingImgExp}
+                    className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar
+                  </button>
+                )}
+              </div>
+              <input
+                ref={imgExpInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImgExpChange}
+                className="hidden"
+              />
             </div>
 
             {/* Botón guardar */}
