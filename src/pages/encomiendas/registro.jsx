@@ -14,6 +14,7 @@ import configuracionService from '../../services/configuracionService'
 import facturacionService from '../../services/facturacionService'
 import clientesService from '../../services/clientesService'
 import configTiposPaqueteService from '../../services/configTiposPaqueteService'
+import preciosBaseService from '../../services/preciosBaseService'
 import useDocLookup from '../../hooks/useDocLookup'
 import {
   Package,
@@ -42,6 +43,8 @@ const RegistroEncomiendaPage = () => {
   const [configPrecios, setConfigPrecios] = useState(null)
   const [tiposPaquete, setTiposPaquete] = useState([])
   const [tipoPaqueteSeleccionadoId, setTipoPaqueteSeleccionadoId] = useState('')
+  const [preciosBase, setPreciosBase] = useState([])
+  const [idPrecioBaseSeleccionado, setIdPrecioBaseSeleccionado] = useState('')
 
   // Sistema de puntos
   const [configPuntos, setConfigPuntos] = useState({
@@ -110,18 +113,24 @@ const RegistroEncomiendaPage = () => {
 
   const cargarDatosIniciales = async () => {
     try {
-      const [puntosRes, configRes, configSistemaRes, configSunatRes, tiposPaqueteRes] = await Promise.all([
+      const [puntosRes, configRes, configSistemaRes, configSunatRes, tiposPaqueteRes, preciosBaseRes] = await Promise.all([
         puntosService.listar(),
         configuracionService.obtenerPreciosEncomienda().catch(() => null),
         configuracionService.obtener().catch(() => null),
         facturacionService.obtenerConfiguracion().catch(() => null),
-        configTiposPaqueteService.listarActivos().catch(() => ({ configuraciones: [] }))
+        configTiposPaqueteService.listarActivos().catch(() => ({ configuraciones: [] })),
+        preciosBaseService.listar().catch(() => ({ preciosBase: [] }))
       ])
       if (configSunatRes?.configuracion) {
         setDatosEmpresa(configSunatRes.configuracion)
       }
       setPuntos(puntosRes.puntos || [])
       setTiposPaquete(tiposPaqueteRes.configuraciones || [])
+      const listaPreciosBase = preciosBaseRes.preciosBase || []
+      setPreciosBase(listaPreciosBase)
+      if (listaPreciosBase.length > 0) {
+        setIdPrecioBaseSeleccionado(listaPreciosBase[0].id.toString())
+      }
       if (configRes?.configuracion) {
         setConfigPrecios(configRes.configuracion)
       }
@@ -144,6 +153,10 @@ const RegistroEncomiendaPage = () => {
   // Calcular precio en tiempo real
   const calcularPrecio = () => {
     if (!configPrecios) return null
+    if (!idPrecioBaseSeleccionado) return null
+
+    const precioBaseObj = preciosBase.find(pb => pb.id.toString() === idPrecioBaseSeleccionado)
+    if (!precioBaseObj) return null
 
     const peso = parseFloat(formData.peso) || 0
     const alto = parseFloat(formData.alto) || 0
@@ -155,7 +168,7 @@ const RegistroEncomiendaPage = () => {
 
     const volumen = alto * ancho * largo
     const precio =
-      parseFloat(configPrecios.tarifaBase) +
+      parseFloat(precioBaseObj.monto) +
       (peso * parseFloat(configPrecios.precioPorKg)) +
       (volumen * parseFloat(configPrecios.precioPorCm3))
 
@@ -401,6 +414,11 @@ const RegistroEncomiendaPage = () => {
       return false
     }
 
+    if (!idPrecioBaseSeleccionado) {
+      toast.error('Debe seleccionar un precio base')
+      return false
+    }
+
     // Validar tipo de documento - solo si NO es pago al recojo
     if (!pagoAlRecojo) {
       if (!tipoDocumento || !['BOLETA', 'FACTURA', 'VERIFICACION'].includes(tipoDocumento)) {
@@ -470,7 +488,8 @@ const RegistroEncomiendaPage = () => {
         // Si es pago al recojo, forzar VERIFICACION; sino usar el tipo seleccionado
         tipoDocumento: pagoAlRecojo ? 'VERIFICACION' : tipoDocumento,
         pagoAlRecojo,
-        claveSeguridad: claveSeguridad || null
+        claveSeguridad: claveSeguridad || null,
+        idPrecioBase: parseInt(idPrecioBaseSeleccionado)
       }
 
       // Datos de factura: solo si NO es pago al recojo y se selecciono factura
@@ -892,6 +911,35 @@ const RegistroEncomiendaPage = () => {
                 <h3 className="font-semibold text-gray-900">Detalles del Paquete</h3>
               </div>
               <div className="space-y-4">
+                {/* Selector de Precio Base */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Precio Base *
+                  </label>
+                  {preciosBase.length === 0 ? (
+                    <div className="px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
+                      No hay precios base configurados. Configure al menos uno en Configuracion del Sistema.
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {preciosBase.map((pb) => (
+                        <button
+                          key={pb.id}
+                          type="button"
+                          onClick={() => setIdPrecioBaseSeleccionado(pb.id.toString())}
+                          className={`px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+                            idPrecioBaseSeleccionado === pb.id.toString()
+                              ? 'border-purple-500 bg-purple-50 text-purple-700 ring-2 ring-purple-200'
+                              : 'border-gray-200 bg-white text-gray-700 hover:border-purple-300 hover:bg-purple-50'
+                          }`}
+                        >
+                          {pb.nombre} — S/ {parseFloat(pb.monto).toFixed(2)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Combobox
                     label="Tipo de Paquete"

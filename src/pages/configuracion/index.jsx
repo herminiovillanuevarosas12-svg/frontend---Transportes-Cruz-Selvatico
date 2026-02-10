@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import MainLayout from '../../components/layout/MainLayout'
 import { Card, Button } from '../../components/common'
 import configuracionService from '../../services/configuracionService'
+import preciosBaseService from '../../services/preciosBaseService'
 import {
   Settings,
   DollarSign,
@@ -22,8 +23,11 @@ import {
   Calculator,
   Box,
   Ruler,
-  FileText,
-  ScrollText
+  ScrollText,
+  Plus,
+  Pencil,
+  Trash2,
+  X
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -53,23 +57,32 @@ const ConfiguracionIndexPage = () => {
 
   // Estado para precios de encomienda (tabla separada)
   const [preciosEncomienda, setPreciosEncomienda] = useState({
-    tarifaBase: '5.00',
     precioPorKg: '2.50',
     precioPorCm3: '0.001'
   })
   const [preciosEncomiendaExiste, setPreciosEncomiendaExiste] = useState(false)
+
+  // Estado para precios base (lista)
+  const [preciosBase, setPreciosBase] = useState([])
+  const [loadingPreciosBase, setLoadingPreciosBase] = useState(false)
+  const [mostrarFormPrecioBase, setMostrarFormPrecioBase] = useState(false)
+  const [editandoPrecioBase, setEditandoPrecioBase] = useState(null)
+  const [formPrecioBase, setFormPrecioBase] = useState({ nombre: '', monto: '' })
+  const [savingPrecioBase, setSavingPrecioBase] = useState(false)
 
   // Estado para simulador de cotizacion
   const [simulador, setSimulador] = useState({
     peso: '2',
     alto: '10',
     ancho: '15',
-    largo: '25'
+    largo: '25',
+    precioBaseSimulador: '0'
   })
 
   useEffect(() => {
     cargarConfiguracion()
     cargarPreciosEncomienda()
+    cargarPreciosBase()
   }, [])
 
   const cargarConfiguracion = async () => {
@@ -126,17 +139,93 @@ Recibido sin verificación de contenido.`
       const config = response.configuracion
       if (config) {
         setPreciosEncomienda({
-          tarifaBase: config.tarifaBase?.toString() || '5.00',
           precioPorKg: config.precioPorKg?.toString() || '2.50',
           precioPorCm3: config.precioPorCm3?.toString() || '0.001'
         })
         setPreciosEncomiendaExiste(true)
       }
     } catch (error) {
-      // Si no existe configuracion, usar valores por defecto
       console.log('No hay configuracion de precios de encomienda, usando valores por defecto')
       setPreciosEncomiendaExiste(false)
     }
+  }
+
+  // Cargar precios base
+  const cargarPreciosBase = async () => {
+    try {
+      setLoadingPreciosBase(true)
+      const response = await preciosBaseService.listar()
+      const lista = response.preciosBase || []
+      setPreciosBase(lista)
+      // Auto-seleccionar el primero en el simulador si hay
+      if (lista.length > 0 && parseFloat(simulador.precioBaseSimulador) === 0) {
+        setSimulador(prev => ({ ...prev, precioBaseSimulador: lista[0].monto?.toString() || '0' }))
+      }
+    } catch (error) {
+      console.error('Error cargando precios base:', error)
+    } finally {
+      setLoadingPreciosBase(false)
+    }
+  }
+
+  // CRUD precios base
+  const handleGuardarPrecioBase = async () => {
+    if (!formPrecioBase.nombre.trim()) {
+      toast.error('Ingrese un nombre para el precio base')
+      return
+    }
+    if (!formPrecioBase.monto || parseFloat(formPrecioBase.monto) < 0) {
+      toast.error('Ingrese un monto valido')
+      return
+    }
+
+    try {
+      setSavingPrecioBase(true)
+      if (editandoPrecioBase) {
+        await preciosBaseService.actualizar(editandoPrecioBase.id, {
+          nombre: formPrecioBase.nombre.trim(),
+          monto: parseFloat(formPrecioBase.monto)
+        })
+        toast.success('Precio base actualizado')
+      } else {
+        await preciosBaseService.crear({
+          nombre: formPrecioBase.nombre.trim(),
+          monto: parseFloat(formPrecioBase.monto)
+        })
+        toast.success('Precio base creado')
+      }
+      setMostrarFormPrecioBase(false)
+      setEditandoPrecioBase(null)
+      setFormPrecioBase({ nombre: '', monto: '' })
+      cargarPreciosBase()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Error al guardar precio base')
+    } finally {
+      setSavingPrecioBase(false)
+    }
+  }
+
+  const handleEditarPrecioBase = (pb) => {
+    setEditandoPrecioBase(pb)
+    setFormPrecioBase({ nombre: pb.nombre, monto: pb.monto?.toString() || '' })
+    setMostrarFormPrecioBase(true)
+  }
+
+  const handleEliminarPrecioBase = async (pb) => {
+    if (!confirm(`¿Eliminar el precio base "${pb.nombre}"?`)) return
+    try {
+      await preciosBaseService.eliminar(pb.id)
+      toast.success('Precio base eliminado')
+      cargarPreciosBase()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Error al eliminar precio base')
+    }
+  }
+
+  const handleCancelarFormPrecioBase = () => {
+    setMostrarFormPrecioBase(false)
+    setEditandoPrecioBase(null)
+    setFormPrecioBase({ nombre: '', monto: '' })
   }
 
   const handleChange = (e) => {
@@ -158,7 +247,7 @@ Recibido sin verificación de contenido.`
 
   // Calcular precio en el simulador
   const calcularPrecioSimulador = () => {
-    const tarifa = parseFloat(preciosEncomienda.tarifaBase) || 0
+    const tarifa = parseFloat(simulador.precioBaseSimulador) || 0
     const precioKg = parseFloat(preciosEncomienda.precioPorKg) || 0
     const precioCm3 = parseFloat(preciosEncomienda.precioPorCm3) || 0
 
@@ -207,19 +296,19 @@ Recibido sin verificación de contenido.`
     }
   }
 
-  // Guardar precios de encomienda
+  // Guardar precios de encomienda (peso y volumen)
   const handleGuardarPreciosEncomienda = async () => {
     try {
       setSavingEncomienda(true)
 
       const payload = {
-        tarifaBase: parseFloat(preciosEncomienda.tarifaBase) || 0,
+        tarifaBase: 0,
         precioPorKg: parseFloat(preciosEncomienda.precioPorKg) || 0,
         precioPorCm3: parseFloat(preciosEncomienda.precioPorCm3) || 0
       }
 
       // Validaciones
-      if (payload.tarifaBase < 0 || payload.precioPorKg < 0 || payload.precioPorCm3 < 0) {
+      if (payload.precioPorKg < 0 || payload.precioPorCm3 < 0) {
         toast.error('Los precios no pueden ser negativos')
         return
       }
@@ -394,7 +483,7 @@ Recibido sin verificación de contenido.`
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-gray-900">Cotizacion de Encomiendas</h3>
-                  <p className="text-sm text-gray-500">Formula: Tarifa Base + (Peso x Precio/Kg) + (Volumen x Precio/cm³)</p>
+                  <p className="text-sm text-gray-500">Formula: Precio Base + (Peso x Precio/Kg) + (Volumen x Precio/cm³)</p>
                 </div>
               </div>
               {!preciosEncomiendaExiste && (
@@ -404,29 +493,110 @@ Recibido sin verificación de contenido.`
               )}
             </div>
 
-            {/* Campos de configuracion */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tarifa Base (S/)
-                </label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="number"
-                    name="tarifaBase"
-                    value={preciosEncomienda.tarifaBase}
-                    onChange={handlePreciosEncomiendaChange}
-                    placeholder="5.00"
-                    min="0"
-                    step="0.01"
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Costo fijo por cada envio
-                </p>
+            {/* Precios Base */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-medium text-gray-700">Precios Base</label>
+                <button
+                  onClick={() => {
+                    setEditandoPrecioBase(null)
+                    setFormPrecioBase({ nombre: '', monto: '' })
+                    setMostrarFormPrecioBase(true)
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Agregar
+                </button>
               </div>
+
+              {/* Formulario inline para crear/editar */}
+              {mostrarFormPrecioBase && (
+                <div className="flex items-end gap-3 mb-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-purple-700 mb-1">Nombre</label>
+                    <input
+                      type="text"
+                      value={formPrecioBase.nombre}
+                      onChange={(e) => setFormPrecioBase(prev => ({ ...prev, nombre: e.target.value }))}
+                      placeholder="Ej: Economico, Express..."
+                      className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none bg-white"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="w-36">
+                    <label className="block text-xs font-medium text-purple-700 mb-1">Monto (S/)</label>
+                    <input
+                      type="number"
+                      value={formPrecioBase.monto}
+                      onChange={(e) => setFormPrecioBase(prev => ({ ...prev, monto: e.target.value }))}
+                      placeholder="0.00"
+                      min="0"
+                      step="0.01"
+                      className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none bg-white"
+                    />
+                  </div>
+                  <button
+                    onClick={handleGuardarPrecioBase}
+                    disabled={savingPrecioBase}
+                    className="px-3 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <Check className="w-4 h-4" />
+                    {savingPrecioBase ? '...' : 'Guardar'}
+                  </button>
+                  <button
+                    onClick={handleCancelarFormPrecioBase}
+                    className="px-3 py-2 text-gray-500 text-sm rounded-lg hover:bg-gray-100"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Lista de precios base */}
+              {preciosBase.length === 0 ? (
+                <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-lg">
+                  No hay precios base creados. Agregue al menos uno para poder registrar encomiendas.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {preciosBase.map((pb) => (
+                    <div key={pb.id} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-purple-300 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                          <DollarSign className="w-4 h-4 text-purple-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{pb.nombre}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg font-bold text-purple-700">S/ {parseFloat(pb.monto).toFixed(2)}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleEditarPrecioBase(pb)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleEliminarPrecioBase(pb)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Campos de precio por peso y volumen */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Precio por Kg (S/)
@@ -445,7 +615,7 @@ Recibido sin verificación de contenido.`
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Se multiplica por el peso
+                  Se multiplica por el peso del paquete
                 </p>
               </div>
               <div>
@@ -466,7 +636,7 @@ Recibido sin verificación de contenido.`
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Se multiplica por alto×ancho×largo
+                  Se multiplica por alto x ancho x largo
                 </p>
               </div>
             </div>
@@ -479,7 +649,20 @@ Recibido sin verificación de contenido.`
                 <span className="text-xs text-purple-600 ml-auto">Vista previa en tiempo real</span>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                <div>
+                  <label className="block text-xs font-medium text-purple-700 mb-1">Precio Base</label>
+                  <select
+                    value={simulador.precioBaseSimulador}
+                    onChange={(e) => setSimulador(prev => ({ ...prev, precioBaseSimulador: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none bg-white"
+                  >
+                    {preciosBase.length === 0 && <option value="0">Sin precios base</option>}
+                    {preciosBase.map((pb) => (
+                      <option key={pb.id} value={pb.monto}>{pb.nombre} (S/ {parseFloat(pb.monto).toFixed(2)})</option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="block text-xs font-medium text-purple-700 mb-1">Peso (kg)</label>
                   <input
@@ -566,7 +749,7 @@ Recibido sin verificación de contenido.`
                 disabled={savingEncomienda}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                {savingEncomienda ? 'Guardando...' : 'Guardar Precios de Encomienda'}
+                {savingEncomienda ? 'Guardando...' : 'Guardar Precios por Peso/Volumen'}
               </Button>
             </div>
           </Card>
