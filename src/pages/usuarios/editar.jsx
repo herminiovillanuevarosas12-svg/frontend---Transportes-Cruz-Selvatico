@@ -4,7 +4,6 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import MainLayout from '../../components/layout/MainLayout'
 import { Button, Input, Select, Card } from '../../components/common'
 import { usePuntosApi } from '../../hooks/useApi'
 import usuariosService from '../../services/usuariosService'
@@ -144,16 +143,13 @@ const EditarUsuarioPage = () => {
 
   if (loadingData) {
     return (
-      <MainLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
         </div>
-      </MainLayout>
     )
   }
 
   return (
-    <MainLayout>
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -250,7 +246,6 @@ const EditarUsuarioPage = () => {
           </form>
         </Card>
       </div>
-    </MainLayout>
   )
 }
 

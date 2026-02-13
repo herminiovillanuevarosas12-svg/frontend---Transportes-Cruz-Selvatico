@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import MainLayout from '../../components/layout/MainLayout'
 import Card, { StatCard } from '../../components/common/Card'
 import Table from '../../components/common/Table'
 import Button from '../../components/common/Button'
@@ -756,7 +755,7 @@ const FacturacionPage = () => {
   const totales = calcularTotales()
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1783,7 +1782,7 @@ const FacturacionPage = () => {
           </Button>
         </div>
       </Modal>
-    </MainLayout>
+    </>
   )
 }
 

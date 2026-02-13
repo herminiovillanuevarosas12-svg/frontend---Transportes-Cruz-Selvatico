@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import MainLayout from '../../components/layout/MainLayout'
 import { Card, Button } from '../../components/common'
 import encomiendasService from '../../services/encomiendasService'
 import {
@@ -131,20 +130,17 @@ const CambioEstadoPage = () => {
 
   if (loading) {
     return (
-      <MainLayout>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="flex items-center gap-3 text-gray-600">
             <Loader className="w-6 h-6 animate-spin" />
             <span>Cargando...</span>
           </div>
         </div>
-      </MainLayout>
     )
   }
 
   if (!encomienda) {
     return (
-      <MainLayout>
         <div className="text-center py-12">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-gray-600">Encomienda no encontrada</p>
@@ -156,7 +152,6 @@ const CambioEstadoPage = () => {
             Volver al escaneo
           </Button>
         </div>
-      </MainLayout>
     )
   }
 
@@ -165,7 +160,6 @@ const CambioEstadoPage = () => {
   const estadoSiguiente = siguienteEstado ? getEstadoInfo(siguienteEstado) : null
 
   return (
-    <MainLayout>
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -302,7 +296,6 @@ const CambioEstadoPage = () => {
           </div>
         </Card>
       </div>
-    </MainLayout>
   )
 }
 

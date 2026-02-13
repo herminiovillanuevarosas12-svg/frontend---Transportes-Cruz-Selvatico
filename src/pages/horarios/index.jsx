@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect } from 'react'
-import MainLayout from '../../components/layout/MainLayout'
 import { Table, Button, Modal, Card, Select, Input, StatusBadge } from '../../components/common'
 import { useRutasApi } from '../../hooks/useApi'
 import horariosService from '../../services/horariosService'
@@ -170,7 +169,7 @@ const HorariosIndexPage = () => {
   ]
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -261,7 +260,7 @@ const HorariosIndexPage = () => {
           />
         </div>
       </Modal>
-    </MainLayout>
+    </>
   )
 }
 

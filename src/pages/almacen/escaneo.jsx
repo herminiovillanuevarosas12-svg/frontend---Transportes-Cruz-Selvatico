@@ -5,7 +5,6 @@
 
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import MainLayout from '../../components/layout/MainLayout'
 import { Card, Button, StatusBadge, QRScanner } from '../../components/common'
 import { useAuthStore } from '../../features/auth/authStore'
 import encomiendasService from '../../services/encomiendasService'
@@ -143,7 +142,6 @@ const EscaneoAlmacenPage = () => {
   }
 
   return (
-    <MainLayout>
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="mb-6 text-center">
@@ -407,7 +405,6 @@ const EscaneoAlmacenPage = () => {
           </div>
         )}
       </div>
-    </MainLayout>
   )
 }
 

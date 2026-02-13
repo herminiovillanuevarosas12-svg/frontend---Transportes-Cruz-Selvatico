@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect } from 'react'
-import MainLayout from '../../components/layout/MainLayout'
 import { Card, Button } from '../../components/common'
 import configuracionService from '../../services/configuracionService'
 import preciosBaseService from '../../services/preciosBaseService'
@@ -327,19 +326,16 @@ Recibido sin verificación de contenido.`
 
   if (loading) {
     return (
-      <MainLayout>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="flex items-center gap-3 text-gray-600">
             <RefreshCw className="w-6 h-6 animate-spin" />
             <span>Cargando configuracion...</span>
           </div>
         </div>
-      </MainLayout>
     )
   }
 
   return (
-    <MainLayout>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -934,7 +930,6 @@ Recibido sin verificación de contenido.`
           </div>
         </div>
       </div>
-    </MainLayout>
   )
 }
 

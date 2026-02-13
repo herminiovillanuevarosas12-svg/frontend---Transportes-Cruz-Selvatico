@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import MainLayout from '../../components/layout/MainLayout'
 import { TicketPrint, ComprobantePrint } from '../../components/common'
 import rutasService from '../../services/rutasService'
 import viajesService from '../../services/viajesService'
@@ -521,7 +520,7 @@ const VentaTicketPage = () => {
   }
 
   return (
-    <MainLayout>
+    <>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6 flex items-start justify-between">
@@ -1258,7 +1257,7 @@ const VentaTicketPage = () => {
         onClose={() => setShowVentaInstantanea(false)}
         onVentaExitosa={handleVentaInstantaneaExitosa}
       />
-    </MainLayout>
+    </>
   )
 }
 

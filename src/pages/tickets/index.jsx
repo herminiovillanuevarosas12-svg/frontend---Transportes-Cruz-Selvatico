@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import MainLayout from '../../components/layout/MainLayout'
 import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint } from '../../components/common'
 import { PermissionGate } from '../../features/auth'
 import ticketsService from '../../services/ticketsService'
@@ -368,7 +367,7 @@ const TicketsIndexPage = () => {
   ]
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -693,7 +692,7 @@ const TicketsIndexPage = () => {
           <ComprobantePrint comprobante={comprobanteParaVer} empresa={datosEmpresa} />
         </div>
       )}
-    </MainLayout>
+    </>
   )
 }
 

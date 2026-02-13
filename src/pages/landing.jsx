@@ -45,6 +45,7 @@ const LandingPage = () => {
   const [ciudades, setCiudades] = useState({})
   const [banners, setBanners] = useState([])
   const [gallery, setGallery] = useState([])
+  const [festividades, setFestividades] = useState([])
   const [config, setConfig] = useState({
     nombreEmpresa: 'Transportes',
     slogan: 'Viaja seguro, envía confiado',
@@ -75,18 +76,20 @@ const LandingPage = () => {
 
   const cargarDatos = async () => {
     try {
-      const [rutasRes, puntosRes, bannersRes, galleryRes, configRes] = await Promise.all([
+      const [rutasRes, puntosRes, bannersRes, galleryRes, configRes, festividadesRes] = await Promise.all([
         publicService.getRutas(),
         publicService.getPuntos(),
         publicService.getBanners().catch(() => ({ banners: [] })),
         publicService.getGallery().catch(() => ({ imagenes: [] })),
-        publicService.getConfigLanding().catch(() => ({ config: {} }))
+        publicService.getConfigLanding().catch(() => ({ config: {} })),
+        publicService.getFestividades().catch(() => ({ festividades: [] }))
       ])
       setRutas(rutasRes.rutas || [])
       setPuntos(puntosRes.puntos || [])
       setCiudades(puntosRes.ciudades || {})
       setBanners(bannersRes.banners || [])
       setGallery(galleryRes.imagenes || [])
+      setFestividades(festividadesRes.festividades || [])
       if (configRes.config) {
         setConfig(prev => ({ ...prev, ...configRes.config }))
       }
@@ -372,8 +375,8 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Destinos Populares */}
-      {destinosPopulares.length > 0 && (
+      {/* Destinos Populares + Festividades */}
+      {(destinosPopulares.length > 0 || festividades.length > 0) && (
         <section id="destinos" className="py-16 bg-primary-50 scroll-mt-20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
@@ -386,25 +389,102 @@ const LandingPage = () => {
               </h2>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {destinosPopulares.map((destino, index) => (
-                <Link
-                  key={destino.ciudad}
-                  to={`/rutas-info?destino=${destino.ciudad}`}
-                  className="group bg-white rounded-2xl p-5 border border-primary-100 hover:border-primary-300 hover:shadow-lg transition-all duration-300 text-center"
-                >
-                  <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-lg shadow-primary-500/25">
-                    <MapPin className="w-6 h-6 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-gray-900 group-hover:text-primary-700 transition-colors">
-                    {destino.ciudad}
+            {/* Cards de destinos */}
+            {destinosPopulares.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {destinosPopulares.map((destino, index) => (
+                  <Link
+                    key={destino.ciudad}
+                    to={`/rutas-info?destino=${destino.ciudad}`}
+                    className="group bg-white rounded-2xl p-5 border border-primary-100 hover:border-primary-300 hover:shadow-lg transition-all duration-300 text-center"
+                  >
+                    <div className="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform shadow-lg shadow-primary-500/25">
+                      <MapPin className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900 group-hover:text-primary-700 transition-colors">
+                      {destino.ciudad}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {destino.rutas} {destino.rutas === 1 ? 'ruta' : 'rutas'}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {/* Festividades de los destinos */}
+            {festividades.length > 0 && (
+              <div className="mt-12">
+                <div className="text-center mb-8">
+                  <h3 className="text-xl lg:text-2xl font-bold text-primary-700">
+                    Festividades y Eventos en Nuestros Destinos
                   </h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {destino.rutas} {destino.rutas === 1 ? 'ruta' : 'rutas'}
+                  <p className="text-primary-600 mt-2">
+                    Conoce las celebraciones que hacen únicos a estos lugares
                   </p>
-                </Link>
-              ))}
-            </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {festividades.map((fest) => {
+                    const imgPath = fest.imagenPath || fest.imagen_path
+                    return (
+                      <div
+                        key={fest.id}
+                        className="group bg-white rounded-2xl border border-primary-100 overflow-hidden shadow-md hover:shadow-xl hover:border-primary-300 transition-all duration-300"
+                      >
+                        {/* Imagen */}
+                        {imgPath ? (
+                          <div className="aspect-[16/10] overflow-hidden relative">
+                            <img
+                              src={getUploadUrl(imgPath)}
+                              alt={fest.titulo}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              onError={(e) => {
+                                e.target.onerror = null
+                                e.target.src = '/placeholder-banner.jpg'
+                              }}
+                            />
+                            <div className="absolute top-3 left-3">
+                              <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/90 backdrop-blur-sm text-primary-700 rounded-full text-xs font-semibold shadow-sm">
+                                <MapPin className="w-3 h-3" />
+                                {fest.puntoCiudad}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="aspect-[16/10] bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center relative">
+                            <MapPin className="w-16 h-16 text-primary-300" />
+                            <div className="absolute top-3 left-3">
+                              <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/90 backdrop-blur-sm text-primary-700 rounded-full text-xs font-semibold shadow-sm">
+                                <MapPin className="w-3 h-3" />
+                                {fest.puntoCiudad}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Contenido */}
+                        <div className="p-5">
+                          <h4 className="text-lg font-bold text-primary-800 mb-2 group-hover:text-primary-600 transition-colors">
+                            {fest.titulo}
+                          </h4>
+                          {fest.descripcion && (
+                            <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
+                              {fest.descripcion}
+                            </p>
+                          )}
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <p className="text-xs text-primary-500 font-medium">
+                              {fest.puntoNombre}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}

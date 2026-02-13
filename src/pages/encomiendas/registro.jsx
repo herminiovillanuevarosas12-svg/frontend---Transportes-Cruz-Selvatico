@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import MainLayout from '../../components/layout/MainLayout'
 import { Button, Card, QRGenerator, ClienteCombobox, ComprobantePrint, Combobox } from '../../components/common'
 import { formatTimestamp } from '../../utils/dateUtils'
 import puntosService from '../../services/puntosService'
@@ -561,7 +560,6 @@ const RegistroEncomiendaPage = () => {
   }
 
   return (
-    <MainLayout>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -1817,7 +1815,6 @@ const RegistroEncomiendaPage = () => {
           </>
         )}
       </div>
-    </MainLayout>
   )
 }
 

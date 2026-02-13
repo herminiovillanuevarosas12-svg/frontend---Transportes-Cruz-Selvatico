@@ -107,6 +107,59 @@ const landingService = {
   eliminarImagenExperiencia: async () => {
     const response = await apiClient.delete('/landing/config/imagen-experiencia')
     return response.data
+  },
+
+  // ============================================
+  // FESTIVIDADES
+  // ============================================
+
+  /**
+   * Listar festividades (admin)
+   */
+  listarFestividades: async () => {
+    const response = await apiClient.get('/landing/festividades')
+    return response.data
+  },
+
+  /**
+   * Crear festividad
+   * @param {FormData} formData
+   */
+  crearFestividad: async (formData) => {
+    const response = await apiClient.post('/landing/festividades', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  /**
+   * Actualizar festividad
+   * @param {number} id
+   * @param {FormData} formData
+   */
+  actualizarFestividad: async (id, formData) => {
+    const response = await apiClient.put(`/landing/festividades/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  /**
+   * Eliminar festividad
+   * @param {number} id
+   */
+  eliminarFestividad: async (id) => {
+    const response = await apiClient.delete(`/landing/festividades/${id}`)
+    return response.data
+  },
+
+  /**
+   * Toggle activo/inactivo festividad
+   * @param {number} id
+   */
+  toggleFestividad: async (id) => {
+    const response = await apiClient.patch(`/landing/festividades/${id}/toggle`)
+    return response.data
   }
 }
 

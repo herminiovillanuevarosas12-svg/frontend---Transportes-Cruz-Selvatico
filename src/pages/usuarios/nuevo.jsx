@@ -4,7 +4,6 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import MainLayout from '../../components/layout/MainLayout'
 import { Button, Input, Select, Card } from '../../components/common'
 import { usePuntosApi } from '../../hooks/useApi'
 import usuariosService from '../../services/usuariosService'
@@ -118,7 +117,6 @@ const NuevoUsuarioPage = () => {
   }
 
   return (
-    <MainLayout>
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -215,7 +213,6 @@ const NuevoUsuarioPage = () => {
           </form>
         </Card>
       </div>
-    </MainLayout>
   )
 }
 

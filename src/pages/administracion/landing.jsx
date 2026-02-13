@@ -5,8 +5,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'react-hot-toast'
-import MainLayout from '../../components/layout/MainLayout'
 import landingService from '../../services/landingService'
+import publicService from '../../services/publicService'
 import { getUploadUrl } from '../../services/apiClient'
 import {
   Image,
@@ -29,7 +29,9 @@ import {
   Mail,
   MessageCircle,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  PartyPopper,
+  MapPin
 } from 'lucide-react'
 
 const LandingAdminPage = () => {
@@ -66,8 +68,26 @@ const LandingAdminPage = () => {
     imagenFile: null
   })
 
+  // Festividades
+  const [festividades, setFestividades] = useState([])
+  const [puntos, setPuntos] = useState([])
+  const [showFestModal, setShowFestModal] = useState(false)
+  const [editingFest, setEditingFest] = useState(null)
+  const [festForm, setFestForm] = useState({
+    titulo: '',
+    descripcion: '',
+    idPunto: '',
+    activo: true,
+    orden: 0,
+    imagenPreview: null,
+    imagenFile: null
+  })
+  const [savingFest, setSavingFest] = useState(false)
+  const [filtroPunto, setFiltroPunto] = useState('')
+
   const fileInputRef = useRef(null)
   const imgExpInputRef = useRef(null)
+  const festFileInputRef = useRef(null)
 
   useEffect(() => {
     cargarDatos()
@@ -76,13 +96,17 @@ const LandingAdminPage = () => {
   const cargarDatos = async () => {
     try {
       setLoading(true)
-      const [bannersRes, galleryRes, configRes] = await Promise.all([
+      const [bannersRes, galleryRes, configRes, festRes, puntosRes] = await Promise.all([
         landingService.listarBanners('banner'),
         landingService.listarBanners('gallery'),
-        landingService.getConfigLanding()
+        landingService.getConfigLanding(),
+        landingService.listarFestividades().catch(() => ({ festividades: [] })),
+        publicService.getPuntos().catch(() => ({ puntos: [] }))
       ])
       setBanners(bannersRes.banners || [])
       setGallery(galleryRes.banners || [])
+      setFestividades(festRes.festividades || [])
+      setPuntos(puntosRes.puntos || [])
       if (configRes.config) {
         setConfig({
           slogan: configRes.config.slogan || '',
@@ -283,6 +307,136 @@ const LandingAdminPage = () => {
   }
 
   // ============================================
+  // FESTIVIDADES
+  // ============================================
+
+  const abrirModalFest = (fest = null) => {
+    if (fest) {
+      setEditingFest(fest)
+      setFestForm({
+        titulo: fest.titulo || '',
+        descripcion: fest.descripcion || '',
+        idPunto: fest.idPunto?.toString() || '',
+        activo: fest.activo !== false,
+        orden: fest.orden || 0,
+        imagenPreview: fest.imagenPath ? getUploadUrl(fest.imagenPath) : null,
+        imagenFile: null
+      })
+    } else {
+      setEditingFest(null)
+      setFestForm({
+        titulo: '',
+        descripcion: '',
+        idPunto: '',
+        activo: true,
+        orden: festividades.length,
+        imagenPreview: null,
+        imagenFile: null
+      })
+    }
+    setShowFestModal(true)
+  }
+
+  const cerrarModalFest = () => {
+    setShowFestModal(false)
+    setEditingFest(null)
+    setFestForm({
+      titulo: '',
+      descripcion: '',
+      idPunto: '',
+      activo: true,
+      orden: 0,
+      imagenPreview: null,
+      imagenFile: null
+    })
+  }
+
+  const handleFestImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('La imagen no debe superar los 5MB')
+        return
+      }
+      setFestForm(prev => ({
+        ...prev,
+        imagenFile: file,
+        imagenPreview: URL.createObjectURL(file)
+      }))
+    }
+  }
+
+  const guardarFest = async () => {
+    try {
+      if (!festForm.titulo.trim()) {
+        toast.error('El titulo es requerido')
+        return
+      }
+      if (!festForm.idPunto) {
+        toast.error('Selecciona un punto')
+        return
+      }
+      if (!editingFest && !festForm.imagenFile) {
+        toast.error('Se requiere una imagen')
+        return
+      }
+
+      setSavingFest(true)
+
+      const formData = new FormData()
+      formData.append('titulo', festForm.titulo)
+      formData.append('descripcion', festForm.descripcion)
+      formData.append('idPunto', festForm.idPunto)
+      formData.append('activo', festForm.activo)
+      formData.append('orden', festForm.orden)
+      if (festForm.imagenFile) formData.append('imagen', festForm.imagenFile)
+
+      if (editingFest) {
+        await landingService.actualizarFestividad(editingFest.id, formData)
+        toast.success('Festividad actualizada')
+      } else {
+        await landingService.crearFestividad(formData)
+        toast.success('Festividad creada')
+      }
+
+      cerrarModalFest()
+      cargarDatos()
+    } catch (error) {
+      console.error('Error guardando festividad:', error)
+      toast.error('Error al guardar festividad')
+    } finally {
+      setSavingFest(false)
+    }
+  }
+
+  const eliminarFest = async (id) => {
+    if (!confirm('¿Eliminar esta festividad?')) return
+    try {
+      await landingService.eliminarFestividad(id)
+      toast.success('Festividad eliminada')
+      cargarDatos()
+    } catch (error) {
+      console.error('Error eliminando festividad:', error)
+      toast.error('Error al eliminar festividad')
+    }
+  }
+
+  const toggleFest = async (id) => {
+    try {
+      const res = await landingService.toggleFestividad(id)
+      toast.success(res.mensaje)
+      cargarDatos()
+    } catch (error) {
+      console.error('Error toggling festividad:', error)
+      toast.error('Error al actualizar festividad')
+    }
+  }
+
+  const festividadesFiltradas = filtroPunto
+    ? festividades.filter(f => f.idPunto?.toString() === filtroPunto)
+    : festividades
+
+  // ============================================
   // IMAGEN EXPERIENCIA
   // ============================================
 
@@ -352,7 +506,7 @@ const LandingAdminPage = () => {
   // ============================================
 
   return (
-    <MainLayout>
+    <>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -387,6 +541,19 @@ const LandingAdminPage = () => {
               <div className="flex items-center gap-2">
                 <Images className="w-4 h-4" />
                 Galería
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('festividades')}
+              className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'festividades'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <PartyPopper className="w-4 h-4" />
+                Festividades
               </div>
             </button>
             <button
@@ -627,6 +794,120 @@ const LandingAdminPage = () => {
                             <ChevronDown className="w-3 h-3" />
                           </button>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Festividades */}
+        {!loading && activeTab === 'festividades' && (
+          <div className="space-y-6">
+            {/* Header con filtro y botón */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <select
+                  value={filtroPunto}
+                  onChange={(e) => setFiltroPunto(e.target.value)}
+                  className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Todos los puntos</option>
+                  {puntos.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre} - {p.ciudad}</option>
+                  ))}
+                </select>
+                <span className="text-sm text-gray-500">
+                  {festividadesFiltradas.length} festividad{festividadesFiltradas.length !== 1 ? 'es' : ''}
+                </span>
+              </div>
+              <button
+                onClick={() => abrirModalFest()}
+                className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Agregar Festividad
+              </button>
+            </div>
+
+            {/* Lista */}
+            {festividadesFiltradas.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+                <PartyPopper className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900">No hay festividades</h3>
+                <p className="text-gray-500 mt-1">Agrega festividades para mostrar en la landing</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {festividadesFiltradas.map((fest) => (
+                  <div
+                    key={fest.id}
+                    className={`bg-white rounded-xl border ${fest.activo ? 'border-gray-200' : 'border-gray-200 opacity-60'} overflow-hidden group`}
+                  >
+                    {/* Imagen */}
+                    <div className="aspect-[16/10] relative overflow-hidden">
+                      {fest.imagenPath ? (
+                        <img
+                          src={getUploadUrl(fest.imagenPath)}
+                          alt={fest.titulo}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null
+                            e.target.src = '/placeholder-banner.jpg'
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
+                          <PartyPopper className="w-12 h-12 text-primary-300" />
+                        </div>
+                      )}
+                      {/* Badge ciudad */}
+                      <div className="absolute top-2 left-2">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur-sm text-primary-700 rounded-full text-xs font-semibold">
+                          <MapPin className="w-3 h-3" />
+                          {fest.puntoCiudad}
+                        </span>
+                      </div>
+                      {/* Overlay acciones */}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => abrirModalFest(fest)}
+                          className="p-2 bg-white rounded-lg text-gray-700 hover:bg-primary-50 hover:text-primary-600"
+                          title="Editar"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => toggleFest(fest.id)}
+                          className="p-2 bg-white rounded-lg text-gray-700 hover:bg-gray-100"
+                          title={fest.activo ? 'Desactivar' : 'Activar'}
+                        >
+                          {fest.activo ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => eliminarFest(fest.id)}
+                          className="p-2 bg-white rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-600"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* Info */}
+                    <div className="p-4">
+                      <h3 className={`font-semibold truncate ${fest.activo ? 'text-gray-900' : 'text-gray-500'}`}>
+                        {fest.titulo}
+                      </h3>
+                      {fest.descripcion && (
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-2">{fest.descripcion}</p>
+                      )}
+                      <div className="flex items-center justify-between mt-3">
+                        <span className="text-xs text-gray-400">{fest.puntoNombre}</span>
+                        <span className={`text-xs font-medium ${fest.activo ? 'text-green-600' : 'text-gray-400'}`}>
+                          {fest.activo ? 'Activa' : 'Inactiva'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -973,7 +1254,147 @@ const LandingAdminPage = () => {
           </div>
         </div>
       )}
-    </MainLayout>
+      {/* Modal Festividad */}
+      {showFestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">
+                {editingFest ? 'Editar Festividad' : 'Nueva Festividad'}
+              </h2>
+              <button
+                onClick={cerrarModalFest}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Contenido */}
+            <div className="p-6 space-y-6">
+              {/* Imagen */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Imagen *
+                </label>
+                <div
+                  onClick={() => festFileInputRef.current?.click()}
+                  className="relative w-full h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors"
+                >
+                  {festForm.imagenPreview ? (
+                    <>
+                      <img
+                        src={festForm.imagenPreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white font-medium">Cambiar imagen</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                      <Upload className="w-10 h-10 mb-2" />
+                      <span className="text-sm">Clic para seleccionar imagen</span>
+                      <span className="text-xs mt-1">Recomendado: 800x500px, max 5MB</span>
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={festFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFestImageChange}
+                  className="hidden"
+                />
+              </div>
+
+              {/* Punto */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Punto (Agencia/Terminal) *
+                </label>
+                <select
+                  value={festForm.idPunto}
+                  onChange={(e) => setFestForm(prev => ({ ...prev, idPunto: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Seleccionar punto...</option>
+                  {puntos.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre} - {p.ciudad}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Título */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Titulo *
+                </label>
+                <input
+                  type="text"
+                  value={festForm.titulo}
+                  onChange={(e) => setFestForm(prev => ({ ...prev, titulo: e.target.value }))}
+                  placeholder="Nombre de la festividad o evento"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Descripción */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Descripción
+                </label>
+                <textarea
+                  value={festForm.descripcion}
+                  onChange={(e) => setFestForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                  placeholder="Descripción del evento o festividad..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                />
+              </div>
+
+              {/* Estado */}
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="festActivo"
+                  checked={festForm.activo}
+                  onChange={(e) => setFestForm(prev => ({ ...prev, activo: e.target.checked }))}
+                  className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <label htmlFor="festActivo" className="text-sm font-medium text-gray-700">
+                  Festividad activa (visible en landing)
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <button
+                onClick={cerrarModalFest}
+                className="px-4 py-2.5 text-gray-700 font-medium hover:bg-gray-200 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarFest}
+                disabled={savingFest}
+                className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {savingFest ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
+                {editingFest ? 'Actualizar' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

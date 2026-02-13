@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import MainLayout from '../../components/layout/MainLayout'
 import { Button, Input, Combobox, Card, Select } from '../../components/common'
 import { useRutasApi, usePuntosApi, useTiposCarroApi } from '../../hooks/useApi'
 import { ArrowLeft, Save } from 'lucide-react'
@@ -114,7 +113,6 @@ const NuevaRutaPage = () => {
   }
 
   return (
-    <MainLayout>
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -203,7 +201,6 @@ const NuevaRutaPage = () => {
           </form>
         </Card>
       </div>
-    </MainLayout>
   )
 }
 

@@ -5,6 +5,7 @@
 
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '../features/auth/authStore'
+import MainLayout from '../components/layout/MainLayout'
 
 // Pages
 import LandingPage from '../pages/landing'
@@ -188,243 +189,64 @@ const AppRoutes = () => {
         element={<DefaultRedirect />}
       />
 
-      {/* Dashboard - Requiere permiso */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute requiredPermission="DASHBOARD_VER">
-            <DashboardPage />
-          </ProtectedRoute>
-        }
-      />
+      {/* Rutas protegidas con layout compartido (Sidebar + Header persisten) */}
+      <Route element={<MainLayout />}>
+        {/* Dashboard */}
+        <Route path="/dashboard" element={<ProtectedRoute requiredPermission="DASHBOARD_VER"><DashboardPage /></ProtectedRoute>} />
 
-      {/* Puntos */}
-      <Route
-        path="/puntos"
-        element={
-          <ProtectedRoute requiredPermission="PUNTOS_LISTAR">
-            <PuntosListPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/puntos/nuevo"
-        element={
-          <ProtectedRoute requiredPermission="PUNTOS_CREAR">
-            <NuevoPuntoPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/puntos/:id/editar"
-        element={
-          <ProtectedRoute requiredPermission="PUNTOS_EDITAR">
-            <EditarPuntoPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Puntos */}
+        <Route path="/puntos" element={<ProtectedRoute requiredPermission="PUNTOS_LISTAR"><PuntosListPage /></ProtectedRoute>} />
+        <Route path="/puntos/nuevo" element={<ProtectedRoute requiredPermission="PUNTOS_CREAR"><NuevoPuntoPage /></ProtectedRoute>} />
+        <Route path="/puntos/:id/editar" element={<ProtectedRoute requiredPermission="PUNTOS_EDITAR"><EditarPuntoPage /></ProtectedRoute>} />
 
-      {/* Rutas */}
-      <Route
-        path="/rutas"
-        element={
-          <ProtectedRoute requiredPermission="RUTAS_LISTAR">
-            <RutasListPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/rutas/nuevo"
-        element={
-          <ProtectedRoute requiredPermission="RUTAS_CREAR">
-            <NuevaRutaPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/rutas/:id/editar"
-        element={
-          <ProtectedRoute requiredPermission="RUTAS_EDITAR">
-            <EditarRutaPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Rutas */}
+        <Route path="/rutas" element={<ProtectedRoute requiredPermission="RUTAS_LISTAR"><RutasListPage /></ProtectedRoute>} />
+        <Route path="/rutas/nuevo" element={<ProtectedRoute requiredPermission="RUTAS_CREAR"><NuevaRutaPage /></ProtectedRoute>} />
+        <Route path="/rutas/:id/editar" element={<ProtectedRoute requiredPermission="RUTAS_EDITAR"><EditarRutaPage /></ProtectedRoute>} />
 
-      {/* Tipos de Carro */}
-      <Route
-        path="/tipos-carro"
-        element={
-          <ProtectedRoute requiredPermission="RUTAS_LISTAR">
-            <TiposCarroPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Tipos de Carro */}
+        <Route path="/tipos-carro" element={<ProtectedRoute requiredPermission="RUTAS_LISTAR"><TiposCarroPage /></ProtectedRoute>} />
 
-      {/* Tipos de Paquete */}
-      <Route
-        path="/tipos-paquete"
-        element={
-          <ProtectedRoute requiredPermission="DASHBOARD_VER">
-            <TiposPaquetePage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Tipos de Paquete */}
+        <Route path="/tipos-paquete" element={<ProtectedRoute requiredPermission="DASHBOARD_VER"><TiposPaquetePage /></ProtectedRoute>} />
 
-      {/* Horarios */}
-      <Route
-        path="/horarios"
-        element={
-          <ProtectedRoute requiredPermission="HORARIOS_LISTAR">
-            <HorariosListPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Horarios */}
+        <Route path="/horarios" element={<ProtectedRoute requiredPermission="HORARIOS_LISTAR"><HorariosListPage /></ProtectedRoute>} />
 
-      {/* Usuarios */}
-      <Route
-        path="/usuarios"
-        element={
-          <ProtectedRoute requiredPermission="USUARIOS_LISTAR">
-            <UsuariosListPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/usuarios/nuevo"
-        element={
-          <ProtectedRoute requiredPermission="USUARIOS_CREAR">
-            <NuevoUsuarioPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/usuarios/:id/editar"
-        element={
-          <ProtectedRoute requiredPermission="USUARIOS_EDITAR">
-            <EditarUsuarioPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Usuarios */}
+        <Route path="/usuarios" element={<ProtectedRoute requiredPermission="USUARIOS_LISTAR"><UsuariosListPage /></ProtectedRoute>} />
+        <Route path="/usuarios/nuevo" element={<ProtectedRoute requiredPermission="USUARIOS_CREAR"><NuevoUsuarioPage /></ProtectedRoute>} />
+        <Route path="/usuarios/:id/editar" element={<ProtectedRoute requiredPermission="USUARIOS_EDITAR"><EditarUsuarioPage /></ProtectedRoute>} />
 
-      {/* Clientes */}
-      <Route
-        path="/clientes"
-        element={
-          <ProtectedRoute requiredPermission="CLIENTES_LISTAR">
-            <ClientesListPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Clientes */}
+        <Route path="/clientes" element={<ProtectedRoute requiredPermission="CLIENTES_LISTAR"><ClientesListPage /></ProtectedRoute>} />
 
-      {/* Tickets */}
-      <Route
-        path="/tickets"
-        element={
-          <ProtectedRoute requiredPermission="PASAJES_LISTAR">
-            <TicketsListPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tickets/venta"
-        element={
-          <ProtectedRoute requiredPermission="PASAJES_VENDER">
-            <VentaTicketPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/tickets/:id/imprimir"
-        element={
-          <ProtectedRoute requiredPermission="PASAJES_LISTAR">
-            <ImprimirTicketPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Tickets */}
+        <Route path="/tickets" element={<ProtectedRoute requiredPermission="PASAJES_LISTAR"><TicketsListPage /></ProtectedRoute>} />
+        <Route path="/tickets/venta" element={<ProtectedRoute requiredPermission="PASAJES_VENDER"><VentaTicketPage /></ProtectedRoute>} />
+        <Route path="/tickets/:id/imprimir" element={<ProtectedRoute requiredPermission="PASAJES_LISTAR"><ImprimirTicketPage /></ProtectedRoute>} />
 
-      {/* Encomiendas */}
-      <Route
-        path="/encomiendas"
-        element={
-          <ProtectedRoute requiredPermission="ENCOMIENDAS_LISTAR">
-            <EncomiendasListPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/encomiendas/registro"
-        element={
-          <ProtectedRoute requiredPermission="ENCOMIENDAS_REGISTRAR">
-            <RegistroEncomiendaPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Encomiendas */}
+        <Route path="/encomiendas" element={<ProtectedRoute requiredPermission="ENCOMIENDAS_LISTAR"><EncomiendasListPage /></ProtectedRoute>} />
+        <Route path="/encomiendas/registro" element={<ProtectedRoute requiredPermission="ENCOMIENDAS_REGISTRAR"><RegistroEncomiendaPage /></ProtectedRoute>} />
 
-      {/* Almacen */}
-      <Route
-        path="/almacen/escaneo"
-        element={
-          <ProtectedRoute requiredPermission="ENCOMIENDAS_ESCANEAR">
-            <EscaneoAlmacenPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/almacen/cambio-estado/:id"
-        element={
-          <ProtectedRoute requiredPermission="ENCOMIENDAS_CAMBIAR_ESTADO">
-            <CambioEstadoPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/almacen/retiro/:id"
-        element={
-          <ProtectedRoute requiredPermission="ENCOMIENDAS_RETIRAR">
-            <RetiroEncomiendaPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Almacen */}
+        <Route path="/almacen/escaneo" element={<ProtectedRoute requiredPermission="ENCOMIENDAS_ESCANEAR"><EscaneoAlmacenPage /></ProtectedRoute>} />
+        <Route path="/almacen/cambio-estado/:id" element={<ProtectedRoute requiredPermission="ENCOMIENDAS_CAMBIAR_ESTADO"><CambioEstadoPage /></ProtectedRoute>} />
+        <Route path="/almacen/retiro/:id" element={<ProtectedRoute requiredPermission="ENCOMIENDAS_RETIRAR"><RetiroEncomiendaPage /></ProtectedRoute>} />
 
-      {/* Ingresos */}
-      <Route
-        path="/ingresos"
-        element={
-          <ProtectedRoute requiredPermission="DASHBOARD_VER">
-            <IngresosPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Ingresos */}
+        <Route path="/ingresos" element={<ProtectedRoute requiredPermission="DASHBOARD_VER"><IngresosPage /></ProtectedRoute>} />
 
-      {/* Facturacion */}
-      <Route
-        path="/facturacion"
-        element={
-          <ProtectedRoute requiredPermission="FACTURACION_VER">
-            <FacturacionPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Facturacion */}
+        <Route path="/facturacion" element={<ProtectedRoute requiredPermission="FACTURACION_VER"><FacturacionPage /></ProtectedRoute>} />
 
-      {/* Configuracion - Requiere permiso de dashboard */}
-      <Route
-        path="/configuracion"
-        element={
-          <ProtectedRoute requiredPermission="DASHBOARD_VER">
-            <ConfiguracionPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Configuracion */}
+        <Route path="/configuracion" element={<ProtectedRoute requiredPermission="DASHBOARD_VER"><ConfiguracionPage /></ProtectedRoute>} />
 
-      {/* Landing Admin */}
-      <Route
-        path="/admin/landing"
-        element={
-          <ProtectedRoute requiredPermission="BANNERS_VER">
-            <LandingAdminPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Landing Admin */}
+        <Route path="/admin/landing" element={<ProtectedRoute requiredPermission="BANNERS_VER"><LandingAdminPage /></ProtectedRoute>} />
+      </Route>
 
       {/* Landing Page - Redirige a modulo por defecto si esta autenticado */}
       <Route

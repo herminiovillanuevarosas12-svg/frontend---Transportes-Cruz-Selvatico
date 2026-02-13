@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect } from 'react'
-import MainLayout from '../../components/layout/MainLayout'
 import { Table, Button, Modal, StatusBadge, Card, Input } from '../../components/common'
 import { PermissionGate } from '../../features/auth'
 import { useTiposCarroApi } from '../../hooks/useApi'
@@ -160,7 +159,7 @@ const TiposCarroPage = () => {
   ]
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -305,7 +304,7 @@ const TiposCarroPage = () => {
           Las rutas existentes no seran afectadas.
         </p>
       </Modal>
-    </MainLayout>
+    </>
   )
 }
 

@@ -4,7 +4,6 @@
  */
 
 import { useState, useEffect } from 'react'
-import MainLayout from '../components/layout/MainLayout'
 import Card, { StatCard } from '../components/common/Card'
 import dashboardService from '../services/dashboardService'
 import { formatInTimezone } from '../utils/dateUtils'
@@ -108,7 +107,6 @@ const DashboardPage = () => {
   }
 
   return (
-    <MainLayout>
       <div className="space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -534,7 +532,6 @@ const DashboardPage = () => {
           </div>
         </div>
       </div>
-    </MainLayout>
   )
 }
 

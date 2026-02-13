@@ -52,6 +52,14 @@ const publicService = {
   getConfigLanding: async () => {
     const response = await apiClient.get('/public/landing/config')
     return response.data
+  },
+
+  /**
+   * Obtener festividades activas (público)
+   */
+  getFestividades: async () => {
+    const response = await apiClient.get('/public/festividades')
+    return response.data
   }
 }
 

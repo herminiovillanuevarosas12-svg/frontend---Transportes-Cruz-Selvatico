@@ -4,10 +4,11 @@
  */
 
 import { useState } from 'react'
+import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 
-const MainLayout = ({ children }) => {
+const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
@@ -26,7 +27,7 @@ const MainLayout = ({ children }) => {
         {/* Page content */}
         <main className="flex-1 p-4 lg:p-8">
           <div className="max-w-7xl mx-auto animate-fade-in">
-            {children}
+            <Outlet />
           </div>
         </main>
 

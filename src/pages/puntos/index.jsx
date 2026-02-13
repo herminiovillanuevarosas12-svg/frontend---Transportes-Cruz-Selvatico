@@ -5,7 +5,6 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import MainLayout from '../../components/layout/MainLayout'
 import { Table, Button, Modal, StatusBadge, Card } from '../../components/common'
 import { PermissionGate } from '../../features/auth'
 import { usePuntosApi } from '../../hooks/useApi'
@@ -105,7 +104,7 @@ const PuntosIndexPage = () => {
   ]
 
   return (
-    <MainLayout>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -176,7 +175,7 @@ const PuntosIndexPage = () => {
           Esta accion desactivara el punto y no podra ser usado en nuevas operaciones.
         </p>
       </Modal>
-    </MainLayout>
+    </>
   )
 }
 
