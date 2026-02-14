@@ -239,6 +239,7 @@ const LandingPage = () => {
                   WhatsApp
                 </a>
               )}
+              {/* Botón de login oculto - acceso solo por /login directo
               <Link
                 to="/login"
                 className="flex items-center gap-2 px-4 py-2.5 bg-secondary-500 text-white rounded-xl text-sm font-semibold hover:bg-secondary-600 hover:shadow-xl hover:shadow-secondary-500/30 hover:-translate-y-0.5 transition-all duration-200"
@@ -246,6 +247,7 @@ const LandingPage = () => {
                 <span>Ingresar</span>
                 <ArrowRight className="w-4 h-4" />
               </Link>
+              */}
             </nav>
           </div>
         </div>
