@@ -60,6 +60,14 @@ const publicService = {
   getFestividades: async () => {
     const response = await apiClient.get('/public/festividades')
     return response.data
+  },
+
+  /**
+   * Obtener servicios landing (público)
+   */
+  getServiciosLanding: async () => {
+    const response = await apiClient.get('/public/landing/servicios')
+    return response.data
   }
 }
 

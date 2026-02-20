@@ -17,7 +17,8 @@ const Modal = ({
   footer,
   closeOnOverlay = true,
   icon: HeaderIcon,
-  iconColor = 'primary'
+  iconColor = 'primary',
+  bodyClassName
 }) => {
   const modalRef = useRef(null)
 
@@ -135,7 +136,7 @@ const Modal = ({
           )}
 
           {/* Body */}
-          <div className={`px-6 ${title ? 'pb-6' : 'py-6'} max-h-[60vh] overflow-y-auto`}>
+          <div className={bodyClassName || `px-6 ${title ? 'pb-6' : 'py-6'} max-h-[60vh] overflow-y-auto`}>
             {children}
           </div>
 

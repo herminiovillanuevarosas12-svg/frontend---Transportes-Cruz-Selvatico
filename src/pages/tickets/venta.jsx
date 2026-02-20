@@ -58,6 +58,9 @@ const VentaTicketPage = () => {
   })
   const [puntosACanjear, setPuntosACanjear] = useState(0)
 
+  // Precio editado manualmente (null = usar calculado)
+  const [precioManual, setPrecioManual] = useState(null)
+
   // Hook para auto-busqueda de DNI/RUC
   const { loading: buscandoDoc, consultarDni, consultarRuc, reset: resetDocLookup } = useDocLookup()
   const [errorBusquedaRuc, setErrorBusquedaRuc] = useState('')
@@ -346,7 +349,8 @@ const VentaTicketPage = () => {
         pasajero: pasajeroData,
         metodoPago: formData.metodoPago,
         puntosACanjear: parseInt(puntosACanjear) || 0,
-        tipoDocumento
+        tipoDocumento,
+        ...(precioManual !== null && { precioManual })
       }
 
       if (tipoDocumento === 'FACTURA') {
@@ -404,6 +408,7 @@ const VentaTicketPage = () => {
     setClientesFiltrados([])
     setShowClientesDropdown(false)
     setPuntosACanjear(0)
+    setPrecioManual(null)
     setTipoDocumento('')
     setClienteFactura({ ruc: '', razonSocial: '', direccion: '' })
     setErrorBusquedaRuc('')
@@ -423,7 +428,8 @@ const VentaTicketPage = () => {
   const puntosACanjearFinal = Math.min(puntosACanjear, puntosDisponiblesCliente)
   const descuentoPuntos = puntosACanjearFinal / configPuntos.puntosPorSolDescuento
   const descuentoFinal = Math.min(descuentoPuntos, precioOriginal)
-  const precioFinal = Math.max(0, precioOriginal - descuentoFinal)
+  const precioCalculado = Math.max(0, precioOriginal - descuentoFinal)
+  const precioFinal = precioManual !== null ? precioManual : precioCalculado
   const puntosGanados = Math.floor(precioOriginal / configPuntos.solesPorPunto)
 
   // Handler para puntos a canjear
@@ -1015,7 +1021,7 @@ const VentaTicketPage = () => {
             )}
 
             {/* Resumen */}
-            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+            <div className={`rounded-lg p-4 space-y-2 ${precioManual !== null ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}>
               <h3 className="font-medium text-gray-900">Resumen</h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <span className="text-gray-500">Ruta:</span>
@@ -1029,24 +1035,60 @@ const VentaTicketPage = () => {
                   {horarioSeleccionado && formatTimeOnly(horarioSeleccionado.horaSalida, { hour12: false })}
                 </span>
                 <span className="text-gray-500">Precio Original:</span>
-                <span className={`text-gray-900 ${puntosACanjear > 0 ? 'line-through text-gray-400' : 'text-xl font-bold text-blue-600'}`}>
+                <span className={`text-gray-900 ${(puntosACanjear > 0 || precioManual !== null) ? 'line-through text-gray-400' : 'text-xl font-bold text-blue-600'}`}>
                   S/ {precioOriginal.toFixed(2)}
                 </span>
-                {puntosACanjear > 0 && (
+                {puntosACanjear > 0 && precioManual === null && (
                   <>
                     <span className="text-gray-500">Descuento Puntos:</span>
                     <span className="text-green-600 font-medium">- S/ {descuentoFinal.toFixed(2)}</span>
-                    <span className="text-gray-500">Total a Pagar:</span>
-                    <span className="text-xl font-bold text-blue-600">
-                      S/ {precioFinal.toFixed(2)}
-                    </span>
                   </>
                 )}
-                {puntosACanjear === 0 && disponibilidad?.ruta?.precioPasaje && (
+                <span className="text-gray-500">Total a Pagar:</span>
+                <span className="flex items-center gap-1">
+                  <span className="text-lg font-bold text-gray-500">S/</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={precioManual !== null ? precioManual : precioFinal.toFixed(2)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9.]/g, '')
+                      const parts = val.split('.')
+                      const sanitized = parts[0] + (parts.length > 1 ? '.' + parts.slice(1).join('') : '')
+                      setPrecioManual(sanitized === '' ? 0 : sanitized)
+                    }}
+                    onBlur={() => {
+                      if (precioManual !== null) {
+                        const num = parseFloat(precioManual)
+                        if (isNaN(num) || num < 0) {
+                          setPrecioManual(null)
+                        } else {
+                          setPrecioManual(parseFloat(num.toFixed(2)))
+                        }
+                      }
+                    }}
+                    className={`w-28 text-right text-xl font-bold bg-transparent border-b-2 border-dashed outline-none ${
+                      precioManual !== null
+                        ? 'text-blue-600 border-blue-400'
+                        : 'text-blue-600 border-transparent hover:border-gray-300 focus:border-blue-400'
+                    }`}
+                  />
+                </span>
+                {precioManual !== null && (
                   <>
-                    <span className="text-gray-500">Total:</span>
-                    <span className="text-xl font-bold text-blue-600">
-                      S/ {precioOriginal.toFixed(2)}
+                    <span></span>
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs text-blue-600 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        Precio editado
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setPrecioManual(null)}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Restaurar
+                      </button>
                     </span>
                   </>
                 )}

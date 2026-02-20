@@ -45,11 +45,6 @@ const RutasInfoPage = () => {
     setFiltroOrigen(origen)
     setFiltroDestino(destino)
 
-    // Si hay filtros de URL, usarlos como filtro de texto también
-    if (origen || destino) {
-      setFiltro(`${origen} ${destino}`.trim())
-    }
-
     cargarDatos()
   }, [searchParams])
 

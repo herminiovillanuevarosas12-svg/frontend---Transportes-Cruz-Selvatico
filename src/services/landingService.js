@@ -123,42 +123,78 @@ const landingService = {
 
   /**
    * Crear festividad
-   * @param {FormData} formData
+   * @param {Object} data - { titulo, descripcion, idPunto, activo, orden }
    */
-  crearFestividad: async (formData) => {
-    const response = await apiClient.post('/landing/festividades', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+  crearFestividad: async (data) => {
+    const response = await apiClient.post('/landing/festividades', data)
     return response.data
   },
 
   /**
    * Actualizar festividad
    * @param {number} id
-   * @param {FormData} formData
+   * @param {Object} data - { titulo, descripcion, idPunto, activo, orden }
    */
-  actualizarFestividad: async (id, formData) => {
-    const response = await apiClient.put(`/landing/festividades/${id}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+  actualizarFestividad: async (id, data) => {
+    const response = await apiClient.put(`/landing/festividades/${id}`, data)
     return response.data
   },
 
-  /**
-   * Eliminar festividad
-   * @param {number} id
-   */
   eliminarFestividad: async (id) => {
     const response = await apiClient.delete(`/landing/festividades/${id}`)
     return response.data
   },
 
-  /**
-   * Toggle activo/inactivo festividad
-   * @param {number} id
-   */
   toggleFestividad: async (id) => {
     const response = await apiClient.patch(`/landing/festividades/${id}/toggle`)
+    return response.data
+  },
+
+  // ============================================
+  // IMÁGENES DE FESTIVIDADES
+  // ============================================
+
+  listarImagenesFestividad: async (festId) => {
+    const response = await apiClient.get(`/landing/festividades/${festId}/imagenes`)
+    return response.data
+  },
+
+  agregarImagenFestividad: async (festId, formData) => {
+    const response = await apiClient.post(`/landing/festividades/${festId}/imagenes`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  eliminarImagenFestividad: async (imgId) => {
+    const response = await apiClient.delete(`/landing/festividades/imagenes/${imgId}`)
+    return response.data
+  },
+
+  reordenarImagenesFestividad: async (festId, orden) => {
+    const response = await apiClient.put(`/landing/festividades/${festId}/imagenes/orden`, { orden })
+    return response.data
+  },
+
+  // ============================================
+  // SERVICIOS LANDING
+  // ============================================
+
+  /**
+   * Listar servicios landing (admin)
+   */
+  listarServicios: async () => {
+    const response = await apiClient.get('/landing/servicios')
+    return response.data
+  },
+
+  /**
+   * Actualizar servicio landing
+   * @param {number} id
+   * @param {Object} data - { titulo, descripcion, features, ctaTexto, ctaLink }
+   */
+  actualizarServicio: async (id, data) => {
+    const response = await apiClient.put(`/landing/servicios/${id}`, data)
     return response.data
   }
 }

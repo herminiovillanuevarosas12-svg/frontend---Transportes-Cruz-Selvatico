@@ -81,6 +81,9 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
   const [puntosACanjear, setPuntosACanjear] = useState(0)
   const [comentario, setComentario] = useState('')
 
+  // Precio editado manualmente (null = usar calculado)
+  const [precioManual, setPrecioManual] = useState(null)
+
   // Tipo de comprobante y datos de factura
   const [tipoDocumento, setTipoDocumento] = useState('')
   const [clienteFactura, setClienteFactura] = useState({
@@ -123,6 +126,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
     } else {
       setRutaSeleccionada(null)
     }
+    setPrecioManual(null)
   }, [idRuta, rutas])
 
   const cargarRutas = async () => {
@@ -276,7 +280,8 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
   const puntosACanjearFinal = Math.min(puntosACanjear, puntosDisponibles)
   const descuentoPuntos = puntosACanjearFinal / configPuntos.puntosPorSolDescuento
   const descuentoFinal = Math.min(descuentoPuntos, precioOriginal)
-  const precioFinal = Math.max(0, precioOriginal - descuentoFinal)
+  const precioCalculado = Math.max(0, precioOriginal - descuentoFinal)
+  const precioFinal = precioManual !== null ? precioManual : precioCalculado
   const puntosGanados = Math.floor(precioOriginal / configPuntos.solesPorPunto)
 
   // Validacion del formulario
@@ -306,7 +311,8 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
         },
         metodoPago,
         puntosACanjear: parseInt(puntosACanjear) || 0,
-        tipoDocumento
+        tipoDocumento,
+        ...(precioManual !== null && { precioManual })
       }
 
       // Agregar datos de factura si corresponde
@@ -348,6 +354,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
     setTipoDocumento('')
     setClienteFactura({ ruc: '', razonSocial: '', direccion: '' })
     setErrorBusquedaRuc('')
+    setPrecioManual(null)
     resetDocLookup()
   }
 
@@ -714,21 +721,63 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
             )}
 
             {/* Resumen de Precio */}
-            <div className="bg-gray-50 rounded-xl p-4 border">
+            <div className={`rounded-xl p-4 border ${precioManual !== null ? 'bg-blue-50 border-blue-200' : 'bg-gray-50'}`}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">Total a pagar</p>
-                  {puntosACanjear > 0 && (
+                  {(puntosACanjear > 0 || precioManual !== null) && (
                     <p className="text-xs text-gray-400 line-through">
                       S/ {precioOriginal.toFixed(2)}
                     </p>
                   )}
+                  {precioManual !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setPrecioManual(null)}
+                      className="text-xs text-blue-600 hover:text-blue-800 mt-1 underline"
+                    >
+                      Restaurar precio original
+                    </button>
+                  )}
                 </div>
-                <p className="text-3xl font-bold text-amber-600">
-                  S/ {precioFinal.toFixed(2)}
-                </p>
+                <div className="flex items-center gap-1">
+                  <span className="text-xl font-bold text-gray-500">S/</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={precioManual !== null ? precioManual : precioFinal.toFixed(2)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9.]/g, '')
+                      // Permitir solo un punto decimal
+                      const parts = val.split('.')
+                      const sanitized = parts[0] + (parts.length > 1 ? '.' + parts.slice(1).join('') : '')
+                      setPrecioManual(sanitized === '' ? 0 : sanitized)
+                    }}
+                    onBlur={() => {
+                      if (precioManual !== null) {
+                        const num = parseFloat(precioManual)
+                        if (isNaN(num) || num < 0) {
+                          setPrecioManual(null)
+                        } else {
+                          setPrecioManual(parseFloat(num.toFixed(2)))
+                        }
+                      }
+                    }}
+                    className={`w-32 text-right text-3xl font-bold bg-transparent border-b-2 border-dashed outline-none ${
+                      precioManual !== null
+                        ? 'text-blue-600 border-blue-400'
+                        : 'text-amber-600 border-transparent hover:border-gray-300 focus:border-amber-400'
+                    }`}
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+              {precioManual !== null && (
+                <div className="flex items-center gap-1 mt-2 text-xs text-blue-600">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>Precio editado manualmente</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
                 <Star className="w-3 h-3 text-yellow-500" />
                 <span>Ganara +{puntosGanados} puntos con esta compra</span>
               </div>

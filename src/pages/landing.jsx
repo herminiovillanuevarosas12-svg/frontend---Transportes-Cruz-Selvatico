@@ -4,7 +4,7 @@
  * tracking, destinos populares, servicios, beneficios y footer dinámico
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import publicService from '../services/publicService'
 import { getUploadUrl } from '../services/apiClient'
@@ -13,6 +13,7 @@ import {
   ExperienceSection,
   GallerySection
 } from '../components/landing'
+import Modal from '../components/common/Modal'
 import {
   Bus,
   Package,
@@ -35,7 +36,8 @@ import {
   TreePine,
   Calendar,
   MapPinned,
-  MessageCircle
+  MessageCircle,
+  ChevronLeft
 } from 'lucide-react'
 
 const LandingPage = () => {
@@ -58,6 +60,7 @@ const LandingPage = () => {
     youtubeUrl: '',
     tiempoRotacionBanner: 5
   })
+  const [serviciosLanding, setServiciosLanding] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Buscador de pasajes
@@ -70,19 +73,37 @@ const LandingPage = () => {
   // Tracking
   const [codigoTracking, setCodigoTracking] = useState('')
 
+  // Modal festividad
+  const [selectedFest, setSelectedFest] = useState(null)
+  const [festModalOpen, setFestModalOpen] = useState(false)
+  const [currentImgIndex, setCurrentImgIndex] = useState(0)
+
+  const openFestModal = useCallback((fest) => {
+    setSelectedFest(fest)
+    setCurrentImgIndex(0)
+    setFestModalOpen(true)
+  }, [])
+
+  const closeFestModal = useCallback(() => {
+    setFestModalOpen(false)
+    setSelectedFest(null)
+    setCurrentImgIndex(0)
+  }, [])
+
   useEffect(() => {
     cargarDatos()
   }, [])
 
   const cargarDatos = async () => {
     try {
-      const [rutasRes, puntosRes, bannersRes, galleryRes, configRes, festividadesRes] = await Promise.all([
+      const [rutasRes, puntosRes, bannersRes, galleryRes, configRes, festividadesRes, serviciosRes] = await Promise.all([
         publicService.getRutas(),
         publicService.getPuntos(),
         publicService.getBanners().catch(() => ({ banners: [] })),
         publicService.getGallery().catch(() => ({ imagenes: [] })),
         publicService.getConfigLanding().catch(() => ({ config: {} })),
-        publicService.getFestividades().catch(() => ({ festividades: [] }))
+        publicService.getFestividades().catch(() => ({ festividades: [] })),
+        publicService.getServiciosLanding().catch(() => ({ servicios: [] }))
       ])
       setRutas(rutasRes.rutas || [])
       setPuntos(puntosRes.puntos || [])
@@ -90,6 +111,7 @@ const LandingPage = () => {
       setBanners(bannersRes.banners || [])
       setGallery(galleryRes.imagenes || [])
       setFestividades(festividadesRes.festividades || [])
+      setServiciosLanding(serviciosRes.servicios || [])
       if (configRes.config) {
         setConfig(prev => ({ ...prev, ...configRes.config }))
       }
@@ -161,26 +183,43 @@ const LandingPage = () => {
     }
   ]
 
-  const servicios = [
-    {
-      icon: Ticket,
-      title: 'Pasajes Interprovinciales',
-      description: 'Viaja cómodo y seguro a los mejores destinos con buses modernos.',
-      features: ['Asientos reclinables', 'WiFi a bordo', 'Aire acondicionado', 'Servicio a bordo'],
-      cta: 'Ver Rutas y Horarios',
-      link: '/rutas-info',
-      isPrimary: true
-    },
-    {
-      icon: Package,
-      title: 'Servicio de Encomiendas',
-      description: 'Envía paquetes y documentos con total confianza y seguimiento.',
-      features: ['Tracking QR', 'Notificaciones SMS', 'Seguro incluido', 'Entrega garantizada'],
-      cta: 'Rastrear Envío',
-      link: '/tracking',
-      isPrimary: false
-    }
-  ]
+  // Mapeo de iconos por clave de servicio
+  const servicioIconMap = {
+    pasajes: Ticket,
+    encomiendas: Package
+  }
+
+  // Datos dinámicos de servicios (de la API) con fallback
+  const servicios = serviciosLanding.length > 0
+    ? serviciosLanding.map((s, index) => ({
+        icon: servicioIconMap[s.clave] || Ticket,
+        title: s.titulo,
+        description: s.descripcion,
+        features: s.features ? s.features.split('|') : [],
+        cta: s.ctaTexto,
+        link: s.ctaLink,
+        isPrimary: index === 0
+      }))
+    : [
+        {
+          icon: Ticket,
+          title: 'Pasajes Interprovinciales',
+          description: 'Viaja cómodo y seguro a los mejores destinos con buses modernos.',
+          features: ['Asientos reclinables', 'WiFi a bordo', 'Aire acondicionado', 'Servicio a bordo'],
+          cta: 'Ver Rutas y Horarios',
+          link: '/rutas-info',
+          isPrimary: true
+        },
+        {
+          icon: Package,
+          title: 'Servicio de Encomiendas',
+          description: 'Envía paquetes y documentos con total confianza y seguimiento.',
+          features: ['Tracking QR', 'Notificaciones SMS', 'Seguro incluido', 'Entrega garantizada'],
+          cta: 'Rastrear Envío',
+          link: '/tracking',
+          isPrimary: false
+        }
+      ]
 
   return (
     <div className="min-h-screen bg-primary-50">
@@ -279,7 +318,14 @@ const LandingPage = () => {
                     <MapPinned className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary-500" />
                     <select
                       value={busqueda.origen}
-                      onChange={(e) => setBusqueda(prev => ({ ...prev, origen: e.target.value }))}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setBusqueda(prev => ({
+                          ...prev,
+                          origen: val,
+                          destino: prev.destino === val ? '' : prev.destino
+                        }))
+                      }}
                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer"
                     >
                       <option value="">Seleccionar ciudad</option>
@@ -301,7 +347,7 @@ const LandingPage = () => {
                       className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none cursor-pointer"
                     >
                       <option value="">Seleccionar ciudad</option>
-                      {ciudadesUnicas.map(ciudad => (
+                      {ciudadesUnicas.filter(c => c !== busqueda.origen).map(ciudad => (
                         <option key={ciudad} value={ciudad}>{ciudad}</option>
                       ))}
                     </select>
@@ -428,17 +474,18 @@ const LandingPage = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {festividades.map((fest) => {
-                    const imgPath = fest.imagenPath || fest.imagen_path
+                    const coverImg = fest.imagenes?.[0]?.imagenPath
                     return (
                       <div
                         key={fest.id}
-                        className="group bg-white rounded-2xl border border-primary-100 overflow-hidden shadow-md hover:shadow-xl hover:border-primary-300 transition-all duration-300"
+                        onClick={() => openFestModal(fest)}
+                        className="group bg-white rounded-2xl border border-primary-100 overflow-hidden shadow-md hover:shadow-xl hover:border-primary-300 transition-all duration-300 cursor-pointer"
                       >
                         {/* Imagen */}
-                        {imgPath ? (
+                        {coverImg ? (
                           <div className="aspect-[16/10] overflow-hidden relative">
                             <img
-                              src={getUploadUrl(imgPath)}
+                              src={getUploadUrl(coverImg)}
                               alt={fest.titulo}
                               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                               onError={(e) => {
@@ -452,6 +499,13 @@ const LandingPage = () => {
                                 {fest.puntoCiudad}
                               </span>
                             </div>
+                            {fest.imagenes?.length > 1 && (
+                              <div className="absolute bottom-3 right-3">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-black/60 backdrop-blur-sm text-white rounded-full text-xs font-medium">
+                                  {fest.imagenes.length} fotos
+                                </span>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="aspect-[16/10] bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center relative">
@@ -475,10 +529,13 @@ const LandingPage = () => {
                               {fest.descripcion}
                             </p>
                           )}
-                          <div className="mt-3 pt-3 border-t border-gray-100">
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
                             <p className="text-xs text-primary-500 font-medium">
                               {fest.puntoNombre}
                             </p>
+                            <span className="text-xs text-primary-400 group-hover:text-primary-600 transition-colors">
+                              Ver detalle →
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -487,6 +544,102 @@ const LandingPage = () => {
                 </div>
               </div>
             )}
+
+            {/* Modal detalle festividad */}
+            <Modal
+              isOpen={festModalOpen}
+              onClose={closeFestModal}
+              size="xl"
+              bodyClassName="max-h-[80vh] overflow-y-auto"
+            >
+              {selectedFest && (
+                <div className="-mx-6 -mt-6">
+                  {/* Carrusel de imágenes */}
+                  {selectedFest.imagenes?.length > 0 ? (
+                    <div className="relative">
+                      <div className="aspect-[16/9] overflow-hidden bg-gray-100">
+                        <img
+                          src={getUploadUrl(selectedFest.imagenes[currentImgIndex]?.imagenPath)}
+                          alt={`${selectedFest.titulo} - Foto ${currentImgIndex + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null
+                            e.target.src = '/placeholder-banner.jpg'
+                          }}
+                        />
+                      </div>
+
+                      {/* Flechas de navegación */}
+                      {selectedFest.imagenes.length > 1 && (
+                        <>
+                          <button
+                            onClick={() => setCurrentImgIndex(i => i > 0 ? i - 1 : selectedFest.imagenes.length - 1)}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center text-gray-700 hover:bg-white transition-colors"
+                          >
+                            <ChevronLeft className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => setCurrentImgIndex(i => i < selectedFest.imagenes.length - 1 ? i + 1 : 0)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center text-gray-700 hover:bg-white transition-colors"
+                          >
+                            <ChevronRight className="w-5 h-5" />
+                          </button>
+
+                          {/* Indicadores */}
+                          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+                            {selectedFest.imagenes.map((_, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => setCurrentImgIndex(idx)}
+                                className={`w-2 h-2 rounded-full transition-all ${
+                                  idx === currentImgIndex
+                                    ? 'bg-white w-6'
+                                    : 'bg-white/60 hover:bg-white/80'
+                                }`}
+                              />
+                            ))}
+                          </div>
+
+                          {/* Contador */}
+                          <div className="absolute top-3 right-3">
+                            <span className="px-2.5 py-1 bg-black/60 backdrop-blur-sm text-white rounded-full text-xs font-medium">
+                              {currentImgIndex + 1} / {selectedFest.imagenes.length}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="aspect-[16/9] bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
+                      <MapPin className="w-20 h-20 text-primary-300" />
+                    </div>
+                  )}
+
+                  {/* Contenido del modal */}
+                  <div className="p-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-full text-xs font-semibold">
+                        <MapPin className="w-3 h-3" />
+                        {selectedFest.puntoCiudad}
+                      </span>
+                      <span className="text-sm text-gray-400">
+                        {selectedFest.puntoNombre}
+                      </span>
+                    </div>
+
+                    <h2 className="text-2xl font-bold text-primary-800 mb-4">
+                      {selectedFest.titulo}
+                    </h2>
+
+                    {selectedFest.descripcion && (
+                      <div className="prose prose-sm max-w-none text-gray-600 leading-relaxed whitespace-pre-line">
+                        {selectedFest.descripcion}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Modal>
           </div>
         </section>
       )}
@@ -593,7 +746,7 @@ const LandingPage = () => {
       </section>
 
       {/* Sección de Experiencia de Viaje */}
-      <ExperienceSection imagenUrl={config.imagenExperiencia ? getUploadUrl(config.imagenExperiencia) : null} />
+      <ExperienceSection imagenUrl={config.imagenExperiencia ? getUploadUrl(config.imagenExperiencia) : null} config={config} />
 
       {/* Galería de Imágenes */}
       <GallerySection imagenes={gallery} />
@@ -715,7 +868,7 @@ const LandingPage = () => {
               </div>
 
               {/* Redes Sociales */}
-              {(config.facebookUrl || config.instagramUrl || config.youtubeUrl) && (
+              {(config.facebookUrl || config.instagramUrl || config.youtubeUrl || config.tiktokUrl) && (
                 <div className="mt-6 flex items-center gap-3">
                   {config.facebookUrl && (
                     <a
@@ -752,6 +905,18 @@ const LandingPage = () => {
                     >
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M22.54 6.42a2.78 2.78 0 00-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 00-1.94 2A29 29 0 001 12a29 29 0 00.46 5.58 2.78 2.78 0 001.94 2C5.12 20 12 20 12 20s6.88 0 8.6-.46a2.78 2.78 0 001.94-2A29 29 0 0023 12a29 29 0 00-.46-5.58zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/>
+                      </svg>
+                    </a>
+                  )}
+                  {config.tiktokUrl && (
+                    <a
+                      href={config.tiktokUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-10 h-10 bg-primary-700 rounded-lg flex items-center justify-center hover:bg-primary-600 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.73a8.19 8.19 0 004.77 1.53V6.79a4.85 4.85 0 01-1-.1z"/>
                       </svg>
                     </a>
                   )}

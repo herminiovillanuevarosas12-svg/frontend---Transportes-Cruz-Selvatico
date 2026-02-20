@@ -31,7 +31,9 @@ import {
   ChevronUp,
   ChevronDown,
   PartyPopper,
-  MapPin
+  MapPin,
+  Ticket,
+  Package
 } from 'lucide-react'
 
 const LandingAdminPage = () => {
@@ -45,8 +47,14 @@ const LandingAdminPage = () => {
     facebookUrl: '',
     instagramUrl: '',
     youtubeUrl: '',
+    tiktokUrl: '',
     tiempoRotacionBanner: 5,
-    imagenExperiencia: null
+    imagenExperiencia: null,
+    experienciaTitulo: '',
+    experienciaDescripcion: '',
+    experienciaBadgeNumero: '',
+    experienciaBadgeTexto: '',
+    experienciaFeatures: ''
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -78,16 +86,28 @@ const LandingAdminPage = () => {
     descripcion: '',
     idPunto: '',
     activo: true,
-    orden: 0,
-    imagenPreview: null,
-    imagenFile: null
+    orden: 0
   })
+  const [festImagenes, setFestImagenes] = useState([])
+  const [festImagenesNuevas, setFestImagenesNuevas] = useState([])
   const [savingFest, setSavingFest] = useState(false)
   const [filtroPunto, setFiltroPunto] = useState('')
 
+  // Servicios landing
+  const [serviciosLanding, setServiciosLanding] = useState([])
+  const [editingServicio, setEditingServicio] = useState(null)
+  const [servicioForm, setServicioForm] = useState({
+    titulo: '',
+    descripcion: '',
+    features: ['', '', '', ''],
+    ctaTexto: '',
+    ctaLink: ''
+  })
+  const [savingServicio, setSavingServicio] = useState(false)
+
   const fileInputRef = useRef(null)
   const imgExpInputRef = useRef(null)
-  const festFileInputRef = useRef(null)
+  const festImgInputRef = useRef(null)
 
   useEffect(() => {
     cargarDatos()
@@ -96,17 +116,19 @@ const LandingAdminPage = () => {
   const cargarDatos = async () => {
     try {
       setLoading(true)
-      const [bannersRes, galleryRes, configRes, festRes, puntosRes] = await Promise.all([
+      const [bannersRes, galleryRes, configRes, festRes, puntosRes, serviciosRes] = await Promise.all([
         landingService.listarBanners('banner'),
         landingService.listarBanners('gallery'),
         landingService.getConfigLanding(),
         landingService.listarFestividades().catch(() => ({ festividades: [] })),
-        publicService.getPuntos().catch(() => ({ puntos: [] }))
+        publicService.getPuntos().catch(() => ({ puntos: [] })),
+        landingService.listarServicios().catch(() => ({ servicios: [] }))
       ])
       setBanners(bannersRes.banners || [])
       setGallery(galleryRes.banners || [])
       setFestividades(festRes.festividades || [])
       setPuntos(puntosRes.puntos || [])
+      setServiciosLanding(serviciosRes.servicios || [])
       if (configRes.config) {
         setConfig({
           slogan: configRes.config.slogan || '',
@@ -115,8 +137,14 @@ const LandingAdminPage = () => {
           facebookUrl: configRes.config.facebookUrl || '',
           instagramUrl: configRes.config.instagramUrl || '',
           youtubeUrl: configRes.config.youtubeUrl || '',
+          tiktokUrl: configRes.config.tiktokUrl || '',
           tiempoRotacionBanner: configRes.config.tiempoRotacionBanner || 5,
-          imagenExperiencia: configRes.config.imagenExperiencia || null
+          imagenExperiencia: configRes.config.imagenExperiencia || null,
+          experienciaTitulo: configRes.config.experienciaTitulo || '',
+          experienciaDescripcion: configRes.config.experienciaDescripcion || '',
+          experienciaBadgeNumero: configRes.config.experienciaBadgeNumero || '',
+          experienciaBadgeTexto: configRes.config.experienciaBadgeTexto || '',
+          experienciaFeatures: configRes.config.experienciaFeatures || ''
         })
         if (configRes.config.imagenExperiencia) {
           setImgExpPreview(getUploadUrl(configRes.config.imagenExperiencia))
@@ -318,10 +346,9 @@ const LandingAdminPage = () => {
         descripcion: fest.descripcion || '',
         idPunto: fest.idPunto?.toString() || '',
         activo: fest.activo !== false,
-        orden: fest.orden || 0,
-        imagenPreview: fest.imagenPath ? getUploadUrl(fest.imagenPath) : null,
-        imagenFile: null
+        orden: fest.orden || 0
       })
+      setFestImagenes(fest.imagenes || [])
     } else {
       setEditingFest(null)
       setFestForm({
@@ -329,40 +356,54 @@ const LandingAdminPage = () => {
         descripcion: '',
         idPunto: '',
         activo: true,
-        orden: festividades.length,
-        imagenPreview: null,
-        imagenFile: null
+        orden: festividades.length
       })
+      setFestImagenes([])
     }
+    setFestImagenesNuevas([])
     setShowFestModal(true)
   }
 
   const cerrarModalFest = () => {
+    festImagenesNuevas.forEach(img => URL.revokeObjectURL(img.preview))
     setShowFestModal(false)
     setEditingFest(null)
-    setFestForm({
-      titulo: '',
-      descripcion: '',
-      idPunto: '',
-      activo: true,
-      orden: 0,
-      imagenPreview: null,
-      imagenFile: null
+    setFestForm({ titulo: '', descripcion: '', idPunto: '', activo: true, orden: 0 })
+    setFestImagenes([])
+    setFestImagenesNuevas([])
+  }
+
+  const handleFestAddImage = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La imagen no debe superar los 5MB')
+      return
+    }
+    const totalImagenes = festImagenes.length + festImagenesNuevas.length
+    if (totalImagenes >= 5) {
+      toast.error('Máximo 5 imágenes por festividad')
+      return
+    }
+    setFestImagenesNuevas(prev => [...prev, { file, preview: URL.createObjectURL(file) }])
+    e.target.value = ''
+  }
+
+  const removeFestNewImage = (index) => {
+    setFestImagenesNuevas(prev => {
+      URL.revokeObjectURL(prev[index].preview)
+      return prev.filter((_, i) => i !== index)
     })
   }
 
-  const handleFestImageChange = (e) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('La imagen no debe superar los 5MB')
-        return
-      }
-      setFestForm(prev => ({
-        ...prev,
-        imagenFile: file,
-        imagenPreview: URL.createObjectURL(file)
-      }))
+  const deleteFestExistingImage = async (imgId) => {
+    try {
+      await landingService.eliminarImagenFestividad(imgId)
+      setFestImagenes(prev => prev.filter(img => img.id !== imgId))
+      toast.success('Imagen eliminada')
+    } catch (error) {
+      console.error('Error eliminando imagen:', error)
+      toast.error('Error al eliminar imagen')
     }
   }
 
@@ -376,29 +417,27 @@ const LandingAdminPage = () => {
         toast.error('Selecciona un punto')
         return
       }
-      if (!editingFest && !festForm.imagenFile) {
-        toast.error('Se requiere una imagen')
-        return
-      }
 
       setSavingFest(true)
 
-      const formData = new FormData()
-      formData.append('titulo', festForm.titulo)
-      formData.append('descripcion', festForm.descripcion)
-      formData.append('idPunto', festForm.idPunto)
-      formData.append('activo', festForm.activo)
-      formData.append('orden', festForm.orden)
-      if (festForm.imagenFile) formData.append('imagen', festForm.imagenFile)
+      let festId = editingFest?.id
 
       if (editingFest) {
-        await landingService.actualizarFestividad(editingFest.id, formData)
-        toast.success('Festividad actualizada')
+        await landingService.actualizarFestividad(editingFest.id, festForm)
       } else {
-        await landingService.crearFestividad(formData)
-        toast.success('Festividad creada')
+        const res = await landingService.crearFestividad(festForm)
+        festId = res.festividad?.id
+        if (!festId) throw new Error('No se pudo obtener el ID de la festividad creada')
       }
 
+      // Subir imágenes nuevas
+      for (const img of festImagenesNuevas) {
+        const fd = new FormData()
+        fd.append('imagen', img.file)
+        await landingService.agregarImagenFestividad(festId, fd)
+      }
+
+      toast.success(editingFest ? 'Festividad actualizada' : 'Festividad creada')
       cerrarModalFest()
       cargarDatos()
     } catch (error) {
@@ -435,6 +474,76 @@ const LandingAdminPage = () => {
   const festividadesFiltradas = filtroPunto
     ? festividades.filter(f => f.idPunto?.toString() === filtroPunto)
     : festividades
+
+  // ============================================
+  // SERVICIOS LANDING
+  // ============================================
+
+  const iconMap = {
+    pasajes: Ticket,
+    encomiendas: Package
+  }
+
+  const abrirEdicionServicio = (servicio) => {
+    setEditingServicio(servicio)
+    const featuresArr = servicio.features ? servicio.features.split('|') : ['', '', '', '']
+    while (featuresArr.length < 4) featuresArr.push('')
+    setServicioForm({
+      titulo: servicio.titulo || '',
+      descripcion: servicio.descripcion || '',
+      features: featuresArr,
+      ctaTexto: servicio.ctaTexto || '',
+      ctaLink: servicio.ctaLink || ''
+    })
+  }
+
+  const cancelarEdicionServicio = () => {
+    setEditingServicio(null)
+    setServicioForm({
+      titulo: '',
+      descripcion: '',
+      features: ['', '', '', ''],
+      ctaTexto: '',
+      ctaLink: ''
+    })
+  }
+
+  const guardarServicio = async () => {
+    try {
+      if (!servicioForm.titulo.trim() || !servicioForm.descripcion.trim()) {
+        toast.error('Título y descripción son requeridos')
+        return
+      }
+      if (!servicioForm.ctaTexto.trim() || !servicioForm.ctaLink.trim()) {
+        toast.error('Texto y link del botón son requeridos')
+        return
+      }
+
+      setSavingServicio(true)
+      const featuresStr = servicioForm.features.filter(f => f.trim()).join('|')
+      if (!featuresStr) {
+        toast.error('Al menos una característica es requerida')
+        setSavingServicio(false)
+        return
+      }
+
+      await landingService.actualizarServicio(editingServicio.id, {
+        titulo: servicioForm.titulo,
+        descripcion: servicioForm.descripcion,
+        features: featuresStr,
+        ctaTexto: servicioForm.ctaTexto,
+        ctaLink: servicioForm.ctaLink
+      })
+      toast.success('Servicio actualizado')
+      cancelarEdicionServicio()
+      cargarDatos()
+    } catch (error) {
+      console.error('Error guardando servicio:', error)
+      toast.error('Error al guardar servicio')
+    } finally {
+      setSavingServicio(false)
+    }
+  }
 
   // ============================================
   // IMAGEN EXPERIENCIA
@@ -554,6 +663,19 @@ const LandingAdminPage = () => {
               <div className="flex items-center gap-2">
                 <PartyPopper className="w-4 h-4" />
                 Festividades
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('servicios')}
+              className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'servicios'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Ticket className="w-4 h-4" />
+                Servicios
               </div>
             </button>
             <button
@@ -848,9 +970,9 @@ const LandingAdminPage = () => {
                   >
                     {/* Imagen */}
                     <div className="aspect-[16/10] relative overflow-hidden">
-                      {fest.imagenPath ? (
+                      {fest.imagenes?.[0]?.imagenPath ? (
                         <img
-                          src={getUploadUrl(fest.imagenPath)}
+                          src={getUploadUrl(fest.imagenes[0].imagenPath)}
                           alt={fest.titulo}
                           className="w-full h-full object-cover"
                           onError={(e) => {
@@ -861,6 +983,13 @@ const LandingAdminPage = () => {
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
                           <PartyPopper className="w-12 h-12 text-primary-300" />
+                        </div>
+                      )}
+                      {fest.imagenes?.length > 1 && (
+                        <div className="absolute bottom-2 right-2">
+                          <span className="px-2 py-0.5 bg-black/60 text-white rounded-full text-xs">
+                            {fest.imagenes.length} fotos
+                          </span>
                         </div>
                       )}
                       {/* Badge ciudad */}
@@ -917,6 +1046,161 @@ const LandingAdminPage = () => {
           </div>
         )}
 
+        {/* Tab: Servicios Landing */}
+        {!loading && activeTab === 'servicios' && (
+          <div className="space-y-6">
+            <p className="text-sm text-gray-500">
+              Edita el contenido de la sección "Soluciones de transporte completas" de la landing page
+            </p>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {serviciosLanding.map((servicio) => {
+                const Icon = iconMap[servicio.clave] || Ticket
+                const isEditing = editingServicio?.id === servicio.id
+                const isPasajes = servicio.clave === 'pasajes'
+
+                return (
+                  <div
+                    key={servicio.id}
+                    className={`bg-white rounded-2xl border border-gray-200 overflow-hidden ${isEditing ? 'ring-2 ring-primary-500' : ''}`}
+                  >
+                    {/* Header con color del servicio */}
+                    <div className={`px-6 py-4 ${isPasajes ? 'bg-gradient-to-r from-primary-600 to-primary-700' : 'bg-gradient-to-r from-secondary-500 to-secondary-600'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                          <Icon className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-white font-semibold">{servicio.titulo}</h3>
+                          <p className="text-white/70 text-xs">Clave: {servicio.clave}</p>
+                        </div>
+                        {!isEditing && (
+                          <button
+                            onClick={() => abrirEdicionServicio(servicio)}
+                            className="p-2 bg-white/20 rounded-lg text-white hover:bg-white/30 transition-colors"
+                            title="Editar"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Contenido */}
+                    <div className="p-6">
+                      {isEditing ? (
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                            <input
+                              type="text"
+                              value={servicioForm.titulo}
+                              onChange={(e) => setServicioForm(prev => ({ ...prev, titulo: e.target.value }))}
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                            <textarea
+                              value={servicioForm.descripcion}
+                              onChange={(e) => setServicioForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                              rows={2}
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Características (4)</label>
+                            <div className="space-y-2">
+                              {servicioForm.features.map((feat, i) => (
+                                <input
+                                  key={i}
+                                  type="text"
+                                  value={feat}
+                                  onChange={(e) => {
+                                    const newFeatures = [...servicioForm.features]
+                                    newFeatures[i] = e.target.value
+                                    setServicioForm(prev => ({ ...prev, features: newFeatures }))
+                                  }}
+                                  placeholder={`Característica ${i + 1}`}
+                                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Texto del botón</label>
+                              <input
+                                type="text"
+                                value={servicioForm.ctaTexto}
+                                onChange={(e) => setServicioForm(prev => ({ ...prev, ctaTexto: e.target.value }))}
+                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Link del botón</label>
+                              <input
+                                type="text"
+                                value={servicioForm.ctaLink}
+                                onChange={(e) => setServicioForm(prev => ({ ...prev, ctaLink: e.target.value }))}
+                                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 pt-2">
+                            <button
+                              onClick={cancelarEdicionServicio}
+                              className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-100 rounded-xl text-sm transition-colors"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={guardarServicio}
+                              disabled={savingServicio}
+                              className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+                            >
+                              {savingServicio ? (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Save className="w-4 h-4" />
+                              )}
+                              Guardar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <p className="text-sm text-gray-600">{servicio.descripcion}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {servicio.features?.split('|').map((feat, i) => (
+                              <span key={i} className="text-xs text-gray-500 flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 bg-primary-400 rounded-full flex-shrink-0" />
+                                {feat}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                            <span className="text-xs text-gray-400">Botón: {servicio.ctaTexto}</span>
+                            <span className="text-xs text-gray-400">{servicio.ctaLink}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {serviciosLanding.length === 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+                <Ticket className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900">No hay servicios configurados</h3>
+                <p className="text-gray-500 mt-1">Los servicios se cargan automáticamente desde la base de datos</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Tab: Configuración */}
         {!loading && activeTab === 'config' && (
           <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-8">
@@ -962,7 +1246,7 @@ const LandingAdminPage = () => {
             {/* Redes Sociales */}
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-4">Redes Sociales</h3>
-              <div className="grid md:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-2 gap-4">
                 <div className="relative">
                   <Facebook className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -990,6 +1274,18 @@ const LandingAdminPage = () => {
                     value={config.youtubeUrl}
                     onChange={(e) => setConfig(prev => ({ ...prev, youtubeUrl: e.target.value }))}
                     placeholder="URL de YouTube"
+                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.73a8.19 8.19 0 004.77 1.53V6.79a4.85 4.85 0 01-1-.1z"/>
+                  </svg>
+                  <input
+                    type="url"
+                    value={config.tiktokUrl}
+                    onChange={(e) => setConfig(prev => ({ ...prev, tiktokUrl: e.target.value }))}
+                    placeholder="URL de TikTok"
                     className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
@@ -1067,6 +1363,73 @@ const LandingAdminPage = () => {
                 onChange={handleImgExpChange}
                 className="hidden"
               />
+            </div>
+
+            {/* Textos Sección Experiencia */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-4">Textos Sección "Experiencia de Viaje"</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1.5">Título</label>
+                  <input
+                    type="text"
+                    value={config.experienciaTitulo}
+                    onChange={(e) => setConfig(prev => ({ ...prev, experienciaTitulo: e.target.value }))}
+                    placeholder="Haz de tus Viajes una Gran Experiencia"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1.5">Descripción</label>
+                  <textarea
+                    value={config.experienciaDescripcion}
+                    onChange={(e) => setConfig(prev => ({ ...prev, experienciaDescripcion: e.target.value }))}
+                    placeholder="En cada viaje nos esforzamos por brindarte el mejor servicio..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                  />
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-500 mb-1.5">Badge número</label>
+                    <input
+                      type="text"
+                      value={config.experienciaBadgeNumero}
+                      onChange={(e) => setConfig(prev => ({ ...prev, experienciaBadgeNumero: e.target.value }))}
+                      placeholder="+10"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-500 mb-1.5">Badge texto</label>
+                    <input
+                      type="text"
+                      value={config.experienciaBadgeTexto}
+                      onChange={(e) => setConfig(prev => ({ ...prev, experienciaBadgeTexto: e.target.value }))}
+                      placeholder="Años de experiencia"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1.5">
+                    Características (una por línea, se muestran como lista con checks)
+                  </label>
+                  <textarea
+                    value={config.experienciaFeatures ? config.experienciaFeatures.split('|').join('\n') : ''}
+                    onChange={(e) => setConfig(prev => ({
+                      ...prev,
+                      experienciaFeatures: e.target.value.split('\n').join('|')
+                    }))}
+                    placeholder={'Asientos reclinables y espaciosos\nAire acondicionado en todas las unidades\nBuses modernos y bien mantenidos'}
+                    rows={6}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {config.experienciaFeatures ? config.experienciaFeatures.split('|').filter(f => f.trim()).length : 0} características
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Botón guardar */}
@@ -1273,39 +1636,70 @@ const LandingAdminPage = () => {
 
             {/* Contenido */}
             <div className="p-6 space-y-6">
-              {/* Imagen */}
+              {/* Imágenes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Imagen *
+                  Imágenes (máx. 5)
                 </label>
-                <div
-                  onClick={() => festFileInputRef.current?.click()}
-                  className="relative w-full h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors"
-                >
-                  {festForm.imagenPreview ? (
-                    <>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                  {/* Imágenes existentes */}
+                  {festImagenes.map((img) => (
+                    <div key={img.id} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 group">
                       <img
-                        src={festForm.imagenPreview}
-                        alt="Preview"
+                        src={getUploadUrl(img.imagenPath)}
+                        alt="Foto festividad"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.onerror = null; e.target.src = '/placeholder-banner.jpg' }}
+                      />
+                      <button
+                        onClick={() => deleteFestExistingImage(img.id)}
+                        className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Imágenes nuevas (pendientes de subir) */}
+                  {festImagenesNuevas.map((img, idx) => (
+                    <div key={`new-${idx}`} className="relative aspect-square rounded-xl overflow-hidden border-2 border-dashed border-primary-300 group">
+                      <img
+                        src={img.preview}
+                        alt="Nueva foto"
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <span className="text-white font-medium">Cambiar imagen</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                      <Upload className="w-10 h-10 mb-2" />
-                      <span className="text-sm">Clic para seleccionar imagen</span>
-                      <span className="text-xs mt-1">Recomendado: 800x500px, max 5MB</span>
+                      <div className="absolute inset-0 bg-primary-500/10" />
+                      <button
+                        onClick={() => removeFestNewImage(idx)}
+                        className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      <span className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-primary-600 text-white text-[10px] rounded font-medium">
+                        Nueva
+                      </span>
+                    </div>
+                  ))}
+
+                  {/* Botón agregar */}
+                  {(festImagenes.length + festImagenesNuevas.length) < 5 && (
+                    <div
+                      onClick={() => festImgInputRef.current?.click()}
+                      className="aspect-square rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-primary-400 hover:bg-primary-50 transition-colors"
+                    >
+                      <Plus className="w-6 h-6 text-gray-400" />
+                      <span className="text-[10px] text-gray-400 mt-1">Agregar</span>
                     </div>
                   )}
                 </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  {festImagenes.length + festImagenesNuevas.length}/5 imágenes · Recomendado: 800x500px, max 5MB
+                </p>
                 <input
-                  ref={festFileInputRef}
+                  ref={festImgInputRef}
                   type="file"
                   accept="image/*"
-                  onChange={handleFestImageChange}
+                  onChange={handleFestAddImage}
                   className="hidden"
                 />
               </div>
