@@ -67,6 +67,16 @@ import FacturacionPage from '../pages/facturacion/index'
 // Landing Admin
 import LandingAdminPage from '../pages/administracion/landing'
 
+// Paginas publicas nuevas
+import DestinosPage from '../pages/destinos'
+import DestinoDetallePage from '../pages/destino-detalle'
+import ContactoPage from '../pages/contacto'
+import EncomiendasInfoPage from '../pages/encomiendas-info'
+import PreguntasFrecuentesPage from '../pages/preguntas-frecuentes'
+import BuscarPasajesPage from '../pages/buscar-pasajes'
+import NosotrosPage from '../pages/nosotros'
+import InfoViajePage from '../pages/info-viaje'
+
 // Definicion de rutas con sus permisos (en orden de prioridad para redirección)
 const RUTAS_POR_PERMISO = [
   { path: '/dashboard', permission: 'DASHBOARD_VER' },
@@ -182,6 +192,14 @@ const AppRoutes = () => {
       <Route path="/tracking" element={<TrackingPage />} />
       <Route path="/tracking/:codigo" element={<TrackingPage />} />
       <Route path="/rutas-info" element={<RutasInfoPage />} />
+      <Route path="/destinos" element={<DestinosPage />} />
+      <Route path="/destinos/:slug" element={<DestinoDetallePage />} />
+      <Route path="/contacto" element={<ContactoPage />} />
+      <Route path="/encomiendas-info" element={<EncomiendasInfoPage />} />
+      <Route path="/preguntas-frecuentes" element={<PreguntasFrecuentesPage />} />
+      <Route path="/buscar-pasajes" element={<BuscarPasajesPage />} />
+      <Route path="/nosotros" element={<NosotrosPage />} />
+      <Route path="/info-viaje" element={<InfoViajePage />} />
 
       {/* Ruta por defecto para usuarios autenticados */}
       <Route

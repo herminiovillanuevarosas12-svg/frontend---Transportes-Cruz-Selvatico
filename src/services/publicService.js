@@ -62,11 +62,65 @@ const publicService = {
     return response.data
   },
 
-  /**
-   * Obtener servicios landing (público)
-   */
-  getServiciosLanding: async () => {
-    const response = await apiClient.get('/public/landing/servicios')
+  getExperienciaIconos: async () => {
+    const response = await apiClient.get('/public/experiencia-iconos')
+    return response.data
+  },
+
+  getDestinosImagenes: async () => {
+    const response = await apiClient.get('/public/destinos-imagenes')
+    return response.data
+  },
+
+  getDestinosBanner: async () => {
+    const response = await apiClient.get('/public/destinos-banner')
+    return response.data
+  },
+
+  // Destinos publicos
+  getDestinos: async (params = {}) => {
+    const response = await apiClient.get('/public/destinos', { params })
+    return response.data
+  },
+
+  getDestino: async (slug) => {
+    const response = await apiClient.get(`/public/destinos/${slug}`)
+    return response.data
+  },
+
+  // Preguntas frecuentes
+  getPreguntasFrecuentes: async () => {
+    const response = await apiClient.get('/public/preguntas-frecuentes')
+    return response.data
+  },
+
+  // Promociones
+  getPromociones: async () => {
+    const response = await apiClient.get('/public/promociones')
+    return response.data
+  },
+
+  // Contacto
+  enviarContacto: async (datos) => {
+    const response = await apiClient.post('/public/contacto', datos)
+    return response.data
+  },
+
+  // Encomiendas ventajas
+  getEncomiendasVentajas: async () => {
+    const response = await apiClient.get('/public/encomiendas-ventajas')
+    return response.data
+  },
+
+  // Nosotros
+  getNosotros: async () => {
+    const response = await apiClient.get('/public/nosotros')
+    return response.data
+  },
+
+  // Paginas de contenido
+  getPagina: async (slug) => {
+    const response = await apiClient.get(`/public/paginas/${slug}`)
     return response.data
   }
 }

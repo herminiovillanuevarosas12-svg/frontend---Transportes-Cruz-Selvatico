@@ -237,6 +237,31 @@ const LoginPage = () => {
 
           </div>
 
+          {/* Dev Quick Login - Solo visible en desarrollo local */}
+          {import.meta.env.DEV && (
+            <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-amber-700 mb-3 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Acceso rapido (solo desarrollo)
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Super Admin', correo: 'admin@transporte.com', pass: '123456', color: 'bg-red-500' },
+                ].map((user) => (
+                  <button
+                    key={user.correo}
+                    type="button"
+                    onClick={() => { setCorreo(user.correo); setContrasena(user.pass) }}
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-amber-200 rounded-lg text-xs font-medium text-gray-700 hover:bg-amber-100 hover:border-amber-300 transition-colors"
+                  >
+                    <span className={`w-2 h-2 rounded-full ${user.color}`} />
+                    {user.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Help text */}
           <div className="mt-8 text-center">
             <p className="text-sm text-gray-500">
