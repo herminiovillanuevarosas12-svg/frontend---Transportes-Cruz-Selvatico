@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react'
 import publicService from '../services/publicService'
 import { getUploadUrl } from '../services/apiClient'
-import { PageHeroBanner } from '../components/public'
+import { PageHeroBanner, SearchBarHero } from '../components/public'
 import PublicLayout from '../components/layout/PublicLayout'
 import {
   Bus,
@@ -130,17 +130,19 @@ const NosotrosPage = () => {
           {/* Seccion: Mision y Vision */}
           {tieneMisionOVision && (
             <section className="bg-white py-12 lg:py-16">
-              <div className="max-w-5xl mx-auto px-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-0">
+              <div className="mx-auto px-4 sm:px-8 lg:px-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
                   {/* Mision */}
                   {config.nosotrosMisionTexto && (
-                    <div className="flex flex-col items-center text-center px-6 md:px-10 md:border-r md:border-gray-200">
-                      <div className="w-20 h-20 rounded-full border-2 border-primary-500 flex items-center justify-center mb-5">
-                        <MisionIcono className="w-10 h-10 text-primary-600" />
+                    <div className="bg-gray-50 p-8 lg:p-12">
+                      <div className="flex items-center gap-3 mb-5">
+                        <div className="w-10 h-10 rounded-full bg-secondary-500 flex items-center justify-center flex-shrink-0">
+                          <MisionIcono className="w-5 h-5 text-white" />
+                        </div>
+                        <h3 className="text-xl lg:text-2xl font-bold text-gray-900">
+                          {config.nosotrosMisionTitulo || 'Mision'}
+                        </h3>
                       </div>
-                      <h3 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4">
-                        {config.nosotrosMisionTitulo || 'Mision'}
-                      </h3>
                       <p className="text-gray-600 leading-relaxed text-sm lg:text-base">
                         {config.nosotrosMisionTexto}
                       </p>
@@ -149,14 +151,16 @@ const NosotrosPage = () => {
 
                   {/* Vision */}
                   {config.nosotrosVisionTexto && (
-                    <div className="flex flex-col items-center text-center px-6 md:px-10">
-                      <div className="w-20 h-20 rounded-full border-2 border-primary-500 flex items-center justify-center mb-5">
-                        <VisionIcono className="w-10 h-10 text-primary-600" />
+                    <div className="bg-secondary-500 p-8 lg:p-12">
+                      <div className="flex items-center gap-3 mb-5">
+                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                          <VisionIcono className="w-5 h-5 text-white" />
+                        </div>
+                        <h3 className="text-xl lg:text-2xl font-bold text-white">
+                          {config.nosotrosVisionTitulo || 'Vision'}
+                        </h3>
                       </div>
-                      <h3 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4">
-                        {config.nosotrosVisionTitulo || 'Vision'}
-                      </h3>
-                      <p className="text-gray-600 leading-relaxed text-sm lg:text-base">
+                      <p className="text-white/90 leading-relaxed text-sm lg:text-base">
                         {config.nosotrosVisionTexto}
                       </p>
                     </div>
@@ -166,17 +170,24 @@ const NosotrosPage = () => {
             </section>
           )}
 
+          {/* Barra Compra tu pasaje */}
+          <section className="bg-secondary-500 py-4">
+            <div className="mx-auto px-4 sm:px-8 lg:px-12">
+              <SearchBarHero className="!shadow-none !border-0" />
+            </div>
+          </section>
+
           {/* Seccion: Valores institucionales */}
           {tieneValores && (
-            <section className="bg-gray-50 py-14 lg:py-20">
-              <div className="max-w-6xl mx-auto px-4">
+            <section className="bg-white py-14 lg:py-20">
+              <div className="mx-auto px-4 sm:px-8 lg:px-12">
                 {/* Titulo */}
                 <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 text-center mb-10 lg:mb-14">
                   {config.nosotrosValoresTitulo || 'Valores institucionales'}
                 </h2>
 
-                {/* Grid de valores */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-5">
+                {/* Grid de valores - full width */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 lg:gap-5">
                   {valores.map((valor) => (
                     <div
                       key={valor.id}

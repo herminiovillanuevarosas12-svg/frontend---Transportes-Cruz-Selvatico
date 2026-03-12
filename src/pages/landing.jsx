@@ -4,7 +4,7 @@
  * descuentos especiales, encomiendas, experiencia, destinos, footer 5 columnas
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import publicService from '../services/publicService'
 import { getUploadUrl } from '../services/apiClient'
@@ -15,41 +15,26 @@ import {
 } from '../components/landing'
 import { MobileMenu } from '../components/public'
 import WhatsAppFloat from '../components/public/WhatsAppFloat'
-import Modal from '../components/common/Modal'
+
+import PublicNavbar from '../components/public/PublicNavbar'
 import {
   Bus,
   Package,
   MapPin,
   Search,
-  Shield,
-  Clock,
-  Users,
   ArrowRight,
-  CheckCircle2,
   Phone,
   Mail,
-  Navigation,
-  Eye,
-  Truck,
   ChevronRight,
-  Globe,
-  Leaf,
-  TreePine,
   Calendar,
   MapPinned,
-  MessageCircle,
   ChevronLeft,
-  Home,
-  Menu,
-  Tag,
-  Percent
+  Tag
 } from 'lucide-react'
 
 const LandingPage = () => {
   const navigate = useNavigate()
-  const [rutas, setRutas] = useState([])
   const [puntos, setPuntos] = useState([])
-  const [ciudades, setCiudades] = useState({})
   const [banners, setBanners] = useState([])
   const [gallery, setGallery] = useState([])
   const [festividades, setFestividades] = useState([])
@@ -67,6 +52,7 @@ const LandingPage = () => {
   })
   const [experienciaIconos, setExperienciaIconos] = useState([])
   const [promociones, setPromociones] = useState([])
+  const [destinosPublicos, setDestinosPublicos] = useState([])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -80,51 +66,47 @@ const LandingPage = () => {
   // Tracking
   const [codigoTracking, setCodigoTracking] = useState('')
 
-  // Modal festividad
-  const [selectedFest, setSelectedFest] = useState(null)
-  const [festModalOpen, setFestModalOpen] = useState(false)
-  const [currentImgIndex, setCurrentImgIndex] = useState(0)
-
-  // Carousel indices para promociones y destinos
+  // Carousel indice para promociones
   const [promoIndex, setPromoIndex] = useState(0)
-  const [destinoIndex, setDestinoIndex] = useState(0)
 
-  const openFestModal = useCallback((fest) => {
-    setSelectedFest(fest)
-    setCurrentImgIndex(0)
-    setFestModalOpen(true)
-  }, [])
-
-  const closeFestModal = useCallback(() => {
-    setFestModalOpen(false)
-    setSelectedFest(null)
-    setCurrentImgIndex(0)
-  }, [])
+  // Sticky buscador: aparece cuando el hero sale del viewport
+  const heroRef = useRef(null)
+  const [stickyBuscador, setStickyBuscador] = useState(false)
 
   useEffect(() => {
     cargarDatos()
   }, [])
 
+  useEffect(() => {
+    const hero = heroRef.current
+    if (!hero) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setStickyBuscador(!entry.isIntersecting),
+      { threshold: 0, rootMargin: '-80px 0px 0px 0px' }
+    )
+    observer.observe(hero)
+    return () => observer.disconnect()
+  }, [])
+
   const cargarDatos = async () => {
     try {
-      const [rutasRes, puntosRes, bannersRes, galleryRes, configRes, festividadesRes, promoRes, iconosRes] = await Promise.all([
-        publicService.getRutas(),
+      const [puntosRes, bannersRes, galleryRes, configRes, festividadesRes, promoRes, iconosRes, destPubRes] = await Promise.all([
         publicService.getPuntos(),
         publicService.getBanners().catch(() => ({ banners: [] })),
         publicService.getGallery().catch(() => ({ imagenes: [] })),
         publicService.getConfigLanding().catch(() => ({ config: {} })),
         publicService.getFestividades().catch(() => ({ festividades: [] })),
         publicService.getPromociones().catch(() => ({ promociones: [] })),
-        publicService.getExperienciaIconos().catch(() => ({ iconos: [] }))
+        publicService.getExperienciaIconos().catch(() => ({ iconos: [] })),
+        publicService.getDestinos({ limit: 50 }).catch(() => ({ destinos: [] }))
       ])
-      setRutas(rutasRes.rutas || [])
       setPuntos(puntosRes.puntos || [])
-      setCiudades(puntosRes.ciudades || {})
       setBanners(bannersRes.banners || [])
       setGallery(galleryRes.imagenes || [])
       setFestividades(festividadesRes.festividades || [])
       setPromociones(promoRes.promociones || [])
       setExperienciaIconos(iconosRes.iconos || [])
+      setDestinosPublicos(destPubRes.destinos || [])
       if (configRes.config) {
         setConfig(prev => ({ ...prev, ...configRes.config }))
       }
@@ -156,115 +138,122 @@ const LandingPage = () => {
     }
   }
 
-  // Obtener destinos populares (ciudades con mas rutas)
-  const getDestinosPopulares = () => {
-    const conteoDestinos = {}
-    rutas.forEach(ruta => {
-      const ciudad = ruta.destino?.ciudad
-      if (ciudad) {
-        conteoDestinos[ciudad] = (conteoDestinos[ciudad] || 0) + 1
-      }
-    })
-    return Object.entries(conteoDestinos)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([ciudad, count]) => {
-        const rutaEjemplo = rutas.find(r => r.destino?.ciudad === ciudad)
-        return {
-          ciudad,
-          rutas: count,
-          precio: rutaEjemplo ? Number(rutaEjemplo.precioPasaje || 0).toFixed(0) : null
-        }
-      })
-  }
-
-  const destinosPopulares = getDestinosPopulares()
-
   // Navegacion carousel promociones
   const promoVisible = 3
   const promoMax = Math.max(0, promociones.length - promoVisible)
   const handlePromoLeft = () => setPromoIndex(i => Math.max(0, i - 1))
   const handlePromoRight = () => setPromoIndex(i => Math.min(promoMax, i + 1))
 
-  // Navegacion carousel destinos
-  const destinoVisible = 4
-  const destinoMax = Math.max(0, destinosPopulares.length - destinoVisible)
-  const handleDestinoLeft = () => setDestinoIndex(i => Math.max(0, i - 1))
-  const handleDestinoRight = () => setDestinoIndex(i => Math.min(destinoMax, i + 1))
+  // Drag para destinos
+  const destinoScrollRef = useRef(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStartX, setDragStartX] = useState(0)
+  const [dragScrollLeft, setDragScrollLeft] = useState(0)
 
-  // Imagenes placeholder para destinos
-  const destinoImages = [
-    'https://images.unsplash.com/photo-1526392060635-9d6019884377?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1580619305218-8423a7ef79b4?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1531968455001-5c5272a67c71?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1591017403286-fd8493524e1e?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1494500764479-0c8f2919a3d8?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=300&fit=crop',
-    'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=400&h=300&fit=crop'
-  ]
-
-  const navLinks = [
-    { to: '/destinos', label: 'Destinos' },
-    { to: '/encomiendas-info', label: 'Encomiendas' },
-    { to: '/tracking', label: 'Rastrea tu envio' },
-  ]
+  const handleDragStart = (e) => {
+    const el = destinoScrollRef.current
+    if (!el) return
+    setIsDragging(true)
+    setDragStartX(e.pageX || e.touches?.[0]?.pageX || 0)
+    setDragScrollLeft(el.scrollLeft)
+  }
+  const handleDragMove = (e) => {
+    if (!isDragging) return
+    e.preventDefault()
+    const el = destinoScrollRef.current
+    if (!el) return
+    const x = e.pageX || e.touches?.[0]?.pageX || 0
+    el.scrollLeft = dragScrollLeft - (x - dragStartX)
+  }
+  const handleDragEnd = () => setIsDragging(false)
 
   return (
     <div className="min-h-screen bg-white">
       {/* ==================== NAVBAR ==================== */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 lg:h-20">
-            {/* Logo */}
-            <Link to="/" className="flex-shrink-0">
-              <img
-                src="/logo.png"
-                alt={config.nombreEmpresa}
-                className="h-10 lg:h-14 w-auto object-contain"
-              />
-            </Link>
+      <PublicNavbar
+        config={config}
+        onMenuOpen={() => setMobileMenuOpen(true)}
+      />
 
-            {/* Desktop Navigation - centrado */}
-            <nav className="hidden lg:flex items-center gap-8">
-              {navLinks.map(link => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className="text-sm font-medium text-gray-700 hover:text-secondary-600 transition-colors"
+      {/* ==================== BARRA STICKY NARANJA (aparece al scrollear) ==================== */}
+      <div
+        className={`fixed top-14 left-0 right-0 z-40 transition-all duration-300 ${
+          stickyBuscador
+            ? 'translate-y-0 opacity-100'
+            : '-translate-y-full opacity-0 pointer-events-none'
+        }`}
+      >
+        <form
+          onSubmit={handleBuscarPasajes}
+          className="bg-secondary-500 px-4 py-2.5"
+        >
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+            <p className="text-white font-bold text-sm whitespace-nowrap flex items-center gap-2">
+              <Bus className="w-4 h-4" />
+              Compra tu pasaje:
+            </p>
+            <div className="flex flex-1 items-center gap-2 md:gap-3">
+              {/* Origen */}
+              <div className="flex-1 relative">
+                <label className="absolute -top-2 left-3 text-[10px] text-white/70 font-medium">Origen</label>
+                <select
+                  value={busqueda.origen}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setBusqueda(prev => ({
+                      ...prev,
+                      origen: val,
+                      destino: prev.destino === val ? '' : prev.destino
+                    }))
+                  }}
+                  className="w-full px-3 py-2 pt-3 bg-white/15 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/40 appearance-none cursor-pointer placeholder:text-white/50 [&>option]:text-gray-900"
                 >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-
-            {/* Derecha: Telefono + Hamburguesa */}
-            <div className="flex items-center gap-3">
-              {config.telefono && (
-                <a
-                  href={`tel:${config.telefono}`}
-                  className="hidden md:flex items-center gap-2 text-gray-700"
+                  <option value="">Ciudad</option>
+                  {ciudadesUnicas.map(ciudad => (
+                    <option key={ciudad} value={ciudad}>{ciudad}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Destino */}
+              <div className="flex-1 relative">
+                <label className="absolute -top-2 left-3 text-[10px] text-white/70 font-medium">Destino</label>
+                <select
+                  value={busqueda.destino}
+                  onChange={(e) => setBusqueda(prev => ({ ...prev, destino: e.target.value }))}
+                  className="w-full px-3 py-2 pt-3 bg-white/15 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/40 appearance-none cursor-pointer placeholder:text-white/50 [&>option]:text-gray-900"
                 >
-                  <div className="w-8 h-8 bg-secondary-500 rounded-full flex items-center justify-center">
-                    <Phone className="w-4 h-4 text-white" />
-                  </div>
-                  <span className="text-sm font-semibold">{config.telefono}</span>
-                </a>
-              )}
+                  <option value="">Ciudad</option>
+                  {ciudadesUnicas.filter(c => c !== busqueda.origen).map(ciudad => (
+                    <option key={ciudad} value={ciudad}>{ciudad}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Fecha */}
+              <div className="flex-1 relative hidden sm:block">
+                <label className="absolute -top-2 left-3 text-[10px] text-white/70 font-medium">Fecha salida</label>
+                <input
+                  type="date"
+                  value={busqueda.fecha}
+                  onChange={(e) => setBusqueda(prev => ({ ...prev, fecha: e.target.value }))}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 pt-3 bg-white/15 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer [color-scheme:dark]"
+                />
+              </div>
+              {/* Boton */}
               <button
-                onClick={() => setMobileMenuOpen(true)}
-                className="flex items-center justify-center w-10 h-10 text-gray-600 hover:text-secondary-600 transition-colors"
-                aria-label="Abrir menu"
+                type="submit"
+                className="px-6 py-2.5 bg-white text-secondary-600 rounded-lg font-bold uppercase text-sm tracking-wide hover:bg-gray-50 transition-all duration-200 flex items-center gap-2 whitespace-nowrap shadow-lg"
               >
-                <Menu className="w-7 h-7" />
+                <Search className="w-4 h-4" />
+                BUSCAR
               </button>
             </div>
           </div>
-        </div>
-      </header>
+        </form>
+      </div>
 
       {/* ==================== HERO SECTION ==================== */}
-      <section className="relative">
+      <section ref={heroRef} className="relative">
         {/* Banner Carrusel */}
         <BannerCarousel
           banners={banners}
@@ -274,20 +263,23 @@ const LandingPage = () => {
           showIndicators={true}
         />
 
-        {/* Buscador de Pasajes - Card flotante al fondo del hero */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 transform translate-y-1/2">
+        {/* Buscador de Pasajes - flotante sobre el borde inferior del hero */}
+        <div className="absolute bottom-6 md:bottom-8 left-0 right-0 z-20">
           <div className="max-w-5xl mx-auto px-4">
             <form
               onSubmit={handleBuscarPasajes}
-              className="bg-white rounded-2xl shadow-2xl p-5 md:p-6 border border-gray-100"
+              className="bg-white/95 backdrop-blur-md rounded-[20px] shadow-[0_8px_40px_rgba(0,0,0,0.12)] px-5 py-4 md:px-7 md:py-5"
             >
-              <p className="text-sm font-semibold text-gray-700 mb-3">Compra tu pasaje:</p>
-              <div className="grid md:grid-cols-4 gap-4">
+              <p className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <Bus className="w-4 h-4 text-secondary-500" />
+                Compra tu pasaje
+              </p>
+              <div className="flex flex-col md:flex-row md:items-end gap-3 md:gap-4">
                 {/* Origen */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Origen</label>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Origen</label>
                   <div className="relative">
-                    <MapPinned className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary-500" />
+                    <MapPinned className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-primary-500" />
                     <select
                       value={busqueda.origen}
                       onChange={(e) => {
@@ -298,7 +290,7 @@ const LandingPage = () => {
                           destino: prev.destino === val ? '' : prev.destino
                         }))
                       }}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent appearance-none cursor-pointer text-sm"
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50/80 border border-gray-200/70 rounded-full text-gray-900 focus:outline-none focus:ring-2 focus:ring-secondary-400 focus:border-transparent appearance-none cursor-pointer text-sm transition-all hover:bg-gray-50"
                     >
                       <option value="">Seleccionar ciudad</option>
                       {ciudadesUnicas.map(ciudad => (
@@ -309,14 +301,14 @@ const LandingPage = () => {
                 </div>
 
                 {/* Destino */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Destino</label>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Destino</label>
                   <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-secondary-500" />
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-secondary-500" />
                     <select
                       value={busqueda.destino}
                       onChange={(e) => setBusqueda(prev => ({ ...prev, destino: e.target.value }))}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent appearance-none cursor-pointer text-sm"
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50/80 border border-gray-200/70 rounded-full text-gray-900 focus:outline-none focus:ring-2 focus:ring-secondary-400 focus:border-transparent appearance-none cursor-pointer text-sm transition-all hover:bg-gray-50"
                     >
                       <option value="">Seleccionar ciudad</option>
                       {ciudadesUnicas.filter(c => c !== busqueda.origen).map(ciudad => (
@@ -327,27 +319,27 @@ const LandingPage = () => {
                 </div>
 
                 {/* Fecha */}
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Fecha de viaje</label>
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-400 mb-1">Fecha de viaje</label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-gray-400" />
                     <input
                       type="date"
                       value={busqueda.fecha}
                       onChange={(e) => setBusqueda(prev => ({ ...prev, fecha: e.target.value }))}
                       min={new Date().toISOString().split('T')[0]}
-                      className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-secondary-500 focus:border-transparent cursor-pointer text-sm"
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50/80 border border-gray-200/70 rounded-full text-gray-900 focus:outline-none focus:ring-2 focus:ring-secondary-400 focus:border-transparent cursor-pointer text-sm transition-all hover:bg-gray-50"
                     />
                   </div>
                 </div>
 
                 {/* Boton */}
-                <div className="flex items-end">
+                <div className="md:flex-shrink-0">
                   <button
                     type="submit"
-                    className="w-full py-3 bg-secondary-500 text-white rounded-xl font-bold uppercase tracking-wide hover:bg-secondary-600 transition-colors flex items-center justify-center gap-2 text-sm"
+                    className="w-full md:w-auto px-8 py-2.5 bg-secondary-500 text-white rounded-full font-bold uppercase tracking-wide hover:bg-secondary-600 hover:shadow-lg hover:shadow-secondary-500/25 transition-all duration-200 flex items-center justify-center gap-2 text-sm active:scale-[0.97]"
                   >
-                    <Search className="w-5 h-5" />
+                    <Search className="w-4 h-4" />
                     BUSCAR
                   </button>
                 </div>
@@ -357,8 +349,8 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Espacio para el buscador flotante */}
-      <div className="h-24 md:h-20" />
+      {/* Espacio mínimo post-hero */}
+      <div className="h-4 md:h-6" />
 
       {/* ==================== DESCUENTOS ESPECIALES ==================== */}
       {promociones.length > 0 && (
@@ -457,11 +449,15 @@ const LandingPage = () => {
       {/* ==================== SECCION ENCOMIENDAS ==================== */}
       <section className="relative w-full h-[500px] md:h-[600px] overflow-hidden">
         {/* Imagen de fondo full-width */}
-        <img
-          src={config.encomiendasLandingImagen ? getUploadUrl(config.encomiendasLandingImagen) : 'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?w=1600&h=700&fit=crop'}
-          alt="Servicio de encomiendas"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        {config.encomiendasLandingImagen ? (
+          <img
+            src={getUploadUrl(config.encomiendasLandingImagen)}
+            alt="Servicio de encomiendas"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900" />
+        )}
 
         {/* Overlay oscuro gradiente */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/20" />
@@ -511,78 +507,99 @@ const LandingPage = () => {
       <GallerySection imagenes={gallery} />
 
       {/* ==================== DESTINOS POPULARES ==================== */}
-      {destinosPopulares.length > 0 && (
+      {destinosPublicos.length > 0 && (
         <section className="py-14 bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Header con titulo + flechas */}
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-1 h-8 bg-secondary-500 rounded-full" />
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">
-                  Descubre mas destinos
-                </h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleDestinoLeft}
-                  disabled={destinoIndex === 0}
-                  className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={handleDestinoRight}
-                  disabled={destinoIndex >= destinoMax}
-                  className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
+          <div className="mx-auto px-4 sm:px-8 lg:px-12">
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-1 h-8 bg-secondary-500 rounded-full" />
+              <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">
+                Descubre mas destinos
+              </h2>
             </div>
 
-            {/* Carousel de destinos */}
-            <div className="overflow-hidden">
-              <div
-                className="flex gap-5 transition-transform duration-500 ease-in-out"
-                style={{ transform: `translateX(-${destinoIndex * (100 / destinoVisible)}%)` }}
-              >
-                {destinosPopulares.map((destino, index) => (
-                  <div
-                    key={destino.ciudad}
-                    className="flex-shrink-0 group"
-                    style={{ minWidth: `calc(${100 / destinoVisible}% - 15px)` }}
+            {/* Carousel de destinos - drag + flechas */}
+            <div className="relative">
+              {destinosPublicos.length > 4 && (
+                <>
+                  <button
+                    onClick={() => {
+                      const el = destinoScrollRef.current
+                      if (el) el.scrollBy({ left: -(el.offsetWidth / 4), behavior: 'smooth' })
+                    }}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-all"
                   >
-                    <div className="relative rounded-2xl overflow-hidden aspect-[3/4] bg-gray-200">
-                      {/* Imagen de fondo */}
-                      <img
-                        src={destinoImages[index % destinoImages.length]}
-                        alt={destino.ciudad}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                      {/* Gradiente oscuro */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-
-                      {/* Contenido sobre la imagen */}
-                      <div className="absolute bottom-0 left-0 right-0 p-5">
-                        <h3 className="text-xl font-bold text-white mb-1">
-                          {destino.ciudad}
-                        </h3>
-                        {destino.precio && (
-                          <p className="text-secondary-300 font-bold text-lg mb-3">
-                            S/{destino.precio}
-                          </p>
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const el = destinoScrollRef.current
+                      if (el) el.scrollBy({ left: el.offsetWidth / 4, behavior: 'smooth' })
+                    }}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-700 hover:bg-gray-50 transition-all"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </>
+              )}
+              <div
+                ref={destinoScrollRef}
+                className="flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory cursor-grab active:cursor-grabbing"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                onMouseDown={handleDragStart}
+                onMouseMove={handleDragMove}
+                onMouseUp={handleDragEnd}
+                onMouseLeave={handleDragEnd}
+                onTouchStart={handleDragStart}
+                onTouchMove={handleDragMove}
+                onTouchEnd={handleDragEnd}
+              >
+                {destinosPublicos.map((destino) => {
+                  const imgUrl = destino.imagenPath ? getUploadUrl(destino.imagenPath) : null
+                  return (
+                    <div
+                      key={destino.id}
+                      className="flex-shrink-0 w-[calc(25%-12px)] min-w-[260px] snap-start group"
+                    >
+                      <div className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-gray-200">
+                        {imgUrl ? (
+                          <img
+                            src={imgUrl}
+                            alt={destino.nombre}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            draggable={false}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-primary-200 to-primary-400 flex items-center justify-center">
+                            <MapPin className="w-12 h-12 text-white/40" />
+                          </div>
                         )}
-                        <Link
-                          to={`/buscar-pasajes?destino=${destino.ciudad}`}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 bg-secondary-500 text-white rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-secondary-600 transition-colors"
-                        >
-                          CONOCE MAS
-                          <ChevronRight className="w-3.5 h-3.5" />
-                        </Link>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 p-4">
+                          <p className="text-white/70 text-xs mb-0.5">Descubre la magia de</p>
+                          <h3 className="text-lg font-bold text-white mb-1">
+                            {destino.nombre}
+                          </h3>
+                          {destino.precioDesde && (
+                            <>
+                              <p className="text-white/70 text-xs">Pasajes desde:</p>
+                              <p className="text-white font-bold text-xl mb-2">
+                                S/{Number(destino.precioDesde).toFixed(0)}
+                              </p>
+                            </>
+                          )}
+                          <Link
+                            to={`/destinos/${destino.slug}`}
+                            className="inline-flex items-center gap-1.5 px-4 py-1.5 border border-white text-white rounded-full text-xs font-semibold hover:bg-white hover:text-gray-900 transition-colors"
+                            onClick={(e) => isDragging && e.preventDefault()}
+                          >
+                            CONOCE MAS
+                          </Link>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -603,7 +620,7 @@ const LandingPage = () => {
       {/* ==================== FESTIVIDADES ==================== */}
       {festividades.length > 0 && (
         <section className="py-14 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto px-4 sm:px-8 lg:px-12">
             <div className="flex items-center gap-3 mb-8">
               <div className="w-1 h-8 bg-primary-600 rounded-full" />
               <h2 className="text-2xl lg:text-3xl font-bold text-gray-900">
@@ -615,10 +632,10 @@ const LandingPage = () => {
               {festividades.map((fest) => {
                 const coverImg = fest.imagenes?.[0]?.imagenPath
                 return (
-                  <div
+                  <Link
                     key={fest.id}
-                    onClick={() => openFestModal(fest)}
-                    className="group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:border-secondary-300 transition-all duration-300 cursor-pointer"
+                    to={`/festividad/${fest.id}`}
+                    className="group bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg hover:border-secondary-300 transition-all duration-300"
                   >
                     {coverImg ? (
                       <div className="aspect-[16/10] overflow-hidden relative">
@@ -674,106 +691,10 @@ const LandingPage = () => {
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 )
               })}
             </div>
-
-            {/* Modal detalle festividad */}
-            <Modal
-              isOpen={festModalOpen}
-              onClose={closeFestModal}
-              size="xl"
-              bodyClassName="max-h-[80vh] overflow-y-auto"
-            >
-              {selectedFest && (
-                <div className="-mx-6 -mt-6">
-                  {/* Carrusel de imagenes */}
-                  {selectedFest.imagenes?.length > 0 ? (
-                    <div className="relative">
-                      <div className="aspect-[16/9] overflow-hidden bg-gray-100">
-                        <img
-                          src={getUploadUrl(selectedFest.imagenes[currentImgIndex]?.imagenPath)}
-                          alt={`${selectedFest.titulo} - Foto ${currentImgIndex + 1}`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.onerror = null
-                            e.target.src = '/placeholder-banner.jpg'
-                          }}
-                        />
-                      </div>
-
-                      {/* Flechas de navegacion */}
-                      {selectedFest.imagenes.length > 1 && (
-                        <>
-                          <button
-                            onClick={() => setCurrentImgIndex(i => i > 0 ? i - 1 : selectedFest.imagenes.length - 1)}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center text-gray-700 hover:bg-white transition-colors"
-                          >
-                            <ChevronLeft className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => setCurrentImgIndex(i => i < selectedFest.imagenes.length - 1 ? i + 1 : 0)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-lg flex items-center justify-center text-gray-700 hover:bg-white transition-colors"
-                          >
-                            <ChevronRight className="w-5 h-5" />
-                          </button>
-
-                          {/* Indicadores */}
-                          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
-                            {selectedFest.imagenes.map((_, idx) => (
-                              <button
-                                key={idx}
-                                onClick={() => setCurrentImgIndex(idx)}
-                                className={`w-2 h-2 rounded-full transition-all ${
-                                  idx === currentImgIndex
-                                    ? 'bg-white w-6'
-                                    : 'bg-white/60 hover:bg-white/80'
-                                }`}
-                              />
-                            ))}
-                          </div>
-
-                          {/* Contador */}
-                          <div className="absolute top-3 right-3">
-                            <span className="px-2.5 py-1 bg-black/60 backdrop-blur-sm text-white rounded-full text-xs font-medium">
-                              {currentImgIndex + 1} / {selectedFest.imagenes.length}
-                            </span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="aspect-[16/9] bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
-                      <MapPin className="w-20 h-20 text-primary-300" />
-                    </div>
-                  )}
-
-                  {/* Contenido del modal */}
-                  <div className="p-6">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-700 rounded-full text-xs font-semibold">
-                        <MapPin className="w-3 h-3" />
-                        {selectedFest.puntoCiudad}
-                      </span>
-                      <span className="text-sm text-gray-400">
-                        {selectedFest.puntoNombre}
-                      </span>
-                    </div>
-
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                      {selectedFest.titulo}
-                    </h2>
-
-                    {selectedFest.descripcion && (
-                      <div className="prose prose-sm max-w-none text-gray-600 leading-relaxed whitespace-pre-line">
-                        {selectedFest.descripcion}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </Modal>
           </div>
         </section>
       )}
@@ -861,17 +782,21 @@ const LandingPage = () => {
               </ul>
             </div>
 
-            {/* Rutas frecuentes */}
-            <div className="hidden lg:block">
-              <h4 className="font-semibold text-white mb-4 text-sm">Rutas frecuentes</h4>
-              <ul className="space-y-2.5">
-                <li><Link to="/buscar-pasajes?destino=Lima" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Lima</Link></li>
-                <li><Link to="/buscar-pasajes?destino=Huaraz" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Huaraz</Link></li>
-                <li><Link to="/buscar-pasajes?destino=Chiclayo" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Chiclayo</Link></li>
-                <li><Link to="/buscar-pasajes?destino=Tarapoto" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Tarapoto</Link></li>
-                <li><Link to="/buscar-pasajes?destino=Cajamarca" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Cajamarca</Link></li>
-              </ul>
-            </div>
+            {/* Destinos */}
+            {destinosPublicos.length > 0 && (
+              <div className="hidden lg:block">
+                <h4 className="font-semibold text-white mb-4 text-sm">Destinos</h4>
+                <ul className="space-y-2.5">
+                  {destinosPublicos.slice(0, 5).map(dest => (
+                    <li key={dest.id}>
+                      <Link to={`/destinos/${dest.slug}`} className="text-primary-300 hover:text-white transition-colors text-sm">
+                        {dest.nombre}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {/* Copyright */}

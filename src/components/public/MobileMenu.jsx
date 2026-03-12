@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   X, Home, Briefcase, MapPin, Package,
-  HelpCircle, Info, Phone, Mail, Search
+  HelpCircle, Info, Phone, Mail, Search, PartyPopper, Route
 } from 'lucide-react'
 
 const NAV_LINKS = [
@@ -15,11 +15,13 @@ const NAV_LINKS = [
   { to: '/nosotros', label: 'Nosotros', icon: Info },
   { to: '/destinos', label: 'Destinos', icon: MapPin },
   { to: '/encomiendas-info', label: 'Encomiendas', icon: Package },
+  { to: '/festividades', label: 'Festividades', icon: PartyPopper },
   { to: '/buscar-pasajes', label: 'Buscar Pasajes', icon: Search },
   { to: '/preguntas-frecuentes', label: 'Preguntas Frecuentes', icon: HelpCircle },
   { to: '/info-viaje', label: 'Info para tu Viaje', icon: Briefcase },
   { to: '/contacto', label: 'Contacto', icon: Mail },
   { to: '/tracking', label: 'Rastrear Envio', icon: Package },
+  { to: '/planificar-viaje', label: 'Planifica tu Viaje', icon: Route },
 ]
 
 const MobileMenu = ({ isOpen, onClose, config = {} }) => {

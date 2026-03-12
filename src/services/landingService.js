@@ -177,28 +177,8 @@ const landingService = {
   },
 
   // ============================================
-  // DESTINOS IMAGENES
+  // DESTINOS BANNER
   // ============================================
-
-  listarDestinosImagenes: async () => {
-    const response = await apiClient.get('/landing/destinos-imagenes')
-    return response.data
-  },
-
-  subirImagenDestino: async (ciudad, file) => {
-    const formData = new FormData()
-    formData.append('ciudad', ciudad)
-    formData.append('imagen', file)
-    const response = await apiClient.post('/landing/destinos-imagenes', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-    return response.data
-  },
-
-  eliminarImagenDestino: async (id) => {
-    const response = await apiClient.delete(`/landing/destinos-imagenes/${id}`)
-    return response.data
-  },
 
   subirBannerDestinos: async (file) => {
     const formData = new FormData()
@@ -211,6 +191,39 @@ const landingService = {
 
   eliminarBannerDestinos: async () => {
     const response = await apiClient.delete('/landing/destinos-banner')
+    return response.data
+  },
+
+  // ============================================
+  // DESTINOS PUBLICOS (CRUD)
+  // ============================================
+
+  listarDestinos: async () => {
+    const response = await apiClient.get('/contenido/destinos')
+    return response.data
+  },
+
+  crearDestino: async (formData) => {
+    const response = await apiClient.post('/contenido/destinos', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  actualizarDestino: async (id, formData) => {
+    const response = await apiClient.put(`/contenido/destinos/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  eliminarDestino: async (id) => {
+    const response = await apiClient.delete(`/contenido/destinos/${id}`)
+    return response.data
+  },
+
+  toggleDestino: async (id) => {
+    const response = await apiClient.patch(`/contenido/destinos/${id}/toggle`)
     return response.data
   },
 
@@ -392,6 +405,56 @@ const landingService = {
 
   reordenarPreguntasFrecuentes: async (ordenes) => {
     const response = await apiClient.put('/contenido/preguntas-frecuentes/reordenar', { ordenes })
+    return response.data
+  },
+
+  // ============================================
+  // INFO VIAJE
+  // ============================================
+
+  getInfoViajeItems: async () => {
+    const response = await apiClient.get('/contenido/info-viaje-items')
+    return response.data
+  },
+
+  crearInfoViajeItem: async (formData) => {
+    const response = await apiClient.post('/contenido/info-viaje-items', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  actualizarInfoViajeItem: async (id, formData) => {
+    const response = await apiClient.put(`/contenido/info-viaje-items/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  eliminarInfoViajeItem: async (id) => {
+    const response = await apiClient.delete(`/contenido/info-viaje-items/${id}`)
+    return response.data
+  },
+
+  toggleInfoViajeItem: async (id) => {
+    const response = await apiClient.patch(`/contenido/info-viaje-items/${id}/toggle`)
+    return response.data
+  },
+
+  subirHeroInfoViaje: async (formData) => {
+    const response = await apiClient.put('/landing/config/imagen-info-viaje-hero', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  eliminarHeroInfoViaje: async () => {
+    const response = await apiClient.delete('/landing/config/imagen-info-viaje-hero')
+    return response.data
+  },
+
+  actualizarConfigInfoViaje: async (data) => {
+    const response = await apiClient.put('/landing/config/info-viaje', data)
     return response.data
   }
 }

@@ -129,7 +129,7 @@ const EncomiendasInfoPage = () => {
 
       {/* Seccion: Por que elegirnos */}
       <section className="bg-white py-16 lg:py-20">
-        <div className="max-w-6xl mx-auto px-4">
+        <div className="max-w-7xl mx-auto px-4">
           {/* Titulo con borde izquierdo + flechas */}
           <div className="flex items-center justify-between mb-10">
             <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 border-l-4 border-secondary-500 pl-4">
@@ -179,7 +179,7 @@ const EncomiendasInfoPage = () => {
                     >
                       {/* Imagen o placeholder con icono */}
                       {v.imagenPath ? (
-                        <div className="h-48 overflow-hidden">
+                        <div className="h-60 overflow-hidden">
                           <img
                             src={getUploadUrl(v.imagenPath)}
                             alt={v.titulo}
@@ -187,7 +187,7 @@ const EncomiendasInfoPage = () => {
                           />
                         </div>
                       ) : (
-                        <div className="h-48 bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
+                        <div className="h-60 bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
                           <div className="w-20 h-20 rounded-full border-2 border-secondary-500 flex items-center justify-center">
                             <Icono className="w-10 h-10 text-secondary-500" />
                           </div>
@@ -219,7 +219,7 @@ const EncomiendasInfoPage = () => {
                       className="rounded-xl border border-gray-200 overflow-hidden animate-fade-in"
                     >
                       {v.imagenPath ? (
-                        <div className="h-48 overflow-hidden">
+                        <div className="h-60 overflow-hidden">
                           <img
                             src={getUploadUrl(v.imagenPath)}
                             alt={v.titulo}
@@ -227,7 +227,7 @@ const EncomiendasInfoPage = () => {
                           />
                         </div>
                       ) : (
-                        <div className="h-48 bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
+                        <div className="h-60 bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
                           <div className="w-20 h-20 rounded-full border-2 border-secondary-500 flex items-center justify-center">
                             <Icono className="w-10 h-10 text-secondary-500" />
                           </div>

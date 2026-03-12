@@ -1,6 +1,6 @@
 /**
  * DestinoDetalle - Pagina de detalle estilo Movil Bus
- * Hero + 2 columnas info/imagen + calendario festivo con gradiente
+ * Hero + 2 columnas info/imagen + Atractivos turisticos + Calendario festivo
  * Ruta: /destinos/:slug
  */
 
@@ -10,11 +10,10 @@ import publicService from '../services/publicService'
 import { getUploadUrl } from '../services/apiClient'
 import { PageHeroBanner } from '../components/public'
 import PublicLayout from '../components/layout/PublicLayout'
-import { MapPin, Clock, Calendar, Package, ArrowLeft, Loader2, Eye } from 'lucide-react'
+import { MapPin, Clock, Calendar, ArrowLeft, Loader2, Eye, Mountain, Thermometer, Phone, ChevronLeft, ChevronRight } from 'lucide-react'
 
 /**
  * Convierte fecha ISO a formato legible en espanol.
- * Convierte UTC a hora local del navegador.
  */
 const formatearFecha = (fechaStr) => {
   if (!fechaStr) return ''
@@ -29,6 +28,136 @@ const formatearFecha = (fechaStr) => {
   } catch {
     return fechaStr
   }
+}
+
+/**
+ * Seccion unificada "Atractivos turisticos" con carrusel de festividades.
+ * Imagen de fondo full-width por slide + cuadro con info superpuesto a la derecha.
+ */
+const AtractivosCarousel = ({ festividades, destino, imagenAtractivosUrl }) => {
+  const [current, setCurrent] = useState(0)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const total = festividades.length
+
+  const goTo = (idx) => {
+    if (isTransitioning) return
+    setIsTransitioning(true)
+    setCurrent(idx)
+    setTimeout(() => setIsTransitioning(false), 500)
+  }
+
+  const prev = () => goTo(current === 0 ? total - 1 : current - 1)
+  const next = () => goTo(current === total - 1 ? 0 : current + 1)
+
+  const fest = festividades[current]
+
+  return (
+    <section className="relative w-full overflow-hidden h-[420px]">
+      {/* Slides de imagenes de fondo con transicion fade */}
+      {festividades.map((f, idx) => {
+        const img = f.imagenPath ? getUploadUrl(f.imagenPath) : imagenAtractivosUrl
+        return (
+          <div
+            key={f.id || idx}
+            className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
+              idx === current ? 'opacity-100 z-10' : 'opacity-0 z-0'
+            }`}
+          >
+            {img ? (
+              <img
+                src={img}
+                alt={f.titulo || f.nombre}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-br from-primary-800 via-primary-700 to-secondary-600" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/20 to-black/60" />
+          </div>
+        )
+      })}
+
+      {/* Contenido superpuesto - altura fija */}
+      <div className="relative z-20 flex items-center h-[420px]">
+        <div className="max-w-7xl mx-auto px-4 w-full">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+            {/* Columna izquierda - vacia para mostrar imagen */}
+            <div className="hidden lg:block" />
+
+            {/* Columna derecha - cuadro con info, altura fija */}
+            <div className="bg-primary-800/80 backdrop-blur-sm rounded-2xl p-8 lg:p-10 h-[340px] flex flex-col overflow-hidden">
+              <h2 className="text-2xl lg:text-3xl font-bold text-white mb-2 shrink-0">
+                Atractivos turisticos
+              </h2>
+              <p className="text-secondary-400 font-semibold text-sm mb-4 shrink-0 truncate">
+                {fest.titulo || fest.nombre}
+              </p>
+              {fest.descripcion && (
+                <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line line-clamp-5 flex-1 min-h-0 overflow-hidden">
+                  {fest.descripcion}
+                </p>
+              )}
+
+              {/* Parte inferior fija */}
+              <div className="shrink-0 mt-auto pt-4">
+                {/* Link a detalle */}
+                {fest.id && (
+                  <Link
+                    to={`/festividad/${fest.id}`}
+                    className="inline-flex items-center gap-2 text-secondary-400 hover:text-secondary-300 font-semibold text-sm transition-colors"
+                  >
+                    Ver mas detalles
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                )}
+
+                {/* Indicadores de slide */}
+                {total > 1 && (
+                  <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/10">
+                    {festividades.map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => goTo(idx)}
+                        className={`rounded-full transition-all duration-300 ${
+                          idx === current
+                            ? 'w-8 h-2.5 bg-secondary-400'
+                            : 'w-2.5 h-2.5 bg-white/30 hover:bg-white/50'
+                        }`}
+                        aria-label={`Ir a atractivo ${idx + 1}`}
+                      />
+                    ))}
+                    <span className="text-white/40 text-xs ml-3">
+                      {current + 1} / {total}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Flechas de navegacion */}
+      {total > 1 && (
+        <>
+          <button
+            onClick={prev}
+            className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
+            aria-label="Atractivo anterior"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <button
+            onClick={next}
+            className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
+            aria-label="Atractivo siguiente"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        </>
+      )}
+    </section>
+  )
 }
 
 const DestinoDetalle = () => {
@@ -93,6 +222,7 @@ const DestinoDetalle = () => {
   }
 
   const imagenUrl = destino.imagenPath ? getUploadUrl(destino.imagenPath) : null
+  const imagenAtractivosUrl = destino.imagenAtractivos ? getUploadUrl(destino.imagenAtractivos) : null
   const festividades = Array.isArray(destino.festividades) ? destino.festividades : []
 
   return (
@@ -151,38 +281,26 @@ const DestinoDetalle = () => {
                 </div>
               )}
 
-              {destino.direccionTerminal2 && (
+              {destino.telefonoTerminal && (
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 bg-secondary-500 rounded-full flex items-center justify-center shrink-0">
-                    <MapPin className="w-5 h-5 text-white" />
+                    <Phone className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-gray-800">Terminal adicional</h4>
-                    <p className="text-sm text-gray-600 mt-0.5">{destino.direccionTerminal2}</p>
+                    <h4 className="text-sm font-bold text-gray-800">Telefono</h4>
+                    <p className="text-sm text-gray-600 mt-0.5">{destino.telefonoTerminal}</p>
                   </div>
                 </div>
               )}
 
-              {destino.horarios && (
+              {destino.horariosAtencion && (
                 <div className="flex items-start gap-4">
                   <div className="w-10 h-10 bg-secondary-500 rounded-full flex items-center justify-center shrink-0">
                     <Clock className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-gray-800">Horarios de salida</h4>
-                    <p className="text-sm text-gray-600 mt-0.5 whitespace-pre-line">{destino.horarios}</p>
-                  </div>
-                </div>
-              )}
-
-              {destino.horariosEncomiendas && (
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-secondary-500 rounded-full flex items-center justify-center shrink-0">
-                    <Package className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-gray-800">Encomiendas Express</h4>
-                    <p className="text-sm text-gray-600 mt-0.5 whitespace-pre-line">{destino.horariosEncomiendas}</p>
+                    <h4 className="text-sm font-bold text-gray-800">Horarios de atencion</h4>
+                    <p className="text-sm text-gray-600 mt-0.5 whitespace-pre-line">{destino.horariosAtencion}</p>
                   </div>
                 </div>
               )}
@@ -208,72 +326,58 @@ const DestinoDetalle = () => {
         </div>
       </section>
 
-      {/* Calendario Festivo - seccion full width con gradiente */}
-      {festividades.length > 0 && (
-        <section className="bg-gradient-to-r from-primary-800 via-primary-700 to-secondary-500 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 py-12 lg:py-16">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
-              {/* Izquierda: titulo + lista de festividades */}
-              <div className="lg:col-span-2">
-                <div className="border-l-4 border-white/40 pl-4 mb-8">
-                  <h2 className="text-3xl font-bold text-white flex items-center gap-3">
-                    <Calendar className="w-7 h-7 text-secondary-300" />
-                    Calendario Festivo
-                  </h2>
-                  <p className="text-white/70 text-sm mt-1">
-                    Festividades y eventos en {destino.nombre}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {festividades.map((fest, idx) => (
-                    <div
-                      key={fest.id || idx}
-                      className="flex items-start gap-4 bg-white/10 backdrop-blur-sm rounded-xl p-4 hover:bg-white/15 transition-colors"
-                    >
-                      <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center shrink-0">
-                        <Calendar className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-white">
-                          {fest.titulo || fest.nombre}
-                        </h4>
-                        <p className="text-sm text-white/70 mt-0.5">
-                          {formatearFecha(fest.fecha || fest.fechaInicio)}
-                          {fest.fechaFin && fest.fechaFin !== fest.fechaInicio && (
-                            <> - {formatearFecha(fest.fechaFin)}</>
-                          )}
-                        </p>
-                        {fest.descripcion && (
-                          <p className="text-sm text-white/60 mt-1">
-                            {fest.descripcion}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Derecha: imagen del destino */}
-              <div className="hidden lg:block">
-                {imagenUrl ? (
-                  <div className="rounded-2xl overflow-hidden shadow-xl">
-                    <img
-                      src={imagenUrl}
-                      alt={destino.nombre}
-                      className="w-full h-80 object-cover"
-                    />
+      {/* Barra de estadisticas */}
+      {(destino.altitud || destino.temperatura || destino.tiempoViaje) && (
+        <section className="bg-primary-50/60 border-y border-primary-100">
+          <div className="max-w-7xl mx-auto px-4 py-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {destino.altitud && (
+                <div className="flex items-center gap-4 bg-white rounded-xl p-5 shadow-sm">
+                  <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center shrink-0">
+                    <Mountain className="w-6 h-6 text-primary-600" />
                   </div>
-                ) : (
-                  <div className="rounded-2xl bg-white/10 flex items-center justify-center h-80">
-                    <MapPin className="w-16 h-16 text-white/30" />
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Altitud</p>
+                    <p className="text-lg font-bold text-primary-800">{destino.altitud}</p>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+              {destino.temperatura && (
+                <div className="flex items-center gap-4 bg-white rounded-xl p-5 shadow-sm">
+                  <div className="w-12 h-12 bg-secondary-100 rounded-full flex items-center justify-center shrink-0">
+                    <Thermometer className="w-6 h-6 text-secondary-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Temperatura</p>
+                    <p className="text-lg font-bold text-primary-800">{destino.temperatura}</p>
+                  </div>
+                </div>
+              )}
+              {destino.tiempoViaje && (
+                <div className="flex items-center gap-4 bg-white rounded-xl p-5 shadow-sm">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                    <Clock className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Tiempo de viaje</p>
+                    <p className="text-lg font-bold text-primary-800">{destino.tiempoViaje}</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>
+      )}
+
+      {/* ============================================================ */}
+      {/* ATRACTIVOS TURISTICOS - Carrusel unificado                   */}
+      {/* ============================================================ */}
+      {festividades.length > 0 && (
+        <AtractivosCarousel
+          festividades={festividades}
+          destino={destino}
+          imagenAtractivosUrl={imagenAtractivosUrl}
+        />
       )}
     </PublicLayout>
   )

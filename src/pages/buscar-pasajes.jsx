@@ -12,11 +12,10 @@ import { useSearchParams, Link } from 'react-router-dom'
 import publicService from '../services/publicService'
 import PublicLayout from '../components/layout/PublicLayout'
 import {
-  BookingStepper,
   DateRibbon,
   TripResultCard,
 } from '../components/public'
-import { ArrowRight, Check, ChevronDown, Search, Loader2, Users } from 'lucide-react'
+import { ArrowRight, ChevronDown, Search, Loader2, Users } from 'lucide-react'
 
 const BuscarPasajesPage = () => {
   const [searchParams] = useSearchParams()
@@ -26,6 +25,7 @@ const BuscarPasajesPage = () => {
   // ------------------------------------------------------------------
   const [rutas, setRutas] = useState([])
   const [puntos, setPuntos] = useState([])
+  const [whatsapp, setWhatsapp] = useState('')
   const [loading, setLoading] = useState(true)
   const [fechaSeleccionada, setFechaSeleccionada] = useState(() => {
     const param = searchParams.get('fecha')
@@ -49,12 +49,14 @@ const BuscarPasajesPage = () => {
     const cargarDatos = async () => {
       try {
         setLoading(true)
-        const [rutasRes, puntosRes] = await Promise.all([
+        const [rutasRes, puntosRes, configRes] = await Promise.all([
           publicService.getRutas(),
           publicService.getPuntos(),
+          publicService.getConfigLanding().catch(() => ({ config: {} })),
         ])
         setRutas(rutasRes.rutas || [])
         setPuntos(puntosRes.puntos || [])
+        setWhatsapp(configRes.config?.whatsapp || configRes.config?.telefono || '')
       } catch (error) {
         console.error('Error cargando datos de busqueda:', error)
       } finally {
@@ -167,15 +169,6 @@ const BuscarPasajesPage = () => {
   // ------------------------------------------------------------------
   return (
     <PublicLayout>
-      {/* ============================================================ */}
-      {/* STEPPER - 4 pasos horizontales                               */}
-      {/* ============================================================ */}
-      <section className="bg-white border-b border-gray-200 py-5 sm:py-6">
-        <div className="max-w-5xl mx-auto px-4">
-          <BookingStepper pasoActual={1} />
-        </div>
-      </section>
-
       {/* ============================================================ */}
       {/* DATE RIBBON - Barra de fechas                                */}
       {/* ============================================================ */}
@@ -294,9 +287,8 @@ const BuscarPasajesPage = () => {
                   <TripResultCard
                     key={viaje.id}
                     viaje={viaje}
-                    onSelect={() => {
-                      // Futuro: navegar a seleccion de asientos
-                    }}
+                    whatsapp={whatsapp}
+                    fecha={fechaSeleccionada}
                   />
                 ))}
               </div>

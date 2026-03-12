@@ -1,7 +1,6 @@
 /**
  * Info Viaje Page
- * Pagina publica con contenido dinamico sobre informacion de viaje
- * Estilo Movil Bus: PageHeroBanner + contenido prose centrado
+ * Pagina publica con items/cards dinamicos sobre informacion de viaje
  * Ruta: /info-viaje
  */
 
@@ -10,46 +9,71 @@ import publicService from '../services/publicService'
 import { getUploadUrl } from '../services/apiClient'
 import { PageHeroBanner } from '../components/public'
 import PublicLayout from '../components/layout/PublicLayout'
+import {
+  Info,
+  Briefcase,
+  Package,
+  Clock,
+  MapPin,
+  Shield,
+  Bus,
+  Route,
+  Globe,
+  Zap,
+  Heart,
+  Star,
+  CheckCircle2,
+  HelpCircle,
+  Wifi,
+  Coffee
+} from 'lucide-react'
+
+const ICON_MAP = {
+  Info, Briefcase, Package, Clock, MapPin, Shield, Bus, Route,
+  Globe, Zap, Heart, Star, CheckCircle2, HelpCircle, Wifi, Coffee
+}
 
 const InfoViajePage = () => {
-  const [pagina, setPagina] = useState(null)
+  const [items, setItems] = useState([])
+  const [heroImagen, setHeroImagen] = useState(null)
+  const [titulo, setTitulo] = useState('Info para tu viaje')
+  const [subtitulo, setSubtitulo] = useState('Información')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    const cargarPagina = async () => {
+    const cargarDatos = async () => {
       try {
         setLoading(true)
         setError(false)
-        const res = await publicService.getPagina('info-viaje')
-        setPagina(res.pagina || null)
+        const res = await publicService.getInfoViajeItems()
+        setItems(res.items || [])
+        setHeroImagen(res.heroImagen || null)
+        setTitulo(res.titulo || 'Info para tu viaje')
+        setSubtitulo(res.subtitulo || 'Información')
       } catch (err) {
-        console.error('Error cargando pagina info-viaje:', err)
+        console.error('Error cargando info-viaje:', err)
         setError(true)
-        setPagina(null)
       } finally {
         setLoading(false)
       }
     }
-    cargarPagina()
+    cargarDatos()
   }, [])
 
-  const tieneContenido = pagina?.contenido && pagina.contenido.trim().length > 0
-  const esHTML = tieneContenido && /<[a-z][\s\S]*>/i.test(pagina.contenido)
-  const imagenHero = pagina?.imagenHeroPath || pagina?.imagenHero || pagina?.imagen_hero
-  const imagenUrl = imagenHero ? getUploadUrl(imagenHero) : null
+  const imagenUrl = heroImagen ? getUploadUrl(heroImagen) : null
 
   return (
     <PublicLayout>
       <PageHeroBanner
-        titulo="Info para tu viaje"
-        subtitulo="Informacion"
+        titulo={titulo}
+        subtitulo={subtitulo}
         imagenFondo={imagenUrl}
         showSearchBar={false}
       />
 
       <section className="bg-white py-12 lg:py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Loading State */}
           {loading && (
@@ -80,33 +104,50 @@ const InfoViajePage = () => {
             </div>
           )}
 
-          {/* Contenido Dinamico */}
-          {!loading && !error && tieneContenido && (
-            <article>
-              {/* Titulo de la pagina si existe y difiere del banner */}
-              {pagina.titulo && pagina.titulo.toLowerCase() !== 'info para tu viaje' && (
-                <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-8 border-l-4 border-secondary-500 pl-4">
-                  {pagina.titulo}
-                </h2>
-              )}
-
-              {/* Contenido HTML */}
-              {esHTML ? (
-                <div
-                  className="prose prose-lg max-w-none text-gray-600 prose-headings:text-gray-900 prose-headings:font-bold prose-a:text-secondary-600 prose-a:no-underline hover:prose-a:underline prose-img:rounded-xl prose-strong:text-gray-800 leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: pagina.contenido }}
-                />
-              ) : (
-                /* Contenido Texto Plano */
-                <div className="text-gray-600 text-base lg:text-lg leading-relaxed whitespace-pre-line">
-                  {pagina.contenido}
-                </div>
-              )}
-            </article>
+          {/* Grid de tarjetas */}
+          {!loading && !error && items.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {items.map((item) => {
+                const IconComp = ICON_MAP[item.icono] || Info
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                  >
+                    {item.imagenPath ? (
+                      <div className="w-full h-48 overflow-hidden">
+                        <img
+                          src={getUploadUrl(item.imagenPath)}
+                          alt={item.titulo}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-full h-32 bg-gradient-to-br from-primary-50 to-secondary-50 flex items-center justify-center">
+                        <IconComp className="w-12 h-12 text-primary-500" />
+                      </div>
+                    )}
+                    <div className="p-6">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                          <IconComp className="w-5 h-5 text-primary-600" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900">{item.titulo}</h3>
+                      </div>
+                      {item.descripcion && (
+                        <p className="text-gray-500 text-sm leading-relaxed">
+                          {item.descripcion}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           )}
 
           {/* Empty State - Proximamente */}
-          {!loading && !error && !tieneContenido && (
+          {!loading && !error && items.length === 0 && (
             <div className="text-center py-20">
               <div className="max-w-md mx-auto">
                 <div className="w-14 h-14 bg-secondary-50 rounded-full flex items-center justify-center mx-auto mb-5">

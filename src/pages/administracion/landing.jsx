@@ -72,7 +72,9 @@ import {
   Lightbulb,
   HandHeart,
   HelpCircle,
-  MessageSquare
+  MessageSquare,
+  Info,
+  Briefcase
 } from 'lucide-react'
 
 // Iconos disponibles para la sección de experiencia (relacionados al rubro transporte)
@@ -121,6 +123,25 @@ const ICONOS_VENTAJA = [
   { key: 'Star', icon: Star, label: 'Estrella' },
   { key: 'Eye', icon: Eye, label: 'Ojo' },
   { key: 'Search', icon: Search, label: 'Buscar' },
+]
+
+const ICONOS_INFO_VIAJE = [
+  { key: 'Info', icon: Info, label: 'Info' },
+  { key: 'Briefcase', icon: Briefcase, label: 'Equipaje' },
+  { key: 'Package', icon: Package, label: 'Paquete' },
+  { key: 'Clock', icon: Clock, label: 'Reloj' },
+  { key: 'MapPin', icon: MapPin, label: 'Ubicacion' },
+  { key: 'Shield', icon: Shield, label: 'Seguridad' },
+  { key: 'Bus', icon: Bus, label: 'Bus' },
+  { key: 'Route', icon: Route, label: 'Ruta' },
+  { key: 'Globe', icon: Globe, label: 'Global' },
+  { key: 'Zap', icon: Zap, label: 'Rapido' },
+  { key: 'Heart', icon: Heart, label: 'Corazon' },
+  { key: 'Star', icon: Star, label: 'Estrella' },
+  { key: 'CheckCircle2', icon: CheckCircle2, label: 'Verificado' },
+  { key: 'HelpCircle', icon: HelpCircle, label: 'Ayuda' },
+  { key: 'Wifi', icon: Wifi, label: 'WiFi' },
+  { key: 'Coffee', icon: Coffee, label: 'Servicio' },
 ]
 
 const ICONOS_NOSOTROS = [
@@ -187,7 +208,6 @@ const LandingAdminPage = () => {
   // Festividades
   const [festividades, setFestividades] = useState([])
   const [puntos, setPuntos] = useState([])
-  const [rutasAdmin, setRutasAdmin] = useState([])
   const [showFestModal, setShowFestModal] = useState(false)
   const [editingFest, setEditingFest] = useState(null)
   const [festForm, setFestForm] = useState({
@@ -202,13 +222,27 @@ const LandingAdminPage = () => {
   const [savingFest, setSavingFest] = useState(false)
   const [filtroPunto, setFiltroPunto] = useState('')
 
-  // Destinos Imagenes
-  const [destinosImagenes, setDestinosImagenes] = useState([])
+  // Destinos Banner
   const [bannerDestinos, setBannerDestinos] = useState(null)
   const [bannerDestinosPreview, setBannerDestinosPreview] = useState(null)
   const [savingBannerDest, setSavingBannerDest] = useState(false)
-  const [savingDestImg, setSavingDestImg] = useState(null)
   const bannerDestInputRef = useRef(null)
+
+  // Destinos Publicos CRUD
+  const [destinosList, setDestinosList] = useState([])
+  const [showDestinoModal, setShowDestinoModal] = useState(false)
+  const [editingDestino, setEditingDestino] = useState(null)
+  const [savingDestino, setSavingDestino] = useState(false)
+  const [destinoForm, setDestinoForm] = useState({
+    slug: '', nombre: '', subtitulo: '', descripcion: '', precioDesde: '',
+    serviciosDisponibles: '', orden: 0, direccionTerminal: '', telefonoTerminal: '',
+    horariosAtencion: '', altitud: '', temperatura: '', tiempoViaje: '',
+    descripcionAtractivos: '',
+    imagenPreview: null, imagenFile: null,
+    imagenAtractivosPreview: null, imagenAtractivosFile: null
+  })
+  const destinoImgRef = useRef(null)
+  const destinoAtractivosImgRef = useRef(null)
 
   // Encomiendas Info
   const [encomiendasVentajas, setEncomiendasVentajas] = useState([])
@@ -265,6 +299,25 @@ const LandingAdminPage = () => {
   })
   const [savingNosotrosValor, setSavingNosotrosValor] = useState(false)
 
+  // Info Viaje
+  const [infoViajeItems, setInfoViajeItems] = useState([])
+  const [infoViajeHeroPreview, setInfoViajeHeroPreview] = useState(null)
+  const [savingInfoViajeHero, setSavingInfoViajeHero] = useState(false)
+  const [showInfoViajeModal, setShowInfoViajeModal] = useState(false)
+  const [editingInfoViajeItem, setEditingInfoViajeItem] = useState(null)
+  const [infoViajeForm, setInfoViajeForm] = useState({
+    titulo: '',
+    descripcion: '',
+    icono: 'Info',
+    orden: 0,
+    imagenPreview: null,
+    imagenFile: null
+  })
+  const [savingInfoViajeItem, setSavingInfoViajeItem] = useState(false)
+  const [infoViajeTitulo, setInfoViajeTitulo] = useState('Info para tu viaje')
+  const [infoViajeSubtitulo, setInfoViajeSubtitulo] = useState('Información')
+  const [savingInfoViajeConfig, setSavingInfoViajeConfig] = useState(false)
+
   // Preguntas Frecuentes
   const [faqs, setFaqs] = useState([])
   const [showFaqModal, setShowFaqModal] = useState(false)
@@ -284,6 +337,8 @@ const LandingAdminPage = () => {
   const encHeroInputRef = useRef(null)
   const encVentajaImgRef = useRef(null)
   const encLandingImgRef = useRef(null)
+  const infoViajeHeroInputRef = useRef(null)
+  const infoViajeItemImgRef = useRef(null)
 
   useEffect(() => {
     cargarDatos()
@@ -292,7 +347,7 @@ const LandingAdminPage = () => {
   const cargarDatos = async () => {
     try {
       setLoading(true)
-      const [bannersRes, galleryRes, configRes, festRes, puntosRes, encRes, iconosRes, nosotrosRes, faqsRes, destImgRes, destBannerRes, rutasRes] = await Promise.all([
+      const [bannersRes, galleryRes, configRes, festRes, puntosRes, encRes, iconosRes, nosotrosRes, faqsRes, destBannerRes, destinosRes, infoViajeRes] = await Promise.all([
         landingService.listarBanners('banner'),
         landingService.listarBanners('gallery'),
         landingService.getConfigLanding(),
@@ -302,17 +357,16 @@ const LandingAdminPage = () => {
         landingService.listarExperienciaIconos().catch(() => ({ iconos: [] })),
         landingService.listarNosotrosValores().catch(() => ({ valores: [], config: {} })),
         landingService.listarPreguntasFrecuentes().catch(() => ({ preguntas: [] })),
-        landingService.listarDestinosImagenes().catch(() => ({ imagenes: [] })),
         publicService.getDestinosBanner().catch(() => ({ banner: null })),
-        publicService.getRutas().catch(() => ({ rutas: [] }))
+        landingService.listarDestinos().catch(() => ({ destinos: [] })),
+        landingService.getInfoViajeItems().catch(() => ({ items: [], heroImagen: null, titulo: 'Info para tu viaje', subtitulo: 'Información' }))
       ])
       setBanners(bannersRes.banners || [])
       setGallery(galleryRes.banners || [])
       setFestividades(festRes.festividades || [])
       setPuntos(puntosRes.puntos || [])
       setEncomiendasVentajas(encRes.ventajas || [])
-      setDestinosImagenes(destImgRes.imagenes || [])
-      setRutasAdmin(rutasRes.rutas || [])
+      setDestinosList(destinosRes.destinos || [])
       if (destBannerRes.banner) {
         setBannerDestinos(destBannerRes.banner)
         setBannerDestinosPreview(getUploadUrl(destBannerRes.banner))
@@ -368,6 +422,13 @@ const LandingAdminPage = () => {
           setNosotrosHeroImagen(nosotrosRes.config.nosotrosHeroImagen)
           setNosotrosHeroPreview(getUploadUrl(nosotrosRes.config.nosotrosHeroImagen))
         }
+      }
+      // Info Viaje
+      setInfoViajeItems(infoViajeRes.items || [])
+      setInfoViajeTitulo(infoViajeRes.titulo || 'Info para tu viaje')
+      setInfoViajeSubtitulo(infoViajeRes.subtitulo || 'Información')
+      if (infoViajeRes.heroImagen) {
+        setInfoViajeHeroPreview(getUploadUrl(infoViajeRes.heroImagen))
       }
       // Preguntas Frecuentes
       setFaqs(faqsRes.preguntas || [])
@@ -887,6 +948,151 @@ const LandingAdminPage = () => {
   }
 
   // ============================================
+  // INFO VIAJE HANDLERS
+  // ============================================
+
+  const handleInfoViajeHeroUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSavingInfoViajeHero(true)
+    try {
+      const formData = new FormData()
+      formData.append('imagen', file)
+      const res = await landingService.subirHeroInfoViaje(formData)
+      setInfoViajeHeroPreview(getUploadUrl(res.heroImagen))
+      toast.success('Imagen hero actualizada')
+    } catch (error) {
+      console.error(error)
+      toast.error('Error al subir imagen hero')
+    } finally {
+      setSavingInfoViajeHero(false)
+      if (infoViajeHeroInputRef.current) infoViajeHeroInputRef.current.value = ''
+    }
+  }
+
+  const handleInfoViajeHeroDelete = async () => {
+    if (!confirm('Eliminar imagen hero de Info Viaje?')) return
+    setSavingInfoViajeHero(true)
+    try {
+      await landingService.eliminarHeroInfoViaje()
+      setInfoViajeHeroPreview(null)
+      toast.success('Imagen hero eliminada')
+    } catch (error) {
+      toast.error('Error al eliminar imagen hero')
+    } finally {
+      setSavingInfoViajeHero(false)
+    }
+  }
+
+  const guardarConfigInfoViaje = async () => {
+    setSavingInfoViajeConfig(true)
+    try {
+      await landingService.actualizarConfigInfoViaje({
+        titulo: infoViajeTitulo,
+        subtitulo: infoViajeSubtitulo
+      })
+      toast.success('Configuracion de Info Viaje guardada')
+    } catch (error) {
+      console.error(error)
+      toast.error('Error al guardar configuracion')
+    } finally {
+      setSavingInfoViajeConfig(false)
+    }
+  }
+
+  const abrirInfoViajeModal = (item = null) => {
+    if (item) {
+      setEditingInfoViajeItem(item)
+      setInfoViajeForm({
+        titulo: item.titulo || '',
+        descripcion: item.descripcion || '',
+        icono: item.icono || 'Info',
+        orden: item.orden || 0,
+        imagenPreview: item.imagenPath ? getUploadUrl(item.imagenPath) : null,
+        imagenFile: null
+      })
+    } else {
+      setEditingInfoViajeItem(null)
+      setInfoViajeForm({
+        titulo: '',
+        descripcion: '',
+        icono: 'Info',
+        orden: infoViajeItems.length,
+        imagenPreview: null,
+        imagenFile: null
+      })
+    }
+    setShowInfoViajeModal(true)
+  }
+
+  const cerrarInfoViajeModal = () => {
+    setShowInfoViajeModal(false)
+    setEditingInfoViajeItem(null)
+    setInfoViajeForm({ titulo: '', descripcion: '', icono: 'Info', orden: 0, imagenPreview: null, imagenFile: null })
+  }
+
+  const handleInfoViajeItemImgChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setInfoViajeForm(prev => ({ ...prev, imagenPreview: reader.result, imagenFile: file }))
+    reader.readAsDataURL(file)
+  }
+
+  const guardarInfoViajeItem = async () => {
+    if (!infoViajeForm.titulo.trim()) {
+      toast.error('El titulo es obligatorio')
+      return
+    }
+    setSavingInfoViajeItem(true)
+    try {
+      const formData = new FormData()
+      formData.append('titulo', infoViajeForm.titulo)
+      formData.append('descripcion', infoViajeForm.descripcion)
+      formData.append('icono', infoViajeForm.icono)
+      formData.append('orden', infoViajeForm.orden)
+      if (infoViajeForm.imagenFile) {
+        formData.append('imagen', infoViajeForm.imagenFile)
+      }
+
+      if (editingInfoViajeItem) {
+        await landingService.actualizarInfoViajeItem(editingInfoViajeItem.id, formData)
+        toast.success('Item actualizado')
+      } else {
+        await landingService.crearInfoViajeItem(formData)
+        toast.success('Item creado')
+      }
+      cerrarInfoViajeModal()
+      const res = await landingService.getInfoViajeItems().catch(() => ({ items: [] }))
+      setInfoViajeItems(res.items || [])
+    } catch (error) {
+      console.error(error)
+      toast.error('Error al guardar item')
+    } finally {
+      setSavingInfoViajeItem(false)
+    }
+  }
+
+  const eliminarInfoViajeItem = async (id) => {
+    if (!confirm('Eliminar este item?')) return
+    try {
+      await landingService.eliminarInfoViajeItem(id)
+      setInfoViajeItems(prev => prev.filter(v => v.id !== id))
+      toast.success('Item eliminado')
+    } catch (error) {
+      toast.error('Error al eliminar item')
+    }
+  }
+
+  const toggleInfoViajeItem = async (id) => {
+    try {
+      const res = await landingService.toggleInfoViajeItem(id)
+      setInfoViajeItems(prev => prev.map(v => v.id === id ? { ...v, activo: res.activo } : v))
+      toast.success(res.mensaje)
+    } catch { toast.error('Error al cambiar estado') }
+  }
+
+  // ============================================
   // EXPERIENCIA
   // ============================================
 
@@ -1193,24 +1399,8 @@ const LandingAdminPage = () => {
   const getCategoriaInfo = (cat) => CATEGORIAS_FAQ.find(c => c.value === cat) || CATEGORIAS_FAQ[0]
 
   // ============================================
-  // DESTINOS IMAGENES
+  // DESTINOS BANNER + CRUD
   // ============================================
-
-  // Derivar ciudades de rutas
-  const ciudadesDestinoAdmin = (() => {
-    const map = {}
-    rutasAdmin.forEach(ruta => {
-      ;[ruta.origen, ruta.destino].forEach(punto => {
-        const ciudad = punto?.ciudad
-        if (ciudad && !map[ciudad]) map[ciudad] = true
-      })
-    })
-    return Object.keys(map).sort()
-  })()
-
-  // Map de imágenes por ciudad
-  const imgPorCiudad = {}
-  destinosImagenes.forEach(img => { imgPorCiudad[img.ciudad] = img })
 
   const handleBannerDestChange = (e) => {
     const file = e.target.files?.[0]
@@ -1242,26 +1432,117 @@ const LandingAdminPage = () => {
     finally { setSavingBannerDest(false) }
   }
 
-  const subirImgDestino = async (ciudad, file) => {
-    if (file.size > 5 * 1024 * 1024) { toast.error('Max 5MB'); return }
-    try {
-      setSavingDestImg(ciudad)
-      await landingService.subirImagenDestino(ciudad, file)
-      toast.success(`Imagen de ${ciudad} subida`)
-      cargarDatos()
-    } catch { toast.error('Error al subir imagen') }
-    finally { setSavingDestImg(null) }
+  // ============================================
+  // DESTINOS PUBLICOS CRUD
+  // ============================================
+
+  const generarSlug = (nombre) => {
+    return nombre
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')
   }
 
-  const eliminarImgDestino = async (id, ciudad) => {
-    if (!confirm(`¿Eliminar imagen de ${ciudad}?`)) return
+  const abrirDestinoModal = async (destino = null) => {
+    if (destino) {
+      setEditingDestino(destino)
+      setDestinoForm({
+        slug: destino.slug || '',
+        nombre: destino.nombre || '',
+        subtitulo: destino.subtitulo || '',
+        descripcion: destino.descripcion || '',
+        precioDesde: destino.precioDesde || '',
+        serviciosDisponibles: destino.serviciosDisponibles || '',
+        orden: destino.orden || 0,
+        direccionTerminal: destino.direccionTerminal || '',
+        telefonoTerminal: destino.telefonoTerminal || '',
+        horariosAtencion: destino.horariosAtencion || '',
+        altitud: destino.altitud || '',
+        temperatura: destino.temperatura || '',
+        tiempoViaje: destino.tiempoViaje || '',
+        descripcionAtractivos: destino.descripcionAtractivos || '',
+        imagenPreview: destino.imagenPath ? getUploadUrl(destino.imagenPath) : null,
+        imagenFile: null,
+        imagenAtractivosPreview: destino.imagenAtractivos ? getUploadUrl(destino.imagenAtractivos) : null,
+        imagenAtractivosFile: null
+      })
+    } else {
+      setEditingDestino(null)
+      setDestinoForm({
+        slug: '', nombre: '', subtitulo: '', descripcion: '', precioDesde: '',
+        serviciosDisponibles: '', orden: 0, direccionTerminal: '', telefonoTerminal: '',
+        horariosAtencion: '', altitud: '', temperatura: '', tiempoViaje: '',
+        descripcionAtractivos: '',
+        imagenPreview: null, imagenFile: null,
+        imagenAtractivosPreview: null, imagenAtractivosFile: null
+      })
+    }
+    setShowDestinoModal(true)
+  }
+
+  const cerrarDestinoModal = () => {
+    setShowDestinoModal(false)
+    setEditingDestino(null)
+  }
+
+  const guardarDestino = async () => {
+    if (!destinoForm.nombre.trim()) { toast.error('El nombre es obligatorio'); return }
+    const slug = destinoForm.slug.trim() || generarSlug(destinoForm.nombre)
+    if (!slug) { toast.error('No se pudo generar el slug'); return }
     try {
-      setSavingDestImg(ciudad)
-      await landingService.eliminarImagenDestino(id)
-      toast.success('Imagen eliminada')
-      setDestinosImagenes(prev => prev.filter(i => i.id !== id))
-    } catch { toast.error('Error al eliminar') }
-    finally { setSavingDestImg(null) }
+      setSavingDestino(true)
+      const fd = new FormData()
+      fd.append('slug', slug)
+      fd.append('nombre', destinoForm.nombre.trim())
+      fd.append('subtitulo', destinoForm.subtitulo.trim())
+      fd.append('descripcion', destinoForm.descripcion.trim())
+      fd.append('precioDesde', destinoForm.precioDesde || '')
+      fd.append('serviciosDisponibles', destinoForm.serviciosDisponibles.trim())
+      fd.append('orden', String(destinoForm.orden || 0))
+      fd.append('direccionTerminal', destinoForm.direccionTerminal.trim())
+      fd.append('telefonoTerminal', destinoForm.telefonoTerminal.trim())
+      fd.append('horariosAtencion', destinoForm.horariosAtencion.trim())
+      fd.append('altitud', destinoForm.altitud.trim())
+      fd.append('temperatura', destinoForm.temperatura.trim())
+      fd.append('tiempoViaje', destinoForm.tiempoViaje.trim())
+      fd.append('descripcionAtractivos', destinoForm.descripcionAtractivos.trim())
+      if (destinoForm.imagenFile) fd.append('imagen', destinoForm.imagenFile)
+      if (destinoForm.imagenAtractivosFile) fd.append('imagenAtractivos', destinoForm.imagenAtractivosFile)
+
+      if (editingDestino) {
+        await landingService.actualizarDestino(editingDestino.id, fd)
+        toast.success('Destino actualizado')
+      } else {
+        await landingService.crearDestino(fd)
+        toast.success('Destino creado')
+      }
+      cerrarDestinoModal()
+      // Recargar lista
+      const res = await landingService.listarDestinos().catch(() => ({ destinos: [] }))
+      setDestinosList(res.destinos || [])
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al guardar destino')
+    } finally {
+      setSavingDestino(false)
+    }
+  }
+
+  const eliminarDestinoHandler = async (id) => {
+    if (!confirm('¿Eliminar este destino? Se eliminaran tambien sus festividades.')) return
+    try {
+      await landingService.eliminarDestino(id)
+      toast.success('Destino eliminado')
+      setDestinosList(prev => prev.filter(d => d.id !== id))
+    } catch { toast.error('Error al eliminar destino') }
+  }
+
+  const toggleDestinoHandler = async (id) => {
+    try {
+      const res = await landingService.toggleDestino(id)
+      toast.success(res.mensaje)
+      setDestinosList(prev => prev.map(d => d.id === id ? { ...d, activo: res.activo } : d))
+    } catch { toast.error('Error al cambiar estado') }
   }
 
   // ============================================
@@ -1369,6 +1650,19 @@ const LandingAdminPage = () => {
               <div className="flex items-center gap-2">
                 <Truck className="w-4 h-4" />
                 Encomiendas
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('infoViaje')}
+              className={`pb-4 px-2 border-b-2 font-medium text-sm transition-colors ${
+                activeTab === 'infoViaje'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-4 h-4" />
+                Info Viaje
               </div>
             </button>
             <button
@@ -1791,69 +2085,91 @@ const LandingAdminPage = () => {
               </div>
             </div>
 
-            {/* Imagenes por ciudad */}
+            {/* Destinos Publicos CRUD */}
             <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">Imagenes por destino</h3>
-              <p className="text-sm text-gray-500 mb-6">Sube una foto para cada ciudad. Si no tiene foto, se usara una imagen por defecto. Max 5MB.</p>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Destinos publicos</h3>
+                  <p className="text-sm text-gray-500 mt-0.5">Gestiona las paginas de detalle de cada destino</p>
+                </div>
+                <button
+                  onClick={() => abrirDestinoModal()}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nuevo destino
+                </button>
+              </div>
 
-              {ciudadesDestinoAdmin.length === 0 ? (
+              {destinosList.length === 0 ? (
                 <div className="text-center py-12 text-gray-400">
                   <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="font-medium">No hay ciudades configuradas</p>
-                  <p className="text-sm mt-1">Las ciudades se derivan de las rutas activas</p>
+                  <p className="font-medium">No hay destinos configurados</p>
+                  <p className="text-sm mt-1">Crea el primero para que aparezca en la pagina publica</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {ciudadesDestinoAdmin.map(ciudad => {
-                    const img = imgPorCiudad[ciudad]
-                    const isSaving = savingDestImg === ciudad
-                    return (
-                      <div key={ciudad} className="group relative rounded-xl border border-gray-200 overflow-hidden">
-                        <div className="relative h-36 bg-gray-100">
-                          {isSaving && (
-                            <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
-                              <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100">
+                        <th className="text-left py-3 px-2 text-gray-500 font-medium">Imagen</th>
+                        <th className="text-left py-3 px-2 text-gray-500 font-medium">Nombre</th>
+                        <th className="text-left py-3 px-2 text-gray-500 font-medium">Slug</th>
+                        <th className="text-left py-3 px-2 text-gray-500 font-medium">Precio</th>
+                        <th className="text-center py-3 px-2 text-gray-500 font-medium">Estado</th>
+                        <th className="text-right py-3 px-2 text-gray-500 font-medium">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {destinosList.map(dest => (
+                        <tr key={dest.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                          <td className="py-2 px-2">
+                            <div className="w-14 h-10 rounded-lg overflow-hidden bg-gray-100">
+                              {dest.imagenPath ? (
+                                <img src={getUploadUrl(dest.imagenPath)} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                  <MapPin className="w-4 h-4" />
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {img ? (
-                            <img src={getUploadUrl(img.imagenPath)} alt={ciudad} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-gray-300">
-                              <MapPin className="w-8 h-8" />
-                              <span className="text-xs mt-1">Sin imagen</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-3">
-                          <p className="text-sm font-semibold text-gray-900 mb-2">{ciudad}</p>
-                          <div className="flex gap-2">
-                            <label className="flex-1 text-center px-2 py-1.5 bg-primary-50 text-primary-700 rounded-lg text-xs font-medium cursor-pointer hover:bg-primary-100 transition-colors">
-                              {img ? 'Cambiar' : 'Subir'}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0]
-                                  if (file) subirImgDestino(ciudad, file)
-                                  e.target.value = ''
-                                }}
-                              />
-                            </label>
-                            {img && (
+                          </td>
+                          <td className="py-2 px-2 font-medium text-gray-900">{dest.nombre}</td>
+                          <td className="py-2 px-2 text-gray-500 font-mono text-xs">{dest.slug}</td>
+                          <td className="py-2 px-2 text-gray-600">{dest.precioDesde ? `S/ ${dest.precioDesde}` : '-'}</td>
+                          <td className="py-2 px-2 text-center">
+                            <button
+                              onClick={() => toggleDestinoHandler(dest.id)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                dest.activo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                              }`}
+                            >
+                              {dest.activo ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                              {dest.activo ? 'Activo' : 'Inactivo'}
+                            </button>
+                          </td>
+                          <td className="py-2 px-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
                               <button
-                                onClick={() => eliminarImgDestino(img.id, ciudad)}
-                                disabled={isSaving}
-                                className="px-2 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-xs font-medium transition-colors"
+                                onClick={() => abrirDestinoModal(dest)}
+                                className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                                title="Editar"
                               >
-                                Eliminar
+                                <Edit3 className="w-4 h-4" />
                               </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
+                              <button
+                                onClick={() => eliminarDestinoHandler(dest.id)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Eliminar"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -2470,6 +2786,186 @@ const LandingAdminPage = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Info Viaje */}
+        {!loading && activeTab === 'infoViaje' && (
+          <div className="space-y-8">
+            {/* Imagen Hero */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Image className="w-5 h-5 text-primary-600" />
+                Imagen Hero - Fondo Info Viaje
+              </h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Esta imagen se muestra como fondo del banner principal en la pagina de Info para tu viaje.
+              </p>
+              <div className="flex items-start gap-6">
+                <div
+                  onClick={() => !savingInfoViajeHero && infoViajeHeroInputRef.current?.click()}
+                  className="relative w-64 h-36 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors flex-shrink-0"
+                >
+                  {infoViajeHeroPreview ? (
+                    <>
+                      <img src={infoViajeHeroPreview} alt="Hero Info Viaje" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white font-medium text-sm">Cambiar imagen</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                      <Upload className="w-8 h-8 mb-1" />
+                      <span className="text-xs">Clic para seleccionar</span>
+                    </div>
+                  )}
+                  {savingInfoViajeHero && (
+                    <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                      <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                <input ref={infoViajeHeroInputRef} type="file" accept="image/*" onChange={handleInfoViajeHeroUpload} className="hidden" />
+                {infoViajeHeroPreview && (
+                  <button
+                    onClick={handleInfoViajeHeroDelete}
+                    disabled={savingInfoViajeHero}
+                    className="px-4 py-2 text-red-600 border border-red-200 rounded-xl text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4 inline mr-1" />
+                    Eliminar
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Textos Hero */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-primary-600" />
+                Textos del Banner Hero
+              </h3>
+              <p className="text-sm text-gray-500 mb-5">
+                Titulo y subtitulo que se muestran en el banner superior de la pagina Info para tu viaje.
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1.5">Titulo</label>
+                  <input
+                    type="text"
+                    value={infoViajeTitulo}
+                    onChange={(e) => setInfoViajeTitulo(e.target.value)}
+                    placeholder="Info para tu viaje"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-500 mb-1.5">Subtitulo</label>
+                  <input
+                    type="text"
+                    value={infoViajeSubtitulo}
+                    onChange={(e) => setInfoViajeSubtitulo(e.target.value)}
+                    placeholder="Información"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  onClick={guardarConfigInfoViaje}
+                  disabled={savingInfoViajeConfig}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50 text-sm"
+                >
+                  {savingInfoViajeConfig ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  Guardar textos
+                </button>
+              </div>
+            </div>
+
+            {/* Items/Cards */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Info className="w-5 h-5 text-primary-600" />
+                  Items Informativos
+                </h3>
+                <button
+                  onClick={() => abrirInfoViajeModal()}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nuevo Item
+                </button>
+              </div>
+
+              {infoViajeItems.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <Info className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No hay items configurados</p>
+                  <p className="text-sm">Agrega items informativos para la pagina Info para tu viaje</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {infoViajeItems.map((item) => {
+                    const IconComp = ICONOS_INFO_VIAJE.find(i => i.key === item.icono)?.icon || Info
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
+                          item.activo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'
+                        }`}
+                      >
+                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                          {item.imagenPath ? (
+                            <img src={getUploadUrl(item.imagenPath)} alt={item.titulo} className="w-full h-full object-cover" />
+                          ) : (
+                            <IconComp className="w-6 h-6 text-gray-400" />
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-gray-900 truncate">{item.titulo}</h4>
+                          <p className="text-sm text-gray-500 truncate">{item.descripcion}</p>
+                          <span className="text-xs text-gray-400">Orden: {item.orden} | Icono: {item.icono}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => toggleInfoViajeItem(item.id)}
+                            className={`p-2 rounded-lg transition-colors ${
+                              item.activo ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'
+                            }`}
+                            title={item.activo ? 'Desactivar' : 'Activar'}
+                          >
+                            {item.activo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          </button>
+                          <button
+                            onClick={() => abrirInfoViajeModal(item)}
+                            className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                            title="Editar"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => eliminarInfoViajeItem(item.id)}
+                            className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -3498,6 +3994,472 @@ const LandingAdminPage = () => {
                   <Save className="w-5 h-5" />
                 )}
                 {editingVentaja ? 'Actualizar' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Info Viaje Item */}
+      {showInfoViajeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">
+                {editingInfoViajeItem ? 'Editar Item' : 'Nuevo Item'}
+              </h2>
+              <button onClick={cerrarInfoViajeModal} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Imagen */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Imagen del Card</label>
+                <div
+                  onClick={() => infoViajeItemImgRef.current?.click()}
+                  className="relative w-full h-40 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors"
+                >
+                  {infoViajeForm.imagenPreview ? (
+                    <>
+                      <img src={infoViajeForm.imagenPreview} alt="Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white font-medium text-sm">Cambiar imagen</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                      <Upload className="w-8 h-8 mb-1" />
+                      <span className="text-xs">Clic para seleccionar imagen</span>
+                      <span className="text-xs mt-0.5">Si no se sube imagen, se mostrara un icono</span>
+                    </div>
+                  )}
+                </div>
+                <input ref={infoViajeItemImgRef} type="file" accept="image/*" onChange={handleInfoViajeItemImgChange} className="hidden" />
+              </div>
+
+              {/* Titulo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Titulo *</label>
+                <input
+                  type="text"
+                  value={infoViajeForm.titulo}
+                  onChange={(e) => setInfoViajeForm(prev => ({ ...prev, titulo: e.target.value }))}
+                  placeholder="Ej: Documentos necesarios"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Descripcion */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Descripcion</label>
+                <textarea
+                  value={infoViajeForm.descripcion}
+                  onChange={(e) => setInfoViajeForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                  placeholder="Descripcion del item informativo..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                />
+              </div>
+
+              {/* Icono */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Icono (se usa si no hay imagen)</label>
+                <div className="grid grid-cols-6 gap-2">
+                  {ICONOS_INFO_VIAJE.map(({ key, icon: Icon, label }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setInfoViajeForm(prev => ({ ...prev, icono: key }))}
+                      className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
+                        infoViajeForm.icono === key
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:bg-gray-100'
+                      }`}
+                      title={label}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span className="text-[10px] leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Orden */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Orden</label>
+                <input
+                  type="number"
+                  value={infoViajeForm.orden}
+                  onChange={(e) => setInfoViajeForm(prev => ({ ...prev, orden: parseInt(e.target.value) || 0 }))}
+                  min={0}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100">
+              <button
+                onClick={cerrarInfoViajeModal}
+                className="px-5 py-2.5 text-gray-600 bg-gray-100 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarInfoViajeItem}
+                disabled={savingInfoViajeItem}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {savingInfoViajeItem ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
+                {editingInfoViajeItem ? 'Actualizar' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Destino */}
+      {showDestinoModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 overflow-y-auto py-8">
+          <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl mx-4">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">
+                {editingDestino ? 'Editar destino' : 'Nuevo destino'}
+              </h3>
+              <button onClick={cerrarDestinoModal} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Info basica */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-primary-500" />
+                  Informacion basica
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad (punto) *</label>
+                    <select
+                      value={destinoForm.nombre}
+                      onChange={(e) => {
+                        const nombre = e.target.value
+                        const puntoCiudad = puntos.find(p => p.ciudad === nombre)
+                        setDestinoForm(prev => ({
+                          ...prev,
+                          nombre,
+                          slug: editingDestino ? prev.slug : generarSlug(nombre),
+                          direccionTerminal: puntoCiudad?.direccion || prev.direccionTerminal
+                        }))
+                      }}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">Seleccionar ciudad</option>
+                      {[...new Set(puntos.map(p => p.ciudad))].sort()
+                        .filter(ciudad => {
+                          const yaExiste = destinosList.some(d => d.nombre === ciudad)
+                          if (!yaExiste) return true
+                          return editingDestino && editingDestino.nombre === ciudad
+                        })
+                        .map(ciudad => (
+                          <option key={ciudad} value={ciudad}>{ciudad}</option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Slug</label>
+                    <input
+                      type="text"
+                      value={destinoForm.slug}
+                      readOnly
+                      className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm font-mono text-gray-500 cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Subtitulo</label>
+                    <input
+                      type="text"
+                      value={destinoForm.subtitulo}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, subtitulo: e.target.value }))}
+                      placeholder="Ej: La ciudad de las palmeras"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Descripcion</label>
+                    <textarea
+                      value={destinoForm.descripcion}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                      rows={3}
+                      placeholder="Descripcion del destino..."
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Precio desde (S/)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={destinoForm.precioDesde}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, precioDesde: e.target.value }))}
+                      placeholder="0.00"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Orden</label>
+                    <input
+                      type="number"
+                      value={destinoForm.orden}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, orden: parseInt(e.target.value) || 0 }))}
+                      min={0}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Servicios disponibles</label>
+                    <input
+                      type="text"
+                      value={destinoForm.serviciosDisponibles}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, serviciosDisponibles: e.target.value }))}
+                      placeholder="Ej: WiFi, Aire acondicionado, TV"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  {/* Imagen */}
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Imagen</label>
+                    <div className="flex items-center gap-4">
+                      <div
+                        onClick={() => destinoImgRef.current?.click()}
+                        className="w-40 h-28 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors flex-shrink-0"
+                      >
+                        {destinoForm.imagenPreview ? (
+                          <img src={destinoForm.imagenPreview} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                            <Upload className="w-6 h-6 mb-1" />
+                            <span className="text-xs">Subir imagen</span>
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        ref={destinoImgRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 5 * 1024 * 1024) { toast.error('Max 5MB'); return }
+                          setDestinoForm(prev => ({
+                            ...prev,
+                            imagenFile: file,
+                            imagenPreview: URL.createObjectURL(file)
+                          }))
+                          e.target.value = ''
+                        }}
+                      />
+                      {destinoForm.imagenPreview && (
+                        <button
+                          onClick={() => setDestinoForm(prev => ({ ...prev, imagenFile: null, imagenPreview: null }))}
+                          className="text-sm text-red-500 hover:text-red-700"
+                        >
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Terminal */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-secondary-500" />
+                  Terminal
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Terminal (punto)</label>
+                    <select
+                      value={destinoForm.direccionTerminal}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, direccionTerminal: e.target.value }))}
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">Seleccionar terminal</option>
+                      {puntos
+                        .filter(p => !destinoForm.nombre || p.ciudad === destinoForm.nombre)
+                        .map(p => (
+                          <option key={p.id} value={p.direccion || p.nombre}>
+                            {p.nombre}{p.direccion ? ` - ${p.direccion}` : ''}
+                          </option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Telefono terminal</label>
+                    <input
+                      type="text"
+                      value={destinoForm.telefonoTerminal}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, telefonoTerminal: e.target.value }))}
+                      placeholder="Ej: 042-522333"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Horarios de atencion</label>
+                    <input
+                      type="text"
+                      value={destinoForm.horariosAtencion}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, horariosAtencion: e.target.value }))}
+                      placeholder="Ej: 6:00am - 10:00pm"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Estadisticas */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <Gauge className="w-4 h-4 text-blue-500" />
+                  Estadisticas (texto libre)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Altitud</label>
+                    <input
+                      type="text"
+                      value={destinoForm.altitud}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, altitud: e.target.value }))}
+                      placeholder="Ej: 356 m.s.n.m."
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Temperatura</label>
+                    <input
+                      type="text"
+                      value={destinoForm.temperatura}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, temperatura: e.target.value }))}
+                      placeholder="Ej: 26°C promedio"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tiempo de viaje</label>
+                    <input
+                      type="text"
+                      value={destinoForm.tiempoViaje}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, tiempoViaje: e.target.value }))}
+                      placeholder="Ej: 24 horas aprox."
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Atractivos turisticos */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <Image className="w-4 h-4 text-green-500" />
+                  Atractivos turisticos
+                </h4>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Imagen del banner</label>
+                    <div className="flex items-center gap-4">
+                      <div
+                        onClick={() => destinoAtractivosImgRef.current?.click()}
+                        className="w-56 h-28 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-green-300 transition-colors flex-shrink-0"
+                      >
+                        {destinoForm.imagenAtractivosPreview ? (
+                          <img src={destinoForm.imagenAtractivosPreview} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                            <Upload className="w-6 h-6 mb-1" />
+                            <span className="text-xs">Subir imagen</span>
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        ref={destinoAtractivosImgRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 5 * 1024 * 1024) { toast.error('Max 5MB'); return }
+                          setDestinoForm(prev => ({
+                            ...prev,
+                            imagenAtractivosFile: file,
+                            imagenAtractivosPreview: URL.createObjectURL(file)
+                          }))
+                          e.target.value = ''
+                        }}
+                      />
+                      {destinoForm.imagenAtractivosPreview && (
+                        <button
+                          onClick={() => setDestinoForm(prev => ({ ...prev, imagenAtractivosFile: null, imagenAtractivosPreview: null }))}
+                          className="text-sm text-red-500 hover:text-red-700"
+                        >
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Descripcion de atractivos</label>
+                    <textarea
+                      value={destinoForm.descripcionAtractivos}
+                      onChange={(e) => setDestinoForm(prev => ({ ...prev, descripcionAtractivos: e.target.value }))}
+                      rows={3}
+                      placeholder="Describe los atractivos turisticos del destino..."
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Nota: Las festividades se jalan automaticamente de Landing > Festividades segun la ciudad */}
+              <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-4">
+                <p className="text-xs text-orange-700 flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Las festividades se muestran automaticamente segun las que esten configuradas en <strong>Landing Page &gt; Festividades</strong> para la misma ciudad.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100">
+              <button
+                onClick={cerrarDestinoModal}
+                className="px-5 py-2.5 text-gray-600 bg-gray-100 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarDestino}
+                disabled={savingDestino}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {savingDestino ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
+                {editingDestino ? 'Actualizar' : 'Guardar'}
               </button>
             </div>
           </div>

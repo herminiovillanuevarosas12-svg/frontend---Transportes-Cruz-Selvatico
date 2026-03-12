@@ -13,8 +13,6 @@ const DEFAULTS = {
   ctaLink: '/rutas-info'
 }
 
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1600&h=700&fit=crop'
-
 const DEFAULT_ICONOS = [
   { id: 1, nombreIcono: 'Armchair', etiqueta: 'Asientos reclinables' },
   { id: 2, nombreIcono: 'Thermometer', etiqueta: 'Aire acondicionado' },
@@ -31,7 +29,6 @@ const getIconComponent = (iconName) => {
 }
 
 const ExperienceSection = ({ imagenUrl, config = {}, iconos = [] }) => {
-  const src = imagenUrl || FALLBACK_IMAGE
   const displayIconos = iconos.length > 0 ? iconos : DEFAULT_ICONOS
 
   // Textos configurables
@@ -52,17 +49,15 @@ const ExperienceSection = ({ imagenUrl, config = {}, iconos = [] }) => {
   return (
     <section className="relative w-full h-[500px] md:h-[600px] overflow-hidden">
       {/* Imagen de fondo */}
-      <img
-        src={src}
-        alt="Interior de bus moderno"
-        className="absolute inset-0 w-full h-full object-cover"
-        onError={(e) => {
-          if (e.target.src !== FALLBACK_IMAGE) {
-            e.target.onerror = null
-            e.target.src = FALLBACK_IMAGE
-          }
-        }}
-      />
+      {imagenUrl ? (
+        <img
+          src={imagenUrl}
+          alt="Interior de bus moderno"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900" />
+      )}
 
       {/* Overlay oscuro */}
       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/20" />

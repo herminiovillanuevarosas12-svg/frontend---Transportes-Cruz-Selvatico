@@ -76,6 +76,9 @@ import PreguntasFrecuentesPage from '../pages/preguntas-frecuentes'
 import BuscarPasajesPage from '../pages/buscar-pasajes'
 import NosotrosPage from '../pages/nosotros'
 import InfoViajePage from '../pages/info-viaje'
+import FestividadDetallePage from '../pages/festividad-detalle'
+import FestividadesPage from '../pages/festividades'
+import PlanificarViajePage from '../pages/planificar-viaje'
 
 // Definicion de rutas con sus permisos (en orden de prioridad para redirección)
 const RUTAS_POR_PERMISO = [
@@ -200,6 +203,9 @@ const AppRoutes = () => {
       <Route path="/buscar-pasajes" element={<BuscarPasajesPage />} />
       <Route path="/nosotros" element={<NosotrosPage />} />
       <Route path="/info-viaje" element={<InfoViajePage />} />
+      <Route path="/festividades" element={<FestividadesPage />} />
+      <Route path="/festividad/:id" element={<FestividadDetallePage />} />
+      <Route path="/planificar-viaje" element={<PlanificarViajePage />} />
 
       {/* Ruta por defecto para usuarios autenticados */}
       <Route

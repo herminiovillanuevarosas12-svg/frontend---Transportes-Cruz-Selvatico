@@ -5,9 +5,9 @@
  * Props: viaje (objeto), onSelect (function)
  */
 
-import { Clock, ArrowRight, Check, Bus } from 'lucide-react'
+import { Clock, ArrowRight, Check, MessageCircle } from 'lucide-react'
 
-const TripResultCard = ({ viaje, onSelect }) => {
+const TripResultCard = ({ viaje, whatsapp, fecha }) => {
   const {
     tipoServicio,
     horaSalida,
@@ -21,8 +21,21 @@ const TripResultCard = ({ viaje, onSelect }) => {
     asientosDisponibles,
   } = viaje
 
-  const handleSelect = () => {
-    if (onSelect) onSelect(viaje)
+  const formatFechaLegible = (fechaStr) => {
+    if (!fechaStr) return ''
+    try {
+      const [y, m, d] = fechaStr.split('-')
+      return `${d}/${m}/${y}`
+    } catch { return fechaStr }
+  }
+
+  const getWhatsappUrl = () => {
+    if (!whatsapp) return null
+    const num = whatsapp.replace(/[^0-9]/g, '')
+    const fechaLegible = formatFechaLegible(fecha)
+    const hora = horaSalida && horaSalida !== '--:--' ? horaSalida : ''
+    const msg = `Hola, estoy interesado en comprar un pasaje de *${origen}* a *${destino}*${fechaLegible ? ` para el *${fechaLegible}*` : ''}${hora ? ` a las *${hora}*` : ''}. ¿Podrian darme mas informacion?`
+    return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`
   }
 
   // Generar features para la barra inferior
@@ -115,8 +128,8 @@ const TripResultCard = ({ viaje, onSelect }) => {
             </div>
           </div>
 
-          {/* Precio (derecha) */}
-          <div className="lg:w-[180px] xl:w-[200px] flex-shrink-0 flex flex-col items-center lg:items-end gap-1 pt-3 lg:pt-0 border-t lg:border-t-0 lg:border-l border-gray-100 lg:pl-5 xl:pl-6">
+          {/* Precio + WhatsApp (derecha) */}
+          <div className="lg:w-[180px] xl:w-[200px] flex-shrink-0 flex flex-col items-center lg:items-end gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 lg:border-l border-gray-100 lg:pl-5 xl:pl-6">
             <div className="text-center lg:text-right">
               <p className="text-xs text-gray-400 font-medium">Desde:</p>
               <p className="text-2xl sm:text-3xl font-bold text-gray-900">
@@ -127,6 +140,17 @@ const TripResultCard = ({ viaje, onSelect }) => {
               <p className="text-[0.65rem] sm:text-xs text-gray-400 font-medium">
                 {asientosDisponibles} asientos disponibles
               </p>
+            )}
+            {getWhatsappUrl() && (
+              <a
+                href={getWhatsappUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors shadow-sm mt-1"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Comprar por WhatsApp
+              </a>
             )}
           </div>
         </div>

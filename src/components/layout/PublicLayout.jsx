@@ -4,15 +4,17 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { Phone, Menu, MapPin, Mail, MessageCircle, Leaf } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Phone, Menu, MapPin, Mail, MessageCircle, Leaf, Bus, Search, Calendar, MapPinned } from 'lucide-react'
 import publicService from '../../services/publicService'
 import { MobileMenu } from '../public'
 import WhatsAppFloat from '../public/WhatsAppFloat'
 
 const PublicLayout = ({ children }) => {
   const location = useLocation()
+  const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [puntos, setPuntos] = useState([])
   const [config, setConfig] = useState({
     nombreEmpresa: 'Transportes Cruz Selvatico',
     slogan: '',
@@ -25,12 +27,32 @@ const PublicLayout = ({ children }) => {
     youtubeUrl: ''
   })
 
+  // Buscador de pasajes (barra naranja)
+  const [busqueda, setBusqueda] = useState({
+    origen: '',
+    destino: '',
+    fecha: ''
+  })
+
+  const ciudadesUnicas = [...new Set(puntos.map(p => p.ciudad))].sort()
+
+  const handleBuscarPasajes = (e) => {
+    e.preventDefault()
+    const params = new URLSearchParams()
+    if (busqueda.origen) params.set('origen', busqueda.origen)
+    if (busqueda.destino) params.set('destino', busqueda.destino)
+    if (busqueda.fecha) params.set('fecha', busqueda.fecha)
+    navigate(`/buscar-pasajes?${params.toString()}`)
+  }
+
   useEffect(() => {
-    publicService.getConfigLanding()
-      .then(res => {
-        if (res.config) setConfig(prev => ({ ...prev, ...res.config }))
-      })
-      .catch(() => {})
+    Promise.all([
+      publicService.getConfigLanding().catch(() => ({ config: {} })),
+      publicService.getPuntos().catch(() => ({ puntos: [] }))
+    ]).then(([configRes, puntosRes]) => {
+      if (configRes.config) setConfig(prev => ({ ...prev, ...configRes.config }))
+      setPuntos(puntosRes.puntos || [])
+    })
   }, [])
 
   useEffect(() => {
@@ -38,9 +60,12 @@ const PublicLayout = ({ children }) => {
   }, [location.pathname])
 
   const navLinks = [
+    { to: '/nosotros', label: 'Nosotros' },
     { to: '/destinos', label: 'Destinos' },
     { to: '/encomiendas-info', label: 'Encomiendas' },
+    { to: '/festividades', label: 'Festividades' },
     { to: '/tracking', label: 'Rastrea tu envio' },
+    { to: '/planificar-viaje', label: 'Planifica tu viaje' },
   ]
 
   return (
@@ -58,8 +83,8 @@ const PublicLayout = ({ children }) => {
               />
             </Link>
 
-            {/* Desktop Navigation - centrado */}
-            <nav className="hidden lg:flex items-center gap-8">
+            {/* Desktop Navigation - desplazado a la derecha */}
+            <nav className="hidden lg:flex items-center gap-8 ml-auto mr-8">
               {navLinks.map(link => (
                 <Link
                   key={link.to}
@@ -99,6 +124,77 @@ const PublicLayout = ({ children }) => {
           </div>
         </div>
       </header>
+
+      {/* Barra naranja - Compra tu pasaje (sticky debajo del navbar) */}
+      <div className="sticky top-16 lg:top-20 z-40">
+        <form
+          onSubmit={handleBuscarPasajes}
+          className="bg-secondary-500 px-4 py-2.5"
+        >
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+            <p className="text-white font-bold text-sm whitespace-nowrap flex items-center gap-2">
+              <Bus className="w-4 h-4" />
+              Compra tu pasaje:
+            </p>
+            <div className="flex flex-1 items-center gap-2 md:gap-3">
+              {/* Origen */}
+              <div className="flex-1 relative">
+                <label className="absolute -top-2 left-3 text-[10px] text-white/70 font-medium">Origen</label>
+                <select
+                  value={busqueda.origen}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setBusqueda(prev => ({
+                      ...prev,
+                      origen: val,
+                      destino: prev.destino === val ? '' : prev.destino
+                    }))
+                  }}
+                  className="w-full px-3 py-2 pt-3 bg-white/15 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/40 appearance-none cursor-pointer [&>option]:text-gray-900"
+                >
+                  <option value="">Ciudad</option>
+                  {ciudadesUnicas.map(ciudad => (
+                    <option key={ciudad} value={ciudad}>{ciudad}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Destino */}
+              <div className="flex-1 relative">
+                <label className="absolute -top-2 left-3 text-[10px] text-white/70 font-medium">Destino</label>
+                <select
+                  value={busqueda.destino}
+                  onChange={(e) => setBusqueda(prev => ({ ...prev, destino: e.target.value }))}
+                  className="w-full px-3 py-2 pt-3 bg-white/15 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/40 appearance-none cursor-pointer [&>option]:text-gray-900"
+                >
+                  <option value="">Ciudad</option>
+                  {ciudadesUnicas.filter(c => c !== busqueda.origen).map(ciudad => (
+                    <option key={ciudad} value={ciudad}>{ciudad}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Fecha */}
+              <div className="flex-1 relative hidden sm:block">
+                <label className="absolute -top-2 left-3 text-[10px] text-white/70 font-medium">Fecha salida</label>
+                <input
+                  type="date"
+                  value={busqueda.fecha}
+                  onChange={(e) => setBusqueda(prev => ({ ...prev, fecha: e.target.value }))}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 pt-3 bg-white/15 border border-white/30 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer [color-scheme:dark]"
+                />
+              </div>
+              {/* Boton */}
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-white text-secondary-600 rounded-lg font-bold uppercase text-sm tracking-wide hover:bg-gray-50 transition-all duration-200 flex items-center gap-2 whitespace-nowrap shadow-lg"
+              >
+                <Search className="w-4 h-4" />
+                BUSCAR
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
 
       {/* Content */}
       <main className="flex-1">
@@ -188,17 +284,21 @@ const PublicLayout = ({ children }) => {
               </ul>
             </div>
 
-            {/* Rutas frecuentes col 1 */}
-            <div className="hidden lg:block">
-              <h4 className="font-semibold text-white mb-4 text-sm">Rutas frecuentes</h4>
-              <ul className="space-y-2.5">
-                <li><Link to="/buscar-pasajes?destino=Lima" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Lima</Link></li>
-                <li><Link to="/buscar-pasajes?destino=Huaraz" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Huaraz</Link></li>
-                <li><Link to="/buscar-pasajes?destino=Chiclayo" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Chiclayo</Link></li>
-                <li><Link to="/buscar-pasajes?destino=Tarapoto" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Tarapoto</Link></li>
-                <li><Link to="/buscar-pasajes?destino=Cajamarca" className="text-primary-300 hover:text-white transition-colors text-sm">Pasaje a Cajamarca</Link></li>
-              </ul>
-            </div>
+            {/* Rutas frecuentes - generadas dinámicamente */}
+            {ciudadesUnicas.length > 0 && (
+              <div className="hidden lg:block">
+                <h4 className="font-semibold text-white mb-4 text-sm">Rutas frecuentes</h4>
+                <ul className="space-y-2.5">
+                  {ciudadesUnicas.slice(0, 5).map(ciudad => (
+                    <li key={ciudad}>
+                      <Link to={`/buscar-pasajes?destino=${ciudad}`} className="text-primary-300 hover:text-white transition-colors text-sm">
+                        Pasaje a {ciudad}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           <div className="mt-10 pt-6 border-t border-primary-700 text-center">

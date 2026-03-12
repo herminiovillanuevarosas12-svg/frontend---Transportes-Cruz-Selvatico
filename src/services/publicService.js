@@ -62,13 +62,13 @@ const publicService = {
     return response.data
   },
 
-  getExperienciaIconos: async () => {
-    const response = await apiClient.get('/public/experiencia-iconos')
+  getFestividad: async (id) => {
+    const response = await apiClient.get(`/public/festividades/${id}`)
     return response.data
   },
 
-  getDestinosImagenes: async () => {
-    const response = await apiClient.get('/public/destinos-imagenes')
+  getExperienciaIconos: async () => {
+    const response = await apiClient.get('/public/experiencia-iconos')
     return response.data
   },
 
@@ -118,9 +118,9 @@ const publicService = {
     return response.data
   },
 
-  // Paginas de contenido
-  getPagina: async (slug) => {
-    const response = await apiClient.get(`/public/paginas/${slug}`)
+  // Info para tu viaje
+  getInfoViajeItems: async () => {
+    const response = await apiClient.get('/public/info-viaje-items')
     return response.data
   }
 }
