@@ -8,6 +8,10 @@ import { toast } from 'react-hot-toast'
 import landingService from '../../services/landingService'
 import publicService from '../../services/publicService'
 import { getUploadUrl } from '../../services/apiClient'
+
+/** Extrae mensaje de error del backend o devuelve fallback */
+const getErrorMsg = (error, fallback = 'Error inesperado') =>
+  error?.response?.data?.error || error?.response?.data?.message || error?.message || fallback
 import {
   Image,
   Images,
@@ -553,7 +557,7 @@ const LandingAdminPage = () => {
       cargarDatos()
     } catch (error) {
       console.error('Error guardando:', error)
-      toast.error('Error al guardar')
+      toast.error(getErrorMsg(error, 'Error al guardar'))
     } finally {
       setSaving(false)
     }
@@ -568,7 +572,7 @@ const LandingAdminPage = () => {
       cargarDatos()
     } catch (error) {
       console.error('Error eliminando banner:', error)
-      toast.error('Error al eliminar banner')
+      toast.error(getErrorMsg(error, 'Error al eliminar banner'))
     }
   }
 
@@ -582,7 +586,7 @@ const LandingAdminPage = () => {
       cargarDatos()
     } catch (error) {
       console.error('Error actualizando banner:', error)
-      toast.error('Error al actualizar banner')
+      toast.error(getErrorMsg(error, 'Error al actualizar banner'))
     }
   }
 
@@ -605,7 +609,7 @@ const LandingAdminPage = () => {
       toast.success('Orden actualizado')
     } catch (error) {
       console.error('Error reordenando:', error)
-      toast.error('Error al reordenar')
+      toast.error(getErrorMsg(error, 'Error al reordenar'))
     }
   }
 
@@ -628,7 +632,7 @@ const LandingAdminPage = () => {
       toast.success('Orden actualizado')
     } catch (error) {
       console.error('Error reordenando:', error)
-      toast.error('Error al reordenar')
+      toast.error(getErrorMsg(error, 'Error al reordenar'))
     }
   }
 
@@ -701,7 +705,7 @@ const LandingAdminPage = () => {
       toast.success('Imagen eliminada')
     } catch (error) {
       console.error('Error eliminando imagen:', error)
-      toast.error('Error al eliminar imagen')
+      toast.error(getErrorMsg(error, 'Error al eliminar imagen'))
     }
   }
 
@@ -740,7 +744,7 @@ const LandingAdminPage = () => {
       cargarDatos()
     } catch (error) {
       console.error('Error guardando festividad:', error)
-      toast.error('Error al guardar festividad')
+      toast.error(getErrorMsg(error, 'Error al guardar festividad'))
     } finally {
       setSavingFest(false)
     }
@@ -754,7 +758,7 @@ const LandingAdminPage = () => {
       cargarDatos()
     } catch (error) {
       console.error('Error eliminando festividad:', error)
-      toast.error('Error al eliminar festividad')
+      toast.error(getErrorMsg(error, 'Error al eliminar festividad'))
     }
   }
 
@@ -765,7 +769,7 @@ const LandingAdminPage = () => {
       cargarDatos()
     } catch (error) {
       console.error('Error toggling festividad:', error)
-      toast.error('Error al actualizar festividad')
+      toast.error(getErrorMsg(error, 'Error al actualizar festividad'))
     }
   }
 
@@ -790,7 +794,7 @@ const LandingAdminPage = () => {
       toast.success('Configuración guardada')
     } catch (error) {
       console.error('Error guardando config:', error)
-      toast.error('Error al guardar configuración')
+      toast.error(getErrorMsg(error, 'Error al guardar configuración'))
     } finally {
       setSaving(false)
     }
@@ -813,7 +817,7 @@ const LandingAdminPage = () => {
       toast.success('Imagen hero actualizada')
     } catch (error) {
       console.error(error)
-      toast.error('Error al subir imagen hero')
+      toast.error(getErrorMsg(error, 'Error al subir imagen hero'))
     } finally {
       setSavingEncHero(false)
       if (encHeroInputRef.current) encHeroInputRef.current.value = ''
@@ -832,7 +836,7 @@ const LandingAdminPage = () => {
       toast.success('Imagen actualizada')
     } catch (error) {
       console.error(error)
-      toast.error('Error al subir imagen')
+      toast.error(getErrorMsg(error, 'Error al subir imagen'))
     } finally {
       setSavingEncLandingImg(false)
       if (encLandingImgRef.current) encLandingImgRef.current.value = ''
@@ -847,7 +851,7 @@ const LandingAdminPage = () => {
       setEncLandingImgPreview(null)
       toast.success('Imagen eliminada')
     } catch (error) {
-      toast.error('Error al eliminar imagen')
+      toast.error(getErrorMsg(error, 'Error al eliminar imagen'))
     } finally {
       setSavingEncLandingImg(false)
     }
@@ -862,7 +866,7 @@ const LandingAdminPage = () => {
       setEncomiendasHeroPreview(null)
       toast.success('Imagen hero eliminada')
     } catch (error) {
-      toast.error('Error al eliminar imagen hero')
+      toast.error(getErrorMsg(error, 'Error al eliminar imagen hero'))
     } finally {
       setSavingEncHero(false)
     }
@@ -936,7 +940,7 @@ const LandingAdminPage = () => {
       setEncomiendasVentajas(encRes.ventajas || [])
     } catch (error) {
       console.error(error)
-      toast.error('Error al guardar ventaja')
+      toast.error(getErrorMsg(error, 'Error al guardar ventaja'))
     } finally {
       setSavingVentaja(false)
     }
@@ -949,7 +953,7 @@ const LandingAdminPage = () => {
       setEncomiendasVentajas(prev => prev.filter(v => v.id !== id))
       toast.success('Ventaja eliminada')
     } catch (error) {
-      toast.error('Error al eliminar ventaja')
+      toast.error(getErrorMsg(error, 'Error al eliminar ventaja'))
     }
   }
 
@@ -959,7 +963,7 @@ const LandingAdminPage = () => {
       setEncomiendasVentajas(prev => prev.map(v => v.id === id ? { ...v, activo: res.activo } : v))
       toast.success(res.mensaje)
     } catch (error) {
-      toast.error('Error al cambiar estado')
+      toast.error(getErrorMsg(error, 'Error al cambiar estado'))
     }
   }
 
@@ -1034,7 +1038,7 @@ const LandingAdminPage = () => {
       setEncomiendasSecciones(secRes.secciones || [])
     } catch (error) {
       console.error(error)
-      toast.error('Error al guardar seccion')
+      toast.error(getErrorMsg(error, 'Error al guardar seccion'))
     } finally {
       setSavingSeccion(false)
     }
@@ -1047,7 +1051,7 @@ const LandingAdminPage = () => {
       setEncomiendasSecciones(prev => prev.filter(s => s.id !== id))
       toast.success('Seccion eliminada')
     } catch (error) {
-      toast.error('Error al eliminar seccion')
+      toast.error(getErrorMsg(error, 'Error al eliminar seccion'))
     }
   }
 
@@ -1057,7 +1061,7 @@ const LandingAdminPage = () => {
       setEncomiendasSecciones(prev => prev.map(s => s.id === id ? { ...s, activo: res.activo } : s))
       toast.success(res.mensaje)
     } catch (error) {
-      toast.error('Error al cambiar estado')
+      toast.error(getErrorMsg(error, 'Error al cambiar estado'))
     }
   }
 
@@ -1077,7 +1081,7 @@ const LandingAdminPage = () => {
       toast.success('Imagen hero actualizada')
     } catch (error) {
       console.error(error)
-      toast.error('Error al subir imagen hero')
+      toast.error(getErrorMsg(error, 'Error al subir imagen hero'))
     } finally {
       setSavingInfoViajeHero(false)
       if (infoViajeHeroInputRef.current) infoViajeHeroInputRef.current.value = ''
@@ -1092,7 +1096,7 @@ const LandingAdminPage = () => {
       setInfoViajeHeroPreview(null)
       toast.success('Imagen hero eliminada')
     } catch (error) {
-      toast.error('Error al eliminar imagen hero')
+      toast.error(getErrorMsg(error, 'Error al eliminar imagen hero'))
     } finally {
       setSavingInfoViajeHero(false)
     }
@@ -1108,7 +1112,7 @@ const LandingAdminPage = () => {
       toast.success('Configuracion de Info Viaje guardada')
     } catch (error) {
       console.error(error)
-      toast.error('Error al guardar configuracion')
+      toast.error(getErrorMsg(error, 'Error al guardar configuracion'))
     } finally {
       setSavingInfoViajeConfig(false)
     }
@@ -1181,7 +1185,7 @@ const LandingAdminPage = () => {
       setInfoViajeItems(res.items || [])
     } catch (error) {
       console.error(error)
-      toast.error('Error al guardar item')
+      toast.error(getErrorMsg(error, 'Error al guardar item'))
     } finally {
       setSavingInfoViajeItem(false)
     }
@@ -1194,7 +1198,7 @@ const LandingAdminPage = () => {
       setInfoViajeItems(prev => prev.filter(v => v.id !== id))
       toast.success('Item eliminado')
     } catch (error) {
-      toast.error('Error al eliminar item')
+      toast.error(getErrorMsg(error, 'Error al eliminar item'))
     }
   }
 
@@ -1203,7 +1207,7 @@ const LandingAdminPage = () => {
       const res = await landingService.toggleInfoViajeItem(id)
       setInfoViajeItems(prev => prev.map(v => v.id === id ? { ...v, activo: res.activo } : v))
       toast.success(res.mensaje)
-    } catch { toast.error('Error al cambiar estado') }
+    } catch (error) { toast.error(getErrorMsg(error, 'Error al cambiar estado')) }
   }
 
   // ============================================
@@ -1221,7 +1225,7 @@ const LandingAdminPage = () => {
         setImgFondoExpPreview(getUploadUrl(res.imagenFondoExperiencia))
         toast.success('Imagen de fondo actualizada')
       })
-      .catch(() => toast.error('Error al subir imagen'))
+      .catch((error) => toast.error(getErrorMsg(error, 'Error al subir imagen')))
       .finally(() => setSavingImgFondoExp(false))
   }
 
@@ -1231,8 +1235,8 @@ const LandingAdminPage = () => {
       await landingService.eliminarImagenFondoExperiencia()
       setImgFondoExpPreview(null)
       toast.success('Imagen de fondo eliminada')
-    } catch {
-      toast.error('Error al eliminar imagen')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al eliminar imagen'))
     } finally {
       setSavingImgFondoExp(false)
     }
@@ -1272,8 +1276,8 @@ const LandingAdminPage = () => {
         toast.success('Icono creado')
       }
       cerrarIconoModal()
-    } catch {
-      toast.error('Error al guardar icono')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al guardar icono'))
     } finally {
       setSavingIcono(false)
     }
@@ -1284,8 +1288,8 @@ const LandingAdminPage = () => {
       await landingService.eliminarExperienciaIcono(id)
       setExperienciaIconos(prev => prev.filter(i => i.id !== id))
       toast.success('Icono eliminado')
-    } catch {
-      toast.error('Error al eliminar icono')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al eliminar icono'))
     }
   }
 
@@ -1298,8 +1302,8 @@ const LandingAdminPage = () => {
     try {
       await landingService.actualizarNosotrosConfig(nosotrosConfig)
       toast.success('Configuracion de Nosotros guardada')
-    } catch {
-      toast.error('Error al guardar configuracion')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al guardar configuracion'))
     } finally {
       setSavingNosotrosConfig(false)
     }
@@ -1317,7 +1321,7 @@ const LandingAdminPage = () => {
         setNosotrosHeroPreview(getUploadUrl(res.heroImagen))
         toast.success('Imagen hero actualizada')
       })
-      .catch(() => toast.error('Error al subir imagen'))
+      .catch((error) => toast.error(getErrorMsg(error, 'Error al subir imagen')))
       .finally(() => setSavingNosotrosHero(false))
   }
 
@@ -1328,8 +1332,8 @@ const LandingAdminPage = () => {
       setNosotrosHeroImagen(null)
       setNosotrosHeroPreview(null)
       toast.success('Imagen hero eliminada')
-    } catch {
-      toast.error('Error al eliminar imagen')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al eliminar imagen'))
     } finally {
       setSavingNosotrosHero(false)
     }
@@ -1382,8 +1386,8 @@ const LandingAdminPage = () => {
       cerrarNosotrosValorModal()
       const res = await landingService.listarNosotrosValores()
       setNosotrosValores(res.valores || [])
-    } catch {
-      toast.error('Error al guardar valor')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al guardar valor'))
     } finally {
       setSavingNosotrosValor(false)
     }
@@ -1395,8 +1399,8 @@ const LandingAdminPage = () => {
       await landingService.eliminarNosotrosValor(id)
       setNosotrosValores(prev => prev.filter(v => v.id !== id))
       toast.success('Valor eliminado')
-    } catch {
-      toast.error('Error al eliminar valor')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al eliminar valor'))
     }
   }
 
@@ -1405,8 +1409,8 @@ const LandingAdminPage = () => {
       const res = await landingService.toggleNosotrosValor(id)
       setNosotrosValores(prev => prev.map(v => v.id === id ? { ...v, activo: res.activo } : v))
       toast.success(res.mensaje)
-    } catch {
-      toast.error('Error al cambiar estado')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al cambiar estado'))
     }
   }
 
@@ -1460,7 +1464,7 @@ const LandingAdminPage = () => {
       setFaqs(res.preguntas || [])
     } catch (error) {
       console.error('Error guardando FAQ:', error)
-      toast.error('Error al guardar la pregunta')
+      toast.error(getErrorMsg(error, 'Error al guardar la pregunta'))
     } finally {
       setSavingFaq(false)
     }
@@ -1472,8 +1476,8 @@ const LandingAdminPage = () => {
       await landingService.eliminarPreguntaFrecuente(id)
       toast.success('Pregunta eliminada')
       setFaqs(prev => prev.filter(f => f.id !== id))
-    } catch {
-      toast.error('Error al eliminar')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al eliminar'))
     }
   }
 
@@ -1482,8 +1486,8 @@ const LandingAdminPage = () => {
       const res = await landingService.togglePreguntaFrecuente(id)
       setFaqs(prev => prev.map(f => f.id === id ? { ...f, activo: res.activo } : f))
       toast.success(res.mensaje)
-    } catch {
-      toast.error('Error al cambiar estado')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al cambiar estado'))
     }
   }
 
@@ -1496,8 +1500,8 @@ const LandingAdminPage = () => {
     setFaqs(newFaqs)
     try {
       await landingService.reordenarPreguntasFrecuentes(ordenes)
-    } catch {
-      toast.error('Error al reordenar')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al reordenar'))
       const res = await landingService.listarPreguntasFrecuentes()
       setFaqs(res.preguntas || [])
     }
@@ -1530,7 +1534,7 @@ const LandingAdminPage = () => {
       setBannerDestinos(res.bannerPath)
       setBannerDestinosPreview(getUploadUrl(res.bannerPath))
       toast.success('Banner subido')
-    } catch { toast.error('Error al subir banner') }
+    } catch (error) { toast.error(getErrorMsg(error, 'Error al subir banner')) }
     finally { setSavingBannerDest(false) }
   }
 
@@ -1542,7 +1546,7 @@ const LandingAdminPage = () => {
       setBannerDestinos(null)
       setBannerDestinosPreview(null)
       toast.success('Banner eliminado')
-    } catch { toast.error('Error al eliminar') }
+    } catch (error) { toast.error(getErrorMsg(error, 'Error al eliminar')) }
     finally { setSavingBannerDest(false) }
   }
 
@@ -1648,7 +1652,7 @@ const LandingAdminPage = () => {
       await landingService.eliminarDestino(id)
       toast.success('Destino eliminado')
       setDestinosList(prev => prev.filter(d => d.id !== id))
-    } catch { toast.error('Error al eliminar destino') }
+    } catch (error) { toast.error(getErrorMsg(error, 'Error al eliminar destino')) }
   }
 
   const toggleDestinoHandler = async (id) => {
@@ -1656,7 +1660,7 @@ const LandingAdminPage = () => {
       const res = await landingService.toggleDestino(id)
       toast.success(res.mensaje)
       setDestinosList(prev => prev.map(d => d.id === id ? { ...d, activo: res.activo } : d))
-    } catch { toast.error('Error al cambiar estado') }
+    } catch (error) { toast.error(getErrorMsg(error, 'Error al cambiar estado')) }
   }
 
   // ============================================
@@ -2185,7 +2189,7 @@ const LandingAdminPage = () => {
                       <span className="text-xs">Click para subir</span>
                     </div>
                   )}
-                  <input ref={bannerDestInputRef} type="file" accept="image/*" onChange={handleBannerDestChange} className="hidden" />
+                  <input ref={bannerDestInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleBannerDestChange} className="hidden" />
                 </div>
                 {bannerDestinos && (
                   <button
@@ -2340,7 +2344,7 @@ const LandingAdminPage = () => {
               <input
                 ref={imgFondoExpInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/gif,image/webp"
                 onChange={handleImgFondoExpChange}
                 className="hidden"
               />
@@ -2718,7 +2722,7 @@ const LandingAdminPage = () => {
                     </div>
                   )}
                 </div>
-                <input ref={encHeroInputRef} type="file" accept="image/*" onChange={handleEncHeroUpload} className="hidden" />
+                <input ref={encHeroInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleEncHeroUpload} className="hidden" />
                 {encomiendasHeroPreview && (
                   <button
                     onClick={handleEncHeroDelete}
@@ -2794,7 +2798,7 @@ const LandingAdminPage = () => {
                         </div>
                       )}
                     </div>
-                    <input ref={encLandingImgRef} type="file" accept="image/*" onChange={handleEncLandingImgUpload} className="hidden" />
+                    <input ref={encLandingImgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleEncLandingImgUpload} className="hidden" />
                     {encLandingImgPreview && (
                       <button
                         onClick={handleEncLandingImgDelete}
@@ -3027,7 +3031,7 @@ const LandingAdminPage = () => {
                     </div>
                   )}
                 </div>
-                <input ref={infoViajeHeroInputRef} type="file" accept="image/*" onChange={handleInfoViajeHeroUpload} className="hidden" />
+                <input ref={infoViajeHeroInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleInfoViajeHeroUpload} className="hidden" />
                 {infoViajeHeroPreview && (
                   <button
                     onClick={handleInfoViajeHeroDelete}
@@ -3182,7 +3186,7 @@ const LandingAdminPage = () => {
                 type="file"
                 ref={nosotrosHeroInputRef}
                 className="hidden"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/gif,image/webp"
                 onChange={handleNosotrosHeroChange}
               />
               {nosotrosHeroPreview ? (
@@ -3480,7 +3484,7 @@ const LandingAdminPage = () => {
                   type="file"
                   ref={nosotrosValorImgRef}
                   className="hidden"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
                   onChange={(e) => {
                     const file = e.target.files?.[0]
                     if (file) {
@@ -3790,7 +3794,7 @@ const LandingAdminPage = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
                   onChange={handleImageChange}
                   className="hidden"
                 />
@@ -3984,7 +3988,7 @@ const LandingAdminPage = () => {
                 <input
                   ref={festImgInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
                   onChange={handleFestAddImage}
                   className="hidden"
                 />
@@ -4111,7 +4115,7 @@ const LandingAdminPage = () => {
                     </div>
                   )}
                 </div>
-                <input ref={encVentajaImgRef} type="file" accept="image/*" onChange={handleVentajaImgChange} className="hidden" />
+                <input ref={encVentajaImgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleVentajaImgChange} className="hidden" />
               </div>
 
               {/* Titulo */}
@@ -4233,7 +4237,7 @@ const LandingAdminPage = () => {
                     </div>
                   )}
                 </div>
-                <input ref={encSeccionImgRef} type="file" accept="image/*" onChange={handleSeccionImgChange} className="hidden" />
+                <input ref={encSeccionImgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleSeccionImgChange} className="hidden" />
               </div>
 
               {/* Tipo */}
@@ -4354,7 +4358,7 @@ const LandingAdminPage = () => {
                     </div>
                   )}
                 </div>
-                <input ref={infoViajeItemImgRef} type="file" accept="image/*" onChange={handleInfoViajeItemImgChange} className="hidden" />
+                <input ref={infoViajeItemImgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleInfoViajeItemImgChange} className="hidden" />
               </div>
 
               {/* Titulo */}
@@ -4573,7 +4577,7 @@ const LandingAdminPage = () => {
                       <input
                         ref={destinoImgRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0]
@@ -4714,7 +4718,7 @@ const LandingAdminPage = () => {
                       <input
                         ref={destinoAtractivosImgRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0]
