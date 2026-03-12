@@ -285,6 +285,39 @@ const landingService = {
   },
 
   // ============================================
+  // ENCOMIENDAS SECCIONES (Servicios/Flota)
+  // ============================================
+
+  listarEncomiendasSecciones: async () => {
+    const response = await apiClient.get('/contenido/encomiendas-secciones')
+    return response.data
+  },
+
+  crearEncomiendasSeccion: async (formData) => {
+    const response = await apiClient.post('/contenido/encomiendas-secciones', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  actualizarEncomiendasSeccion: async (id, formData) => {
+    const response = await apiClient.put(`/contenido/encomiendas-secciones/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    return response.data
+  },
+
+  eliminarEncomiendasSeccion: async (id) => {
+    const response = await apiClient.delete(`/contenido/encomiendas-secciones/${id}`)
+    return response.data
+  },
+
+  toggleEncomiendasSeccion: async (id) => {
+    const response = await apiClient.patch(`/contenido/encomiendas-secciones/${id}/toggle`)
+    return response.data
+  },
+
+  // ============================================
   // IMAGEN FONDO EXPERIENCIA
   // ============================================
 

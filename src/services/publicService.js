@@ -112,6 +112,12 @@ const publicService = {
     return response.data
   },
 
+  // Encomiendas secciones (Servicios/Flota)
+  getEncomiendasSecciones: async () => {
+    const response = await apiClient.get('/public/encomiendas-secciones')
+    return response.data
+  },
+
   // Nosotros
   getNosotros: async () => {
     const response = await apiClient.get('/public/nosotros')

@@ -262,6 +262,19 @@ const LandingAdminPage = () => {
   const [savingEncHero, setSavingEncHero] = useState(false)
   const [encLandingImgPreview, setEncLandingImgPreview] = useState(null)
   const [savingEncLandingImg, setSavingEncLandingImg] = useState(false)
+  // Secciones Servicios/Flota
+  const [encomiendasSecciones, setEncomiendasSecciones] = useState([])
+  const [showSeccionModal, setShowSeccionModal] = useState(false)
+  const [editingSeccion, setEditingSeccion] = useState(null)
+  const [seccionForm, setSeccionForm] = useState({
+    titulo: '',
+    descripcion: '',
+    tipo: 'SERVICIOS',
+    orden: 0,
+    imagenPreview: null,
+    imagenFile: null
+  })
+  const [savingSeccion, setSavingSeccion] = useState(false)
 
   // Experiencia (tab nuevo)
   const [experienciaIconos, setExperienciaIconos] = useState([])
@@ -337,6 +350,7 @@ const LandingAdminPage = () => {
   const encHeroInputRef = useRef(null)
   const encVentajaImgRef = useRef(null)
   const encLandingImgRef = useRef(null)
+  const encSeccionImgRef = useRef(null)
   const infoViajeHeroInputRef = useRef(null)
   const infoViajeItemImgRef = useRef(null)
 
@@ -347,7 +361,7 @@ const LandingAdminPage = () => {
   const cargarDatos = async () => {
     try {
       setLoading(true)
-      const [bannersRes, galleryRes, configRes, festRes, puntosRes, encRes, iconosRes, nosotrosRes, faqsRes, destBannerRes, destinosRes, infoViajeRes] = await Promise.all([
+      const [bannersRes, galleryRes, configRes, festRes, puntosRes, encRes, iconosRes, nosotrosRes, faqsRes, destBannerRes, destinosRes, infoViajeRes, seccionesRes] = await Promise.all([
         landingService.listarBanners('banner'),
         landingService.listarBanners('gallery'),
         landingService.getConfigLanding(),
@@ -359,13 +373,15 @@ const LandingAdminPage = () => {
         landingService.listarPreguntasFrecuentes().catch(() => ({ preguntas: [] })),
         publicService.getDestinosBanner().catch(() => ({ banner: null })),
         landingService.listarDestinos().catch(() => ({ destinos: [] })),
-        landingService.getInfoViajeItems().catch(() => ({ items: [], heroImagen: null, titulo: 'Info para tu viaje', subtitulo: 'Información' }))
+        landingService.getInfoViajeItems().catch(() => ({ items: [], heroImagen: null, titulo: 'Info para tu viaje', subtitulo: 'Información' })),
+        landingService.listarEncomiendasSecciones().catch(() => ({ secciones: [] }))
       ])
       setBanners(bannersRes.banners || [])
       setGallery(galleryRes.banners || [])
       setFestividades(festRes.festividades || [])
       setPuntos(puntosRes.puntos || [])
       setEncomiendasVentajas(encRes.ventajas || [])
+      setEncomiendasSecciones(seccionesRes.secciones || [])
       setDestinosList(destinosRes.destinos || [])
       if (destBannerRes.banner) {
         setBannerDestinos(destBannerRes.banner)
@@ -941,6 +957,104 @@ const LandingAdminPage = () => {
     try {
       const res = await landingService.toggleEncomiendasVentaja(id)
       setEncomiendasVentajas(prev => prev.map(v => v.id === id ? { ...v, activo: res.activo } : v))
+      toast.success(res.mensaje)
+    } catch (error) {
+      toast.error('Error al cambiar estado')
+    }
+  }
+
+  // ============================================
+  // ENCOMIENDAS SECCIONES HANDLERS
+  // ============================================
+
+  const abrirSeccionModal = (seccion = null) => {
+    if (seccion) {
+      setEditingSeccion(seccion)
+      setSeccionForm({
+        titulo: seccion.titulo || '',
+        descripcion: seccion.descripcion || '',
+        tipo: seccion.tipo || 'SERVICIOS',
+        orden: seccion.orden || 0,
+        imagenPreview: seccion.imagenPath ? getUploadUrl(seccion.imagenPath) : null,
+        imagenFile: null
+      })
+    } else {
+      setEditingSeccion(null)
+      setSeccionForm({
+        titulo: '',
+        descripcion: '',
+        tipo: 'SERVICIOS',
+        orden: encomiendasSecciones.length,
+        imagenPreview: null,
+        imagenFile: null
+      })
+    }
+    setShowSeccionModal(true)
+  }
+
+  const cerrarSeccionModal = () => {
+    setShowSeccionModal(false)
+    setEditingSeccion(null)
+    setSeccionForm({ titulo: '', descripcion: '', tipo: 'SERVICIOS', orden: 0, imagenPreview: null, imagenFile: null })
+  }
+
+  const handleSeccionImgChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => setSeccionForm(prev => ({ ...prev, imagenPreview: reader.result, imagenFile: file }))
+    reader.readAsDataURL(file)
+  }
+
+  const guardarSeccion = async () => {
+    if (!seccionForm.titulo.trim()) {
+      toast.error('El titulo es obligatorio')
+      return
+    }
+    setSavingSeccion(true)
+    try {
+      const formData = new FormData()
+      formData.append('titulo', seccionForm.titulo)
+      formData.append('descripcion', seccionForm.descripcion)
+      formData.append('tipo', seccionForm.tipo)
+      formData.append('orden', seccionForm.orden)
+      if (seccionForm.imagenFile) {
+        formData.append('imagen', seccionForm.imagenFile)
+      }
+
+      if (editingSeccion) {
+        await landingService.actualizarEncomiendasSeccion(editingSeccion.id, formData)
+        toast.success('Seccion actualizada')
+      } else {
+        await landingService.crearEncomiendasSeccion(formData)
+        toast.success('Seccion creada')
+      }
+      cerrarSeccionModal()
+      const secRes = await landingService.listarEncomiendasSecciones().catch(() => ({ secciones: [] }))
+      setEncomiendasSecciones(secRes.secciones || [])
+    } catch (error) {
+      console.error(error)
+      toast.error('Error al guardar seccion')
+    } finally {
+      setSavingSeccion(false)
+    }
+  }
+
+  const eliminarSeccion = async (id) => {
+    if (!confirm('Eliminar esta seccion?')) return
+    try {
+      await landingService.eliminarEncomiendasSeccion(id)
+      setEncomiendasSecciones(prev => prev.filter(s => s.id !== id))
+      toast.success('Seccion eliminada')
+    } catch (error) {
+      toast.error('Error al eliminar seccion')
+    }
+  }
+
+  const toggleSeccion = async (id) => {
+    try {
+      const res = await landingService.toggleEncomiendasSeccion(id)
+      setEncomiendasSecciones(prev => prev.map(s => s.id === id ? { ...s, activo: res.activo } : s))
       toast.success(res.mensaje)
     } catch (error) {
       toast.error('Error al cambiar estado')
@@ -2731,7 +2845,7 @@ const LandingAdminPage = () => {
                 <div className="text-center py-12 text-gray-400">
                   <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
                   <p>No hay ventajas configuradas</p>
-                  <p className="text-sm">Las ventajas por defecto se mostraran en la pagina publica</p>
+                  <p className="text-sm">La seccion no se mostrara en la pagina publica si no hay ventajas</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -2778,6 +2892,91 @@ const LandingAdminPage = () => {
                         </button>
                         <button
                           onClick={() => eliminarVentaja(v.id)}
+                          className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Secciones Servicios/Flota */}
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-primary-600" />
+                  Secciones Servicios / Flota
+                </h3>
+                <button
+                  onClick={() => abrirSeccionModal()}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nueva Seccion
+                </button>
+              </div>
+
+              {encomiendasSecciones.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  <Truck className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p>No hay secciones configuradas</p>
+                  <p className="text-sm">Agrega secciones para los tabs Servicios y Flota</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {encomiendasSecciones.map((s) => (
+                    <div
+                      key={s.id}
+                      className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
+                        s.activo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'
+                      }`}
+                    >
+                      {/* Imagen */}
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
+                        {s.imagenPath ? (
+                          <img src={getUploadUrl(s.imagenPath)} alt={s.titulo} className="w-full h-full object-cover" />
+                        ) : (
+                          <Truck className="w-6 h-6 text-gray-400" />
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-900 truncate">{s.titulo}</h4>
+                        <p className="text-sm text-gray-500 truncate">{s.descripcion}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            s.tipo === 'SERVICIOS' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
+                          }`}>
+                            {s.tipo}
+                          </span>
+                          <span className="text-xs text-gray-400">Orden: {s.orden}</span>
+                        </div>
+                      </div>
+
+                      {/* Acciones */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => toggleSeccion(s.id)}
+                          className={`p-2 rounded-lg transition-colors ${
+                            s.activo ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'
+                          }`}
+                          title={s.activo ? 'Desactivar' : 'Activar'}
+                        >
+                          {s.activo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </button>
+                        <button
+                          onClick={() => abrirSeccionModal(s)}
+                          className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                          title="Editar"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => eliminarSeccion(s.id)}
                           className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
                           title="Eliminar"
                         >
@@ -3994,6 +4193,126 @@ const LandingAdminPage = () => {
                   <Save className="w-5 h-5" />
                 )}
                 {editingVentaja ? 'Actualizar' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Seccion Servicios/Flota */}
+      {showSeccionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-900">
+                {editingSeccion ? 'Editar Seccion' : 'Nueva Seccion'}
+              </h2>
+              <button onClick={cerrarSeccionModal} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Imagen */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Imagen de la seccion</label>
+                <div
+                  onClick={() => encSeccionImgRef.current?.click()}
+                  className="relative w-full h-40 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors"
+                >
+                  {seccionForm.imagenPreview ? (
+                    <>
+                      <img src={seccionForm.imagenPreview} alt="Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white font-medium text-sm">Cambiar imagen</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                      <Upload className="w-8 h-8 mb-1" />
+                      <span className="text-xs">Clic para seleccionar imagen</span>
+                    </div>
+                  )}
+                </div>
+                <input ref={encSeccionImgRef} type="file" accept="image/*" onChange={handleSeccionImgChange} className="hidden" />
+              </div>
+
+              {/* Tipo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tipo *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {['SERVICIOS', 'FLOTA'].map((tipo) => (
+                    <button
+                      key={tipo}
+                      type="button"
+                      onClick={() => setSeccionForm(prev => ({ ...prev, tipo }))}
+                      className={`py-3 rounded-xl border-2 font-medium text-sm transition-all ${
+                        seccionForm.tipo === tipo
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      {tipo}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Titulo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Titulo *</label>
+                <input
+                  type="text"
+                  value={seccionForm.titulo}
+                  onChange={(e) => setSeccionForm(prev => ({ ...prev, titulo: e.target.value }))}
+                  placeholder="Ej: Sobres y paquetes"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Descripcion */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Descripcion</label>
+                <textarea
+                  value={seccionForm.descripcion}
+                  onChange={(e) => setSeccionForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                  placeholder="Descripcion de la seccion..."
+                  rows={4}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                />
+              </div>
+
+              {/* Orden */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Orden</label>
+                <input
+                  type="number"
+                  value={seccionForm.orden}
+                  onChange={(e) => setSeccionForm(prev => ({ ...prev, orden: parseInt(e.target.value) || 0 }))}
+                  min={0}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100">
+              <button
+                onClick={cerrarSeccionModal}
+                className="px-5 py-2.5 text-gray-600 bg-gray-100 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarSeccion}
+                disabled={savingSeccion}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+              >
+                {savingSeccion ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Save className="w-5 h-5" />
+                )}
+                {editingSeccion ? 'Actualizar' : 'Guardar'}
               </button>
             </div>
           </div>

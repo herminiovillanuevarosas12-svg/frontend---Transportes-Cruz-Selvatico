@@ -14,6 +14,7 @@ const navLinks = [
   { to: '/encomiendas-info', label: 'Encomiendas' },
   { to: '/festividades', label: 'Festividades' },
   { to: '/tracking', label: 'Rastrea tu envio' },
+  { to: '/planificar-viaje', label: 'Planifica tu viaje' },
 ]
 
 const SocialIcon = ({ type }) => {
