@@ -117,8 +117,8 @@ const RutasInfoPage = () => {
                 alt="Banner"
                 className="w-full h-full object-cover"
               />
-              {/* Overlay oscuro para legibilidad del texto */}
-              <div className="absolute inset-0 bg-gradient-to-r from-primary-900/90 via-primary-800/80 to-primary-900/70" />
+              {/* Overlay negro para legibilidad del texto */}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-black/50" />
             </>
           ) : (
             <>

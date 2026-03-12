@@ -10,21 +10,21 @@ const PageHeroBanner = ({ titulo, subtitulo, imagenFondo, showSearchBar = true }
     <section className="relative">
       {/* Hero Image Area */}
       <div className="relative h-56 sm:h-64 md:h-72 lg:h-80 overflow-hidden">
-        {/* Fondo gradiente base */}
-        <div className="absolute inset-0 bg-gradient-to-r from-primary-800 via-primary-700 to-primary-600" />
+        {/* Fondo de respaldo si no hay imagen */}
+        <div className="absolute inset-0 bg-gray-900" />
 
-        {/* Imagen de fondo */}
+        {/* Imagen de fondo - sin filtro verde */}
         {imagenFondo && (
           <img
             src={imagenFondo}
             alt=""
-            className="absolute inset-0 w-full h-full object-cover opacity-40"
+            className="absolute inset-0 w-full h-full object-cover"
             aria-hidden="true"
           />
         )}
 
-        {/* Gradiente overlay para legibilidad del texto */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-black/30 to-transparent" />
+        {/* Overlay negro sutil solo para legibilidad del texto */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
 
         {/* Contenido del hero */}
         <div className="relative z-10 h-full flex items-center">
