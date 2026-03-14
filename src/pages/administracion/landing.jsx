@@ -238,7 +238,7 @@ const LandingAdminPage = () => {
   const [editingDestino, setEditingDestino] = useState(null)
   const [savingDestino, setSavingDestino] = useState(false)
   const [destinoForm, setDestinoForm] = useState({
-    slug: '', nombre: '', subtitulo: '', descripcion: '', precioDesde: '',
+    slug: '', nombre: '', idPunto: null, subtitulo: '', descripcion: '', precioDesde: '',
     serviciosDisponibles: '', orden: 0, direccionTerminal: '', telefonoTerminal: '',
     horariosAtencion: '', altitud: '', temperatura: '', tiempoViaje: '',
     descripcionAtractivos: '',
@@ -1568,6 +1568,7 @@ const LandingAdminPage = () => {
       setDestinoForm({
         slug: destino.slug || '',
         nombre: destino.nombre || '',
+        idPunto: destino.idPunto || null,
         subtitulo: destino.subtitulo || '',
         descripcion: destino.descripcion || '',
         precioDesde: destino.precioDesde || '',
@@ -1588,7 +1589,7 @@ const LandingAdminPage = () => {
     } else {
       setEditingDestino(null)
       setDestinoForm({
-        slug: '', nombre: '', subtitulo: '', descripcion: '', precioDesde: '',
+        slug: '', nombre: '', idPunto: null, subtitulo: '', descripcion: '', precioDesde: '',
         serviciosDisponibles: '', orden: 0, direccionTerminal: '', telefonoTerminal: '',
         horariosAtencion: '', altitud: '', temperatura: '', tiempoViaje: '',
         descripcionAtractivos: '',
@@ -1605,6 +1606,7 @@ const LandingAdminPage = () => {
   }
 
   const guardarDestino = async () => {
+    if (!destinoForm.idPunto) { toast.error('Debe seleccionar un punto'); return }
     if (!destinoForm.nombre.trim()) { toast.error('El nombre es obligatorio'); return }
     const slug = destinoForm.slug.trim() || generarSlug(destinoForm.nombre)
     if (!slug) { toast.error('No se pudo generar el slug'); return }
@@ -1613,6 +1615,7 @@ const LandingAdminPage = () => {
       const fd = new FormData()
       fd.append('slug', slug)
       fd.append('nombre', destinoForm.nombre.trim())
+      fd.append('idPunto', String(destinoForm.idPunto))
       fd.append('subtitulo', destinoForm.subtitulo.trim())
       fd.append('descripcion', destinoForm.descripcion.trim())
       fd.append('precioDesde', destinoForm.precioDesde || '')
@@ -4471,28 +4474,32 @@ const LandingAdminPage = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad (punto) *</label>
                     <select
-                      value={destinoForm.nombre}
+                      value={destinoForm.idPunto || ''}
                       onChange={(e) => {
-                        const nombre = e.target.value
-                        const puntoCiudad = puntos.find(p => p.ciudad === nombre)
+                        const selectedId = e.target.value ? parseInt(e.target.value) : null
+                        const selectedPunto = puntos.find(p => p.id === selectedId)
+                        const ciudadNombre = selectedPunto?.ciudad?.trim() || ''
                         setDestinoForm(prev => ({
                           ...prev,
-                          nombre,
-                          slug: editingDestino ? prev.slug : generarSlug(nombre),
-                          direccionTerminal: puntoCiudad?.direccion || prev.direccionTerminal
+                          idPunto: selectedId,
+                          nombre: ciudadNombre,
+                          slug: editingDestino ? prev.slug : generarSlug(ciudadNombre),
+                          direccionTerminal: selectedPunto?.direccion || prev.direccionTerminal
                         }))
                       }}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                     >
                       <option value="">Seleccionar ciudad</option>
-                      {[...new Set(puntos.map(p => p.ciudad))].sort()
-                        .filter(ciudad => {
-                          const yaExiste = destinosList.some(d => d.nombre === ciudad)
-                          if (!yaExiste) return true
-                          return editingDestino && editingDestino.nombre === ciudad
+                      {puntos
+                        .filter((p, i, arr) => arr.findIndex(pp => pp.ciudad?.trim() === p.ciudad?.trim()) === i)
+                        .sort((a, b) => (a.ciudad || '').trim().localeCompare((b.ciudad || '').trim()))
+                        .filter(p => {
+                          const yaUsado = destinosList.some(d => d.idPunto === p.id)
+                          if (!yaUsado) return true
+                          return editingDestino && editingDestino.idPunto === p.id
                         })
-                        .map(ciudad => (
-                          <option key={ciudad} value={ciudad}>{ciudad}</option>
+                        .map(p => (
+                          <option key={p.id} value={p.id}>{p.ciudad?.trim()}</option>
                         ))
                       }
                     </select>
@@ -4620,7 +4627,7 @@ const LandingAdminPage = () => {
                     >
                       <option value="">Seleccionar terminal</option>
                       {puntos
-                        .filter(p => !destinoForm.nombre || p.ciudad === destinoForm.nombre)
+                        .filter(p => !destinoForm.idPunto || p.id === destinoForm.idPunto)
                         .map(p => (
                           <option key={p.id} value={p.direccion || p.nombre}>
                             {p.nombre}{p.direccion ? ` - ${p.direccion}` : ''}
