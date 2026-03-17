@@ -128,6 +128,32 @@ const publicService = {
   getInfoViajeItems: async () => {
     const response = await apiClient.get('/public/info-viaje-items')
     return response.data
+  },
+
+  // Blog
+  getBlogArticulos: async (params = {}) => {
+    const response = await apiClient.get('/public/blog', { params })
+    return response.data
+  },
+
+  getBlogArticulo: async (slug) => {
+    const response = await apiClient.get(`/public/blog/${slug}`)
+    return response.data
+  },
+
+  getBlogCategorias: async () => {
+    const response = await apiClient.get('/public/blog/categorias')
+    return response.data
+  },
+
+  getBlogRecomendados: async () => {
+    const response = await apiClient.get('/public/blog/recomendados')
+    return response.data
+  },
+
+  getBlogMasLeidos: async () => {
+    const response = await apiClient.get('/public/blog/mas-leidos')
+    return response.data
   }
 }
 

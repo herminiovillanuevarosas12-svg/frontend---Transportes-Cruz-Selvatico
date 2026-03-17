@@ -25,7 +25,8 @@ import {
   Car,
   Image,
   Globe,
-  Box
+  Box,
+  Newspaper
 } from 'lucide-react'
 
 // Definicion de menu con permisos
@@ -158,6 +159,12 @@ const menuItems = [
         path: '/admin/landing',
         icon: Image,
         permission: 'BANNERS_VER'
+      },
+      {
+        name: 'Blog',
+        path: '/admin/blog',
+        icon: Newspaper,
+        permission: 'BLOG_VER'
       }
     ]
   },

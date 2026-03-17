@@ -79,6 +79,11 @@ import InfoViajePage from '../pages/info-viaje'
 import FestividadDetallePage from '../pages/festividad-detalle'
 import FestividadesPage from '../pages/festividades'
 import PlanificarViajePage from '../pages/planificar-viaje'
+import BlogPage from '../pages/blog'
+import BlogDetallePage from '../pages/blog-detalle'
+
+// Blog Admin
+import BlogAdminPage from '../pages/administracion/blog'
 
 // Definicion de rutas con sus permisos (en orden de prioridad para redirección)
 const RUTAS_POR_PERMISO = [
@@ -98,7 +103,8 @@ const RUTAS_POR_PERMISO = [
   { path: '/usuarios', permission: 'USUARIOS_LISTAR' },
   { path: '/clientes', permission: 'CLIENTES_LISTAR' },
   { path: '/configuracion', permission: 'DASHBOARD_VER' },
-  { path: '/admin/landing', permission: 'BANNERS_VER' }
+  { path: '/admin/landing', permission: 'BANNERS_VER' },
+  { path: '/admin/blog', permission: 'BLOG_VER' }
 ]
 
 /**
@@ -206,6 +212,8 @@ const AppRoutes = () => {
       <Route path="/festividades" element={<FestividadesPage />} />
       <Route path="/festividad/:id" element={<FestividadDetallePage />} />
       <Route path="/planificar-viaje" element={<PlanificarViajePage />} />
+      <Route path="/blog" element={<BlogPage />} />
+      <Route path="/blog/:slug" element={<BlogDetallePage />} />
 
       {/* Ruta por defecto para usuarios autenticados */}
       <Route
@@ -270,6 +278,9 @@ const AppRoutes = () => {
 
         {/* Landing Admin */}
         <Route path="/admin/landing" element={<ProtectedRoute requiredPermission="BANNERS_VER"><LandingAdminPage /></ProtectedRoute>} />
+
+        {/* Blog Admin */}
+        <Route path="/admin/blog" element={<ProtectedRoute requiredPermission="BLOG_VER"><BlogAdminPage /></ProtectedRoute>} />
       </Route>
 
       {/* Landing Page - Redirige a modulo por defecto si esta autenticado */}

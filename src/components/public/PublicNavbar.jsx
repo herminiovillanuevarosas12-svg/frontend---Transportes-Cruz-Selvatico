@@ -13,6 +13,7 @@ const navLinks = [
   { to: '/destinos', label: 'Destinos' },
   { to: '/encomiendas-info', label: 'Encomiendas' },
   { to: '/festividades', label: 'Festividades' },
+  { to: '/blog', label: 'Blog' },
   { to: '/tracking', label: 'Rastrea tu envio' },
   { to: '/planificar-viaje', label: 'Planifica tu viaje' },
 ]
