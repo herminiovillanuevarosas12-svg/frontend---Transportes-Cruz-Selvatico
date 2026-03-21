@@ -160,6 +160,133 @@ const AtractivosCarousel = ({ festividades, destino, imagenAtractivosUrl }) => {
   )
 }
 
+/**
+ * Seccion "Calendario Festivo" con carrusel.
+ * Fondo naranja, columna izquierda con info del item actual, columna derecha con imagen.
+ */
+const CalendarioCarousel = ({ items, imagenFallback }) => {
+  const [current, setCurrent] = useState(0)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const total = items.length
+
+  const goTo = (idx) => {
+    if (isTransitioning) return
+    setIsTransitioning(true)
+    setCurrent(idx)
+    setTimeout(() => setIsTransitioning(false), 500)
+  }
+
+  const prev = () => goTo(current === 0 ? total - 1 : current - 1)
+  const next = () => goTo(current === total - 1 ? 0 : current + 1)
+
+  const fest = items[current]
+  const festImg = fest.imagenPath ? getUploadUrl(fest.imagenPath) : imagenFallback
+
+  return (
+    <section className="bg-secondary-500 relative overflow-hidden">
+      <div className="max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-2 min-h-[400px]">
+          {/* Columna izquierda - info del item actual */}
+          <div className="px-6 lg:px-10 py-10 lg:py-14 flex flex-col justify-center">
+            <h2 className="text-3xl lg:text-4xl font-bold text-white mb-8">
+              Calendario<br />Festivo
+            </h2>
+
+            <div className="transition-opacity duration-500 ease-in-out">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                  <Calendar className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-base lg:text-lg">
+                    {fest.titulo}
+                  </p>
+                  {(fest.fechaInicio || fest.fechaFin) && (
+                    <p className="text-white/70 text-sm mt-1">
+                      {fest.fechaInicio && formatearFecha(fest.fechaInicio)}
+                      {fest.fechaInicio && fest.fechaFin && ' - '}
+                      {fest.fechaFin && formatearFecha(fest.fechaFin)}
+                    </p>
+                  )}
+                </div>
+              </div>
+              {fest.descripcion && (
+                <p className="text-white/70 text-sm leading-relaxed whitespace-pre-line line-clamp-4 ml-14">
+                  {fest.descripcion}
+                </p>
+              )}
+            </div>
+
+            {/* Indicadores */}
+            {total > 1 && (
+              <div className="flex items-center gap-2 mt-8 pt-4 border-t border-white/20">
+                {items.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => goTo(idx)}
+                    className={`rounded-full transition-all duration-300 ${
+                      idx === current
+                        ? 'w-8 h-2.5 bg-white'
+                        : 'w-2.5 h-2.5 bg-white/30 hover:bg-white/50'
+                    }`}
+                    aria-label={`Ir a festividad ${idx + 1}`}
+                  />
+                ))}
+                <span className="text-white/40 text-xs ml-3">
+                  {current + 1} / {total}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Columna derecha - imagen con transicion */}
+          <div className="hidden lg:block relative overflow-hidden">
+            {items.map((f, idx) => {
+              const img = f.imagenPath ? getUploadUrl(f.imagenPath) : imagenFallback
+              return (
+                <div
+                  key={f.id || idx}
+                  className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
+                    idx === current ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                  }`}
+                >
+                  {img ? (
+                    <img src={img} alt={f.titulo} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-secondary-600 flex items-center justify-center">
+                      <Calendar className="w-16 h-16 text-secondary-400" />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Flechas de navegacion */}
+      {total > 1 && (
+        <>
+          <button
+            onClick={prev}
+            className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/20 hover:bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
+            aria-label="Festividad anterior"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <button
+            onClick={next}
+            className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/20 hover:bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
+            aria-label="Festividad siguiente"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        </>
+      )}
+    </section>
+  )
+}
+
 const DestinoDetalle = () => {
   const { slug } = useParams()
   const [destino, setDestino] = useState(null)
@@ -408,67 +535,14 @@ const DestinoDetalle = () => {
       )}
 
       {/* ============================================================ */}
-      {/* CALENDARIO FESTIVO                                           */}
+      {/* CALENDARIO FESTIVO - Carrusel                                */}
       {/* ============================================================ */}
-      {calendarioFestivo.length > 0 && (() => {
-        const calImg = calendarioFestivo.find(f => f.imagenPath)
-        const calImagenUrl = calImg ? getUploadUrl(calImg.imagenPath) : (imagenAtractivosUrl || imagenUrl)
-        return (
-          <section className="bg-secondary-500">
-            <div className="max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-2">
-                {/* Columna izquierda - lista de festividades */}
-                <div className="px-6 lg:px-10 py-10 lg:py-14">
-                  <h2 className="text-3xl lg:text-4xl font-bold text-white mb-8">
-                    Calendario<br />Festivo
-                  </h2>
-                  <div className="space-y-4">
-                    {calendarioFestivo.map((fest) => (
-                      <div key={fest.id} className="flex items-start gap-4">
-                        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                          <Calendar className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                          <p className="text-white font-semibold text-sm lg:text-base">
-                            {fest.titulo}
-                          </p>
-                          {(fest.fechaInicio || fest.fechaFin) && (
-                            <p className="text-white/70 text-xs mt-0.5">
-                              {fest.fechaInicio && formatearFecha(fest.fechaInicio)}
-                              {fest.fechaInicio && fest.fechaFin && ' - '}
-                              {fest.fechaFin && formatearFecha(fest.fechaFin)}
-                            </p>
-                          )}
-                          {fest.descripcion && (
-                            <p className="text-white/60 text-xs mt-1 line-clamp-2">
-                              {fest.descripcion}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Columna derecha - imagen */}
-                <div className="hidden lg:block">
-                  {calImagenUrl ? (
-                    <img
-                      src={calImagenUrl}
-                      alt={destino.nombre}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-secondary-600 flex items-center justify-center">
-                      <Calendar className="w-16 h-16 text-secondary-400" />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-        )
-      })()}
+      {calendarioFestivo.length > 0 && (
+        <CalendarioCarousel
+          items={calendarioFestivo}
+          imagenFallback={imagenAtractivosUrl || imagenUrl}
+        />
+      )}
     </PublicLayout>
   )
 }
