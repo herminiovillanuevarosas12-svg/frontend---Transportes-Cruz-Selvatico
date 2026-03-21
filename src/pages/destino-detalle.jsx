@@ -371,14 +371,40 @@ const DestinoDetalle = () => {
       )}
 
       {/* ============================================================ */}
-      {/* ATRACTIVOS TURISTICOS - Carrusel unificado                   */}
+      {/* ATRACTIVOS TURISTICOS - Carrusel o seccion estatica          */}
       {/* ============================================================ */}
-      {festividades.length > 0 && (
+      {festividades.length > 0 ? (
         <AtractivosCarousel
           festividades={festividades}
           destino={destino}
           imagenAtractivosUrl={imagenAtractivosUrl}
         />
+      ) : (imagenAtractivosUrl || destino.descripcionAtractivos) && (
+        <section className="relative w-full overflow-hidden h-[420px]">
+          {imagenAtractivosUrl ? (
+            <img src={imagenAtractivosUrl} alt={destino.nombre} className="absolute inset-0 w-full h-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-primary-800 via-primary-700 to-secondary-600" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/20 to-black/60" />
+          <div className="relative z-20 flex items-center h-[420px]">
+            <div className="max-w-7xl mx-auto px-4 w-full">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                <div className="hidden lg:block" />
+                <div className="bg-primary-800/80 backdrop-blur-sm rounded-2xl p-8 lg:p-10">
+                  <h2 className="text-2xl lg:text-3xl font-bold text-white mb-4">
+                    Atractivos turisticos
+                  </h2>
+                  {destino.descripcionAtractivos && (
+                    <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line">
+                      {destino.descripcionAtractivos}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       )}
 
       {/* ============================================================ */}
