@@ -228,6 +228,30 @@ const landingService = {
   },
 
   // ============================================
+  // CALENDARIO FESTIVO POR DESTINO
+  // ============================================
+
+  listarFestividadesDestino: async (idDestino) => {
+    const response = await apiClient.get(`/contenido/destinos/${idDestino}/festividades`)
+    return response.data
+  },
+
+  crearFestividadDestino: async (idDestino, data) => {
+    const response = await apiClient.post(`/contenido/destinos/${idDestino}/festividades`, data)
+    return response.data
+  },
+
+  actualizarFestividadDestino: async (id, data) => {
+    const response = await apiClient.put(`/contenido/destinos/festividades/${id}`, data)
+    return response.data
+  },
+
+  eliminarFestividadDestino: async (id) => {
+    const response = await apiClient.delete(`/contenido/destinos/festividades/${id}`)
+    return response.data
+  },
+
+  // ============================================
   // ENCOMIENDAS INFO
   // ============================================
 

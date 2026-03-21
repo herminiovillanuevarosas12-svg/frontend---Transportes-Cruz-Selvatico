@@ -224,6 +224,7 @@ const DestinoDetalle = () => {
   const imagenUrl = destino.imagenPath ? getUploadUrl(destino.imagenPath) : null
   const imagenAtractivosUrl = destino.imagenAtractivos ? getUploadUrl(destino.imagenAtractivos) : null
   const festividades = Array.isArray(destino.festividades) ? destino.festividades : []
+  const calendarioFestivo = Array.isArray(destino.calendarioFestivo) ? destino.calendarioFestivo : []
 
   return (
     <PublicLayout>
@@ -378,6 +379,65 @@ const DestinoDetalle = () => {
           destino={destino}
           imagenAtractivosUrl={imagenAtractivosUrl}
         />
+      )}
+
+      {/* ============================================================ */}
+      {/* CALENDARIO FESTIVO                                           */}
+      {/* ============================================================ */}
+      {calendarioFestivo.length > 0 && (
+        <section className="bg-secondary-500">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-2">
+              {/* Columna izquierda - lista de festividades */}
+              <div className="px-6 lg:px-10 py-10 lg:py-14">
+                <h2 className="text-3xl lg:text-4xl font-bold text-white mb-8">
+                  Calendario<br />Festivo
+                </h2>
+                <div className="space-y-4">
+                  {calendarioFestivo.map((fest) => (
+                    <div key={fest.id} className="flex items-start gap-4">
+                      <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                        <Calendar className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-white font-semibold text-sm lg:text-base">
+                          {fest.titulo}
+                        </p>
+                        {(fest.fechaInicio || fest.fechaFin) && (
+                          <p className="text-white/70 text-xs mt-0.5">
+                            {fest.fechaInicio && formatearFecha(fest.fechaInicio)}
+                            {fest.fechaInicio && fest.fechaFin && ' - '}
+                            {fest.fechaFin && formatearFecha(fest.fechaFin)}
+                          </p>
+                        )}
+                        {fest.descripcion && (
+                          <p className="text-white/60 text-xs mt-1 line-clamp-2">
+                            {fest.descripcion}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Columna derecha - imagen */}
+              <div className="hidden lg:block">
+                {imagenAtractivosUrl || imagenUrl ? (
+                  <img
+                    src={imagenAtractivosUrl || imagenUrl}
+                    alt={destino.nombre}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-secondary-600 flex items-center justify-center">
+                    <Calendar className="w-16 h-16 text-secondary-400" />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
       )}
     </PublicLayout>
   )

@@ -248,6 +248,13 @@ const LandingAdminPage = () => {
   const destinoImgRef = useRef(null)
   const destinoAtractivosImgRef = useRef(null)
 
+  // Calendario Festivo por Destino
+  const [calFestList, setCalFestList] = useState([])
+  const [loadingCalFest, setLoadingCalFest] = useState(false)
+  const [calFestForm, setCalFestForm] = useState({ titulo: '', descripcion: '', fechaInicio: '', fechaFin: '', orden: 0 })
+  const [editingCalFest, setEditingCalFest] = useState(null)
+  const [savingCalFest, setSavingCalFest] = useState(false)
+
   // Encomiendas Info
   const [encomiendasVentajas, setEncomiendasVentajas] = useState([])
   const [encomiendasHeroImagen, setEncomiendasHeroImagen] = useState(null)
@@ -1586,6 +1593,7 @@ const LandingAdminPage = () => {
         imagenAtractivosPreview: destino.imagenAtractivos ? getUploadUrl(destino.imagenAtractivos) : null,
         imagenAtractivosFile: null
       })
+      cargarCalFest(destino.id)
     } else {
       setEditingDestino(null)
       setDestinoForm({
@@ -1596,13 +1604,17 @@ const LandingAdminPage = () => {
         imagenPreview: null, imagenFile: null,
         imagenAtractivosPreview: null, imagenAtractivosFile: null
       })
+      setCalFestList([])
     }
+    resetCalFestForm()
     setShowDestinoModal(true)
   }
 
   const cerrarDestinoModal = () => {
     setShowDestinoModal(false)
     setEditingDestino(null)
+    resetCalFestForm()
+    setCalFestList([])
   }
 
   const guardarDestino = async () => {
@@ -1664,6 +1676,70 @@ const LandingAdminPage = () => {
       toast.success(res.mensaje)
       setDestinosList(prev => prev.map(d => d.id === id ? { ...d, activo: res.activo } : d))
     } catch (error) { toast.error(getErrorMsg(error, 'Error al cambiar estado')) }
+  }
+
+  // ============================================
+  // CALENDARIO FESTIVO POR DESTINO
+  // ============================================
+
+  const cargarCalFest = async (idDestino) => {
+    setLoadingCalFest(true)
+    try {
+      const res = await landingService.listarFestividadesDestino(idDestino)
+      setCalFestList(res.festividades || [])
+    } catch { setCalFestList([]) }
+    finally { setLoadingCalFest(false) }
+  }
+
+  const resetCalFestForm = () => {
+    setCalFestForm({ titulo: '', descripcion: '', fechaInicio: '', fechaFin: '', orden: 0 })
+    setEditingCalFest(null)
+  }
+
+  const guardarCalFest = async () => {
+    if (!calFestForm.titulo.trim()) { toast.error('El titulo es obligatorio'); return }
+    if (!editingDestino) return
+    try {
+      setSavingCalFest(true)
+      const payload = {
+        titulo: calFestForm.titulo.trim(),
+        descripcion: calFestForm.descripcion.trim(),
+        fecha_inicio: calFestForm.fechaInicio || null,
+        fecha_fin: calFestForm.fechaFin || null,
+        orden: parseInt(calFestForm.orden) || 0
+      }
+      if (editingCalFest) {
+        await landingService.actualizarFestividadDestino(editingCalFest.id, payload)
+        toast.success('Festividad actualizada')
+      } else {
+        await landingService.crearFestividadDestino(editingDestino.id, payload)
+        toast.success('Festividad creada')
+      }
+      resetCalFestForm()
+      await cargarCalFest(editingDestino.id)
+    } catch (err) {
+      toast.error(getErrorMsg(err, 'Error al guardar festividad'))
+    } finally { setSavingCalFest(false) }
+  }
+
+  const editarCalFest = (fest) => {
+    setEditingCalFest(fest)
+    setCalFestForm({
+      titulo: fest.titulo || '',
+      descripcion: fest.descripcion || '',
+      fechaInicio: fest.fechaInicio ? fest.fechaInicio.split('T')[0] : '',
+      fechaFin: fest.fechaFin ? fest.fechaFin.split('T')[0] : '',
+      orden: fest.orden || 0
+    })
+  }
+
+  const eliminarCalFest = async (id) => {
+    if (!confirm('¿Eliminar esta festividad del calendario?')) return
+    try {
+      await landingService.eliminarFestividadDestino(id)
+      toast.success('Festividad eliminada')
+      if (editingDestino) await cargarCalFest(editingDestino.id)
+    } catch (err) { toast.error(getErrorMsg(err, 'Error al eliminar')) }
   }
 
   // ============================================
@@ -4762,13 +4838,125 @@ const LandingAdminPage = () => {
                 </div>
               </div>
 
-              {/* Nota: Las festividades se jalan automaticamente de Landing > Festividades segun la ciudad */}
-              <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-4">
-                <p className="text-xs text-orange-700 flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Las festividades se muestran automaticamente segun las que esten configuradas en <strong>Landing Page &gt; Festividades</strong> para la misma ciudad.
+              {/* Nota informativa sobre atractivos */}
+              <div className="bg-blue-50/50 border border-blue-200 rounded-xl p-4">
+                <p className="text-xs text-blue-700 flex items-center gap-2">
+                  <Image className="w-4 h-4" />
+                  Los atractivos turisticos se muestran automaticamente desde <strong>Landing Page &gt; Festividades</strong> para la misma ciudad.
                 </p>
               </div>
+
+              {/* Calendario Festivo - solo visible en modo edicion */}
+              {editingDestino && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-orange-500" />
+                    Calendario Festivo
+                  </h4>
+                  <p className="text-xs text-gray-500 mb-4">Festividades con fechas que se muestran en la pagina publica del destino.</p>
+
+                  {/* Lista de festividades existentes */}
+                  {loadingCalFest ? (
+                    <div className="text-center py-4">
+                      <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                    </div>
+                  ) : calFestList.length > 0 ? (
+                    <div className="space-y-2 mb-4">
+                      {calFestList.map(fest => (
+                        <div key={fest.id} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                          <Calendar className="w-4 h-4 text-orange-400 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{fest.titulo}</p>
+                            <p className="text-xs text-gray-500">
+                              {fest.fechaInicio ? new Date(fest.fechaInicio).toLocaleDateString('es-PE') : ''}
+                              {fest.fechaInicio && fest.fechaFin ? ' - ' : ''}
+                              {fest.fechaFin ? new Date(fest.fechaFin).toLocaleDateString('es-PE') : ''}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => editarCalFest(fest)}
+                            className="p-1 text-gray-400 hover:text-primary-600 rounded"
+                            title="Editar"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => eliminarCalFest(fest.id)}
+                            className="p-1 text-gray-400 hover:text-red-600 rounded"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 mb-4">No hay festividades en el calendario.</p>
+                  )}
+
+                  {/* Formulario inline para agregar/editar festividad */}
+                  <div className="bg-orange-50/30 border border-orange-200 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-semibold text-orange-700">
+                      {editingCalFest ? 'Editar festividad' : 'Agregar festividad'}
+                    </p>
+                    <input
+                      value={calFestForm.titulo}
+                      onChange={(e) => setCalFestForm(prev => ({ ...prev, titulo: e.target.value }))}
+                      placeholder="Titulo de la festividad *"
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                    />
+                    <textarea
+                      value={calFestForm.descripcion}
+                      onChange={(e) => setCalFestForm(prev => ({ ...prev, descripcion: e.target.value }))}
+                      placeholder="Descripcion (opcional)"
+                      rows={2}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                    />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Fecha inicio</label>
+                        <input
+                          type="date"
+                          value={calFestForm.fechaInicio}
+                          onChange={(e) => setCalFestForm(prev => ({ ...prev, fechaInicio: e.target.value }))}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Fecha fin</label>
+                        <input
+                          type="date"
+                          value={calFestForm.fechaFin}
+                          onChange={(e) => setCalFestForm(prev => ({ ...prev, fechaFin: e.target.value }))}
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={guardarCalFest}
+                        disabled={savingCalFest || !calFestForm.titulo.trim()}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
+                      >
+                        {savingCalFest ? (
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5" />
+                        )}
+                        {editingCalFest ? 'Actualizar' : 'Agregar'}
+                      </button>
+                      {editingCalFest && (
+                        <button
+                          onClick={resetCalFestForm}
+                          className="px-3 py-2 text-gray-500 bg-gray-100 rounded-lg text-xs font-medium hover:bg-gray-200 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
