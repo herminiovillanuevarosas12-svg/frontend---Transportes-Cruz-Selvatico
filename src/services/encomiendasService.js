@@ -20,6 +20,11 @@ const encomiendasService = {
     return response.data
   },
 
+  buscarPorDni: async (dni) => {
+    const response = await apiClient.get(`/encomiendas/dni/${dni}`)
+    return response.data
+  },
+
   obtenerPorTracking: async (codigo) => {
     const response = await apiClient.get(`/encomiendas/tracking/${codigo}`)
     return response.data

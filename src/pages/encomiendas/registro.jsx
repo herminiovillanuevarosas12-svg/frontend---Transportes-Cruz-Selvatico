@@ -845,6 +845,15 @@ const RegistroEncomiendaPage = () => {
                               destinatarioNombre: result.nombre_completo || result.razon_social || result.nombre_o_razon_social || '',
                               destinatarioTelefono: result.telefono ? formatTelefono(result.telefono) : prev.destinatarioTelefono
                             }))
+                            // Si es RUC y tipo de comprobante es Factura, auto-llenar datos de factura
+                            if (value.length === 11 && tipoDocumento === 'FACTURA') {
+                              setClienteFactura({
+                                ruc: value,
+                                razonSocial: result.razon_social || result.nombre_o_razon_social || '',
+                                direccion: result.direccion || result.direccion_completa || result.domicilio_fiscal || ''
+                              })
+                              setErrorBusquedaRuc('')
+                            }
                           } else {
                             setErrorBusquedaDestinatario(value.length === 8 ? 'DNI no encontrado. Ingrese el nombre manualmente.' : 'RUC no encontrado. Ingrese la razón social manualmente.')
                           }
@@ -1099,7 +1108,33 @@ const RegistroEncomiendaPage = () => {
                     <button
                       key={tipo.value}
                       type="button"
-                      onClick={() => setTipoDocumento(tipo.value)}
+                      onClick={async () => {
+                        setTipoDocumento(tipo.value)
+                        // Si se selecciona Factura y el destinatario tiene un RUC, auto-llenar datos de factura
+                        if (tipo.value === 'FACTURA') {
+                          const dniDest = formData.destinatarioDni
+                          const esRuc = dniDest.length === 11 && (dniDest.startsWith('10') || dniDest.startsWith('20'))
+                          if (esRuc && clienteFactura.ruc !== dniDest) {
+                            setClienteFactura(prev => ({ ...prev, ruc: dniDest }))
+                            resetDocLookup()
+                            const result = await consultarRuc(dniDest)
+                            if (result) {
+                              setErrorBusquedaRuc('')
+                              setClienteFactura({
+                                ruc: dniDest,
+                                razonSocial: result.razon_social || result.nombre_o_razon_social || '',
+                                direccion: result.direccion || result.direccion_completa || result.domicilio_fiscal || ''
+                              })
+                            } else if (formData.destinatarioNombre) {
+                              setClienteFactura({
+                                ruc: dniDest,
+                                razonSocial: formData.destinatarioNombre,
+                                direccion: ''
+                              })
+                            }
+                          }
+                        }
+                      }}
                       className={`p-3 rounded-lg border-2 transition-all text-center ${
                         tipoDocumento === tipo.value
                           ? 'border-blue-600 bg-blue-50'

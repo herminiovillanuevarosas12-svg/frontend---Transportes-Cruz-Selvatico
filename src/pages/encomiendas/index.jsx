@@ -3,7 +3,7 @@
  * Listado de encomiendas con filtros y acciones
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint, QRGenerator } from '../../components/common'
 import { PermissionGate } from '../../features/auth'
@@ -31,7 +31,10 @@ import {
   Clock,
   Camera,
   CheckCircle2,
-  Loader2
+  Loader2,
+  PackageCheck,
+  ImagePlus,
+  Lock
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -46,7 +49,8 @@ const EncomiendasIndexPage = () => {
     fechaDesde: '',
     fechaHasta: '',
     estado: '',
-    codigoTracking: ''
+    codigoTracking: '',
+    dni: ''
   })
   const [showFilters, setShowFilters] = useState(false)
 
@@ -97,6 +101,14 @@ const EncomiendasIndexPage = () => {
   const [verComprobanteModal, setVerComprobanteModal] = useState({ open: false, encomienda: null })
   const [comprobanteParaVer, setComprobanteParaVer] = useState(null)
   const [cargandoComprobante, setCargandoComprobante] = useState(false)
+
+  // Modal de entrega
+  const [entregarModal, setEntregarModal] = useState({ open: false, encomienda: null })
+  const [entregarForm, setEntregarForm] = useState({ dniRetiro: '', nota: '', claveIngresada: '' })
+  const [fotoEntrega, setFotoEntrega] = useState(null)
+  const [procesandoEntrega, setProcesandoEntrega] = useState(false)
+  const [encomiendaDetalleEntrega, setEncomiendaDetalleEntrega] = useState(null)
+  const fotoEntregaRef = useRef(null)
 
   // Control de impresion
   const [printTarget, setPrintTarget] = useState(null)
@@ -168,7 +180,8 @@ const EncomiendasIndexPage = () => {
       fechaDesde: '',
       fechaHasta: '',
       estado: '',
-      codigoTracking: ''
+      codigoTracking: '',
+      dni: ''
     })
     setPagination(prev => ({ ...prev, page: 1 }))
   }
@@ -219,6 +232,65 @@ const EncomiendasIndexPage = () => {
       window.print()
       setTimeout(() => setPrintTarget(null), 500)
     }, 300)
+  }
+
+  // Funciones de entrega
+  const handleAbrirEntregarModal = async (encomienda) => {
+    setEntregarForm({ dniRetiro: '', nota: '', claveIngresada: '' })
+    setFotoEntrega(null)
+    setEncomiendaDetalleEntrega(null)
+    setEntregarModal({ open: true, encomienda })
+    try {
+      const response = await encomiendasService.obtener(encomienda.id)
+      setEncomiendaDetalleEntrega(response.encomienda)
+    } catch (error) {
+      console.error('Error cargando detalle para entrega:', error)
+    }
+  }
+
+  const handleFotoEntregaChange = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La foto no debe superar 5MB')
+      return
+    }
+    const reader = new FileReader()
+    reader.onloadend = () => setFotoEntrega(reader.result)
+    reader.readAsDataURL(file)
+  }
+
+  const confirmarEntrega = async () => {
+    if (!entregarForm.dniRetiro || entregarForm.dniRetiro.length !== 8) {
+      toast.error('Ingrese un DNI valido de 8 digitos')
+      return
+    }
+    if (!fotoEntrega) {
+      toast.error('Debe adjuntar una foto de evidencia')
+      return
+    }
+    const tieneClave = encomiendaDetalleEntrega?.clave_seguridad || encomiendaDetalleEntrega?.claveSeguridad
+    if (tieneClave && !entregarForm.claveIngresada) {
+      toast.error('Ingrese la clave de seguridad')
+      return
+    }
+    try {
+      setProcesandoEntrega(true)
+      await encomiendasService.retirar(entregarModal.encomienda.id, {
+        dniRetiro: entregarForm.dniRetiro,
+        fotoBase64: fotoEntrega,
+        nota: entregarForm.nota || 'Entrega registrada desde lista',
+        claveIngresada: entregarForm.claveIngresada || undefined
+      })
+      toast.success('Entrega registrada exitosamente')
+      setEntregarModal({ open: false, encomienda: null })
+      cargarEncomiendas()
+    } catch (error) {
+      console.error('Error registrando entrega:', error)
+      toast.error(error.response?.data?.error || 'Error al registrar entrega')
+    } finally {
+      setProcesandoEntrega(false)
+    }
   }
 
   // Cargar encomienda completa para modal de detalle
@@ -489,6 +561,19 @@ const EncomiendasIndexPage = () => {
               </Button>
             </PermissionGate>
           )}
+          {row.estadoActual === 'LLEGO_A_DESTINO' && (
+            <PermissionGate permission="ENCOMIENDAS_RETIRAR">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={PackageCheck}
+                className="text-orange-600 hover:bg-orange-50"
+                onClick={() => handleAbrirEntregarModal(row)}
+              >
+                Entregar
+              </Button>
+            </PermissionGate>
+          )}
           {!row.idGuiaRemision && !row.id_guia_remision && (
             <PermissionGate permission="FACTURACION_EMITIR">
               <button
@@ -560,7 +645,7 @@ const EncomiendasIndexPage = () => {
         {/* Filtros */}
         {showFilters && (
           <Card>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Codigo de Rastreo
@@ -573,6 +658,23 @@ const EncomiendasIndexPage = () => {
                     value={filters.codigoTracking}
                     onChange={handleFilterChange}
                     placeholder="Buscar por codigo..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  DNI (Remitente/Destinatario)
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    name="dni"
+                    value={filters.dni}
+                    onChange={handleFilterChange}
+                    placeholder="Buscar por DNI..."
+                    maxLength={8}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
                   />
                 </div>
@@ -1577,6 +1679,135 @@ const EncomiendasIndexPage = () => {
             <ComprobantePrint comprobante={comprobanteParaVer} empresa={datosEmpresa} />
           </div>
         ) : null}
+      </Modal>
+
+      {/* Modal Entrega */}
+      <Modal
+        isOpen={entregarModal.open}
+        onClose={() => setEntregarModal({ open: false, encomienda: null })}
+        title="Registrar Entrega"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setEntregarModal({ open: false, encomienda: null })}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmarEntrega}
+              disabled={procesandoEntrega}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {procesandoEntrega ? 'Registrando...' : 'Confirmar Entrega'}
+            </Button>
+          </>
+        }
+      >
+        {entregarModal.encomienda && (
+          <div className="space-y-4">
+            <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
+              <p className="text-sm text-orange-800">
+                Registrar entrega de encomienda <strong>{entregarModal.encomienda.codigoTracking}</strong>
+              </p>
+              <p className="text-sm text-orange-600 mt-1">
+                Destinatario: {entregarModal.encomienda.destinatarioNombre}
+              </p>
+              <p className="text-sm text-orange-600">
+                Ruta: {entregarModal.encomienda.puntoOrigen?.nombre} → {entregarModal.encomienda.puntoDestino?.nombre}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                DNI de quien retira *
+              </label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={entregarForm.dniRetiro}
+                  onChange={(e) => setEntregarForm(prev => ({ ...prev, dniRetiro: e.target.value.replace(/\D/g, '') }))}
+                  placeholder="Ingrese DNI (8 digitos)"
+                  maxLength={8}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none"
+                />
+              </div>
+            </div>
+
+            {(encomiendaDetalleEntrega?.clave_seguridad || encomiendaDetalleEntrega?.claveSeguridad) && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Clave de Seguridad *
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={entregarForm.claveIngresada}
+                    onChange={(e) => setEntregarForm(prev => ({ ...prev, claveIngresada: e.target.value }))}
+                    placeholder="Ingrese clave de 4 digitos"
+                    maxLength={4}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Foto de Evidencia *
+              </label>
+              <input
+                ref={fotoEntregaRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFotoEntregaChange}
+                className="hidden"
+              />
+              {fotoEntrega ? (
+                <div className="relative">
+                  <img
+                    src={fotoEntrega}
+                    alt="Foto de evidencia"
+                    className="w-full max-h-48 object-cover rounded-lg border border-gray-200"
+                  />
+                  <button
+                    onClick={() => {
+                      setFotoEntrega(null)
+                      if (fotoEntregaRef.current) fotoEntregaRef.current.value = ''
+                    }}
+                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => fotoEntregaRef.current?.click()}
+                  className="w-full flex flex-col items-center justify-center gap-2 py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-orange-400 hover:bg-orange-50 transition-colors"
+                >
+                  <ImagePlus className="w-8 h-8 text-gray-400" />
+                  <span className="text-sm text-gray-500">Tomar foto o seleccionar archivo</span>
+                </button>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nota (opcional)
+              </label>
+              <input
+                type="text"
+                value={entregarForm.nota}
+                onChange={(e) => setEntregarForm(prev => ({ ...prev, nota: e.target.value }))}
+                placeholder="Observaciones de la entrega..."
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none"
+              />
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Area de impresion - Solo visible al imprimir */}

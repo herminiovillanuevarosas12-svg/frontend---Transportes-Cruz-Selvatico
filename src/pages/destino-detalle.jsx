@@ -52,40 +52,12 @@ const AtractivosCarousel = ({ festividades, destino, imagenAtractivosUrl }) => {
   const fest = festividades[current]
 
   return (
-    <section className="relative w-full overflow-hidden h-[420px]">
-      {/* Slides de imagenes de fondo con transicion fade */}
-      {festividades.map((f, idx) => {
-        const img = f.imagenPath ? getUploadUrl(f.imagenPath) : imagenAtractivosUrl
-        return (
-          <div
-            key={f.id || idx}
-            className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-              idx === current ? 'opacity-100 z-10' : 'opacity-0 z-0'
-            }`}
-          >
-            {img ? (
-              <img
-                src={img}
-                alt={f.titulo || f.nombre}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-primary-800 via-primary-700 to-secondary-600" />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/20 to-black/60" />
-          </div>
-        )
-      })}
-
-      {/* Contenido superpuesto - altura fija */}
-      <div className="relative z-20 flex items-center h-[420px]">
-        <div className="max-w-7xl mx-auto px-4 w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-            {/* Columna izquierda - vacia para mostrar imagen */}
-            <div className="hidden lg:block" />
-
-            {/* Columna derecha - cuadro con info, altura fija */}
-            <div className="bg-primary-800/80 backdrop-blur-sm rounded-2xl p-8 lg:p-10 h-[340px] flex flex-col overflow-hidden">
+    <section className="w-full overflow-hidden">
+      {/* Cuadro verde arriba del banner */}
+      <div className="bg-primary-800 py-8 px-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="max-w-2xl mx-auto lg:mx-0 lg:ml-auto">
+            <div className="bg-primary-800/90 backdrop-blur-sm rounded-2xl p-8 lg:p-10 flex flex-col">
               <h2 className="text-2xl lg:text-3xl font-bold text-white mb-2 shrink-0">
                 Atractivos turisticos
               </h2>
@@ -93,14 +65,13 @@ const AtractivosCarousel = ({ festividades, destino, imagenAtractivosUrl }) => {
                 {fest.titulo || fest.nombre}
               </p>
               {fest.descripcion && (
-                <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line line-clamp-5 flex-1 min-h-0 overflow-hidden">
+                <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line line-clamp-5">
                   {fest.descripcion}
                 </p>
               )}
 
-              {/* Parte inferior fija */}
-              <div className="shrink-0 mt-auto pt-4">
-                {/* Link a detalle */}
+              {/* Parte inferior */}
+              <div className="shrink-0 mt-4 pt-4">
                 {fest.id && (
                   <Link
                     to={`/festividad/${fest.id}`}
@@ -137,25 +108,51 @@ const AtractivosCarousel = ({ festividades, destino, imagenAtractivosUrl }) => {
         </div>
       </div>
 
-      {/* Flechas de navegacion */}
-      {total > 1 && (
-        <>
-          <button
-            onClick={prev}
-            className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
-            aria-label="Atractivo anterior"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-          <button
-            onClick={next}
-            className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
-            aria-label="Atractivo siguiente"
-          >
-            <ChevronRight className="w-6 h-6" />
-          </button>
-        </>
-      )}
+      {/* Banner de imagen debajo */}
+      <div className="relative w-full h-[350px]">
+        {festividades.map((f, idx) => {
+          const img = f.imagenPath ? getUploadUrl(f.imagenPath) : imagenAtractivosUrl
+          return (
+            <div
+              key={f.id || idx}
+              className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
+                idx === current ? 'opacity-100 z-10' : 'opacity-0 z-0'
+              }`}
+            >
+              {img ? (
+                <img
+                  src={img}
+                  alt={f.titulo || f.nombre}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-primary-800 via-primary-700 to-secondary-600" />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/20 to-black/60" />
+            </div>
+          )
+        })}
+
+        {/* Flechas de navegacion */}
+        {total > 1 && (
+          <>
+            <button
+              onClick={prev}
+              className="absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
+              aria-label="Atractivo anterior"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <button
+              onClick={next}
+              className="absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 z-30 w-12 h-12 bg-black/30 hover:bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-110"
+              aria-label="Atractivo siguiente"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          </>
+        )}
+      </div>
     </section>
   )
 }
@@ -507,18 +504,12 @@ const DestinoDetalle = () => {
           imagenAtractivosUrl={imagenAtractivosUrl}
         />
       ) : (imagenAtractivosUrl || destino.descripcionAtractivos) && (
-        <section className="relative w-full overflow-hidden h-[420px]">
-          {imagenAtractivosUrl ? (
-            <img src={imagenAtractivosUrl} alt={destino.nombre} className="absolute inset-0 w-full h-full object-cover" />
-          ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-primary-800 via-primary-700 to-secondary-600" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/20 to-black/60" />
-          <div className="relative z-20 flex items-center h-[420px]">
-            <div className="max-w-7xl mx-auto px-4 w-full">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-                <div className="hidden lg:block" />
-                <div className="bg-primary-800/80 backdrop-blur-sm rounded-2xl p-8 lg:p-10">
+        <section className="w-full overflow-hidden">
+          {/* Cuadro verde arriba */}
+          <div className="bg-primary-800 py-8 px-4">
+            <div className="max-w-7xl mx-auto">
+              <div className="max-w-2xl mx-auto lg:mx-0 lg:ml-auto">
+                <div className="bg-primary-800/90 backdrop-blur-sm rounded-2xl p-8 lg:p-10">
                   <h2 className="text-2xl lg:text-3xl font-bold text-white mb-4">
                     Atractivos turisticos
                   </h2>
@@ -531,6 +522,13 @@ const DestinoDetalle = () => {
               </div>
             </div>
           </div>
+          {/* Banner de imagen debajo */}
+          {imagenAtractivosUrl && (
+            <div className="relative w-full h-[350px]">
+              <img src={imagenAtractivosUrl} alt={destino.nombre} className="absolute inset-0 w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-black/20 to-black/60" />
+            </div>
+          )}
         </section>
       )}
 
