@@ -69,6 +69,17 @@ const facturacionService = {
   },
 
   /**
+   * Descargar XML de un comprobante
+   * @param {number} id - ID del comprobante
+   */
+  descargarXml: async (id) => {
+    const response = await apiClient.get(`/facturacion/comprobantes/${id}/xml`, {
+      responseType: 'blob'
+    })
+    return response
+  },
+
+  /**
    * Anular comprobante
    * @param {number} id - ID del comprobante
    * @param {string} motivo - Motivo de anulación

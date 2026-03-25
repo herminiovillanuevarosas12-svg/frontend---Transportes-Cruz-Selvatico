@@ -53,57 +53,50 @@ const AtractivosCarousel = ({ festividades, destino, imagenAtractivosUrl }) => {
 
   return (
     <section className="w-full overflow-hidden">
-      {/* Cuadro verde arriba del banner */}
-      <div className="bg-primary-800 py-8 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="max-w-2xl mx-auto lg:mx-0 lg:ml-auto">
-            <div className="bg-primary-800/90 backdrop-blur-sm rounded-2xl p-8 lg:p-10 flex flex-col">
-              <h2 className="text-2xl lg:text-3xl font-bold text-white mb-2 shrink-0">
-                Atractivos turisticos
-              </h2>
-              <p className="text-secondary-400 font-semibold text-sm mb-4 shrink-0 truncate">
-                {fest.titulo || fest.nombre}
-              </p>
-              {fest.descripcion && (
-                <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line line-clamp-5">
-                  {fest.descripcion}
-                </p>
-              )}
+      {/* Barra de atractivos arriba del banner */}
+      <div className="bg-primary-800 py-4 px-4">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          {/* Titulo + nombre del atractivo */}
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-bold text-white whitespace-nowrap">
+              Atractivos turisticos
+            </h2>
+            <span className="hidden lg:block w-px h-5 bg-white/20" />
+            <p className="text-secondary-400 font-semibold text-sm truncate max-w-xs">
+              {fest.titulo || fest.nombre}
+            </p>
+          </div>
 
-              {/* Parte inferior */}
-              <div className="shrink-0 mt-4 pt-4">
-                {fest.id && (
-                  <Link
-                    to={`/festividad/${fest.id}`}
-                    className="inline-flex items-center gap-2 text-secondary-400 hover:text-secondary-300 font-semibold text-sm transition-colors"
-                  >
-                    Ver mas detalles
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
-                )}
-
-                {/* Indicadores de slide */}
-                {total > 1 && (
-                  <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/10">
-                    {festividades.map((_, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => goTo(idx)}
-                        className={`rounded-full transition-all duration-300 ${
-                          idx === current
-                            ? 'w-8 h-2.5 bg-secondary-400'
-                            : 'w-2.5 h-2.5 bg-white/30 hover:bg-white/50'
-                        }`}
-                        aria-label={`Ir a atractivo ${idx + 1}`}
-                      />
-                    ))}
-                    <span className="text-white/40 text-xs ml-3">
-                      {current + 1} / {total}
-                    </span>
-                  </div>
-                )}
+          {/* Acciones + indicadores */}
+          <div className="flex items-center gap-4">
+            {fest.id && (
+              <Link
+                to={`/festividad/${fest.id}`}
+                className="inline-flex items-center gap-1.5 text-secondary-400 hover:text-secondary-300 font-semibold text-sm transition-colors whitespace-nowrap"
+              >
+                Ver mas detalles
+                <ChevronRight className="w-4 h-4" />
+              </Link>
+            )}
+            {total > 1 && (
+              <div className="flex items-center gap-1.5 ml-2">
+                {festividades.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => goTo(idx)}
+                    className={`rounded-full transition-all duration-300 ${
+                      idx === current
+                        ? 'w-6 h-2 bg-secondary-400'
+                        : 'w-2 h-2 bg-white/30 hover:bg-white/50'
+                    }`}
+                    aria-label={`Ir a atractivo ${idx + 1}`}
+                  />
+                ))}
+                <span className="text-white/40 text-xs ml-2">
+                  {current + 1}/{total}
+                </span>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -505,20 +498,21 @@ const DestinoDetalle = () => {
         />
       ) : (imagenAtractivosUrl || destino.descripcionAtractivos) && (
         <section className="w-full overflow-hidden">
-          {/* Cuadro verde arriba */}
-          <div className="bg-primary-800 py-8 px-4">
-            <div className="max-w-7xl mx-auto">
-              <div className="max-w-2xl mx-auto lg:mx-0 lg:ml-auto">
-                <div className="bg-primary-800/90 backdrop-blur-sm rounded-2xl p-8 lg:p-10">
-                  <h2 className="text-2xl lg:text-3xl font-bold text-white mb-4">
-                    Atractivos turisticos
-                  </h2>
-                  {destino.descripcionAtractivos && (
-                    <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line">
+          {/* Barra de atractivos arriba */}
+          <div className="bg-primary-800 py-4 px-4">
+            <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-white whitespace-nowrap">
+                  Atractivos turisticos
+                </h2>
+                {destino.descripcionAtractivos && (
+                  <>
+                    <span className="hidden lg:block w-px h-5 bg-white/20" />
+                    <p className="text-white/70 text-sm truncate max-w-lg">
                       {destino.descripcionAtractivos}
                     </p>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
