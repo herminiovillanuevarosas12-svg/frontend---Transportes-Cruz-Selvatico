@@ -65,8 +65,10 @@ const TicketsIndexPage = () => {
   const [facturarForm, setFacturarForm] = useState({
     tipoComprobante: '03',
     serie: 'BT74',
+    incluyeIgv: true,
     cliente: { tipoDoc: '1', numDoc: '', razonSocial: '', direccion: '' }
   })
+  const [configSunat, setConfigSunat] = useState(null)
   const [procesandoFactura, setProcesandoFactura] = useState(false)
 
   // Modal de ver comprobante
@@ -112,6 +114,7 @@ const TicketsIndexPage = () => {
       try {
         const response = await facturacionService.obtenerConfiguracion()
         setDatosEmpresa(response.configuracion)
+        setConfigSunat(response.configuracion)
       } catch (error) {
         console.error('Error cargando datos de empresa:', error)
       }
@@ -195,6 +198,7 @@ const TicketsIndexPage = () => {
     setFacturarForm({
       tipoComprobante: '03',
       serie: 'BT74',
+      incluyeIgv: configSunat?.exoneradoIgv ? false : true,
       cliente: {
         tipoDoc: '1',
         numDoc: ticket.pasajero?.documentoIdentidad || '',
@@ -216,6 +220,7 @@ const TicketsIndexPage = () => {
       await facturacionService.emitirDesdeTicket(facturarModal.ticket.id, {
         tipoComprobante: facturarForm.tipoComprobante,
         serie: facturarForm.serie,
+        incluyeIgv: facturarForm.incluyeIgv,
         cliente: facturarForm.cliente
       })
       toast.success('Comprobante emitido exitosamente')
@@ -562,6 +567,31 @@ const TicketsIndexPage = () => {
             <p className="text-sm font-semibold text-blue-800 mt-1">
               Monto: S/ {parseFloat(facturarModal.ticket?.viaje?.ruta?.precioPasaje || 0).toFixed(2)}
             </p>
+          </div>
+
+          {/* Toggle IGV */}
+          <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50">
+            <div>
+              <span className="text-sm font-medium text-gray-700">Incluir IGV</span>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {facturarForm.incluyeIgv
+                  ? `Gravado - Se aplicará ${parseFloat(configSunat?.igvPorcentaje) || 18}% de IGV`
+                  : 'Exonerado - No se aplicará IGV (Ley de la Amazonía)'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFacturarForm(prev => ({ ...prev, incluyeIgv: !prev.incluyeIgv }))}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                facturarForm.incluyeIgv ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  facturarForm.incluyeIgv ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

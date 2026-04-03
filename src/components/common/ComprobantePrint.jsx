@@ -134,9 +134,32 @@ const ComprobantePrint = ({ comprobante, empresa }) => {
         </div>
       )}
 
-      {/* Total */}
-      <div className="bg-gray-50 rounded-lg p-4 mb-4">
-        <div className="flex justify-between items-center">
+      {/* Totales con desglose */}
+      <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-2">
+        {parseFloat(comprobante.igv || 0) > 0 ? (
+          <>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Subtotal</span>
+              <span className="font-medium text-gray-900">
+                S/ {parseFloat(comprobante.subtotal || 0).toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-600">IGV</span>
+              <span className="font-medium text-gray-900">
+                S/ {parseFloat(comprobante.igv || 0).toFixed(2)}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-600">Op. Exonerada</span>
+            <span className="font-medium text-gray-900">
+              S/ {parseFloat(comprobante.subtotal || comprobante.total || 0).toFixed(2)}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between items-center border-t border-gray-200 pt-2">
           <span className="text-gray-600 font-medium">TOTAL</span>
           <span className="text-2xl font-bold text-gray-900">
             S/ {parseFloat(comprobante.total || 0).toFixed(2)}
@@ -151,7 +174,12 @@ const ComprobantePrint = ({ comprobante, empresa }) => {
         {tipo === 'VERIFICACION' ? (
           <p className="mt-1 italic">Documento interno - No tiene validez tributaria</p>
         ) : (
-          <p className="mt-1">Comprobante de pago electronico</p>
+          <>
+            <p className="mt-1">Comprobante de pago electronico</p>
+            {parseFloat(comprobante.igv || 0) === 0 && (
+              <p className="mt-1 text-xs font-medium">Operacion exonerada del IGV</p>
+            )}
+          </>
         )}
       </div>
     </div>

@@ -106,6 +106,7 @@ const FacturacionPage = () => {
   const [comprobantes, setComprobantes] = useState([])
   const [guias, setGuias] = useState([])
   const [series, setSeries] = useState([])
+  const [configSunat, setConfigSunat] = useState(null)
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 20, totalPages: 0 })
 
   // Estados de filtros
@@ -147,6 +148,7 @@ const FacturacionPage = () => {
   const [emitirForm, setEmitirForm] = useState({
     tipoComprobante: '03',
     serie: 'BT74',
+    incluyeIgv: true,
     cliente: {
       tipoDoc: '1',
       numDoc: '',
@@ -206,13 +208,15 @@ const FacturacionPage = () => {
   const cargarDatos = async () => {
     try {
       setLoading(true)
-      const [metricasRes, seriesRes] = await Promise.all([
+      const [metricasRes, seriesRes, configRes] = await Promise.all([
         facturacionService.obtenerMetricas(),
-        facturacionService.obtenerSeries()
+        facturacionService.obtenerSeries(),
+        facturacionService.obtenerConfiguracion().catch(() => null)
       ])
 
       setMetricas(metricasRes)
       setSeries(seriesRes.series || [])
+      if (configRes?.configuracion) setConfigSunat(configRes.configuracion)
 
       await cargarListado()
     } catch (error) {
@@ -358,6 +362,7 @@ const FacturacionPage = () => {
     setEmitirForm({
       tipoComprobante: activeTab === 'facturas' ? '01' : '03',
       serie: activeTab === 'facturas' ? 'FT74' : 'BT74',
+      incluyeIgv: configSunat?.exoneradoIgv ? false : true,
       cliente: {
         tipoDoc: activeTab === 'facturas' ? '6' : '1',
         numDoc: '',
@@ -395,21 +400,27 @@ const FacturacionPage = () => {
   }
 
   const calcularTotales = () => {
+    const igvPorcentaje = parseFloat(configSunat?.igvPorcentaje) || 18
+    const factor = igvPorcentaje / 100
+
     const subtotalSinIgv = emitirForm.items.reduce((sum, item) => {
       const precio = parseFloat(item.precioUnitario) || 0
       const cantidad = parseFloat(item.cantidad) || 0
       const total = precio * cantidad
-      const valorSinIgv = total / 1.18
-      return sum + valorSinIgv
+      if (emitirForm.incluyeIgv) {
+        return sum + (total / (1 + factor))
+      }
+      return sum + total
     }, 0)
 
-    const igv = subtotalSinIgv * 0.18
+    const igv = emitirForm.incluyeIgv ? subtotalSinIgv * factor : 0
     const total = subtotalSinIgv + igv
 
     return {
       subtotal: subtotalSinIgv.toFixed(2),
       igv: igv.toFixed(2),
-      total: total.toFixed(2)
+      total: total.toFixed(2),
+      igvPorcentaje
     }
   }
 
@@ -431,6 +442,7 @@ const FacturacionPage = () => {
       await facturacionService.emitirComprobante({
         tipoComprobante: emitirForm.tipoComprobante,
         serie: emitirForm.serie,
+        incluyeIgv: emitirForm.incluyeIgv,
         cliente: emitirForm.cliente,
         items: emitirForm.items.map(item => ({
           descripcion: item.descripcion,
@@ -1041,6 +1053,31 @@ const FacturacionPage = () => {
             </div>
           </div>
 
+          {/* Toggle IGV */}
+          <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50">
+            <div>
+              <span className="text-sm font-medium text-gray-700">Incluir IGV</span>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {emitirForm.incluyeIgv
+                  ? `Gravado - Se aplicará ${parseFloat(configSunat?.igvPorcentaje) || 18}% de IGV`
+                  : 'Exonerado - No se aplicará IGV (Ley de la Amazonía)'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEmitirForm(prev => ({ ...prev, incluyeIgv: !prev.incluyeIgv }))}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                emitirForm.incluyeIgv ? 'bg-primary-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  emitirForm.incluyeIgv ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Datos del Cliente */}
           <div className="border-t border-gray-200 pt-4">
             <h4 className="text-sm font-medium text-gray-900 mb-4">Datos del Cliente</h4>
@@ -1218,7 +1255,9 @@ const FacturacionPage = () => {
                   <span className="font-medium">S/ {totales.subtotal}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">IGV (18%):</span>
+                  <span className="text-gray-500">
+                    {emitirForm.incluyeIgv ? `IGV (${totales.igvPorcentaje}%):` : 'IGV (Exonerado):'}
+                  </span>
                   <span className="font-medium">S/ {totales.igv}</span>
                 </div>
                 <div className="flex justify-between text-lg font-semibold border-t border-gray-200 pt-2">
