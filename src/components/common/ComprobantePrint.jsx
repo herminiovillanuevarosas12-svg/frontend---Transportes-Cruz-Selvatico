@@ -17,13 +17,14 @@ const SUBTITULOS = {
   VERIFICACION: 'Documento Interno'
 }
 
-const ComprobantePrint = ({ comprobante, empresa }) => {
+const ComprobantePrint = ({ comprobante, empresa, encomiendaDetalle }) => {
   if (!comprobante) return null
 
   const tipo = comprobante.tipoDocumento || 'VERIFICACION'
 
   // Datos de empresa (desde tbl_configuracion_sunat)
   const nombreEmpresa = empresa?.nombreComercial || empresa?.razonSocial || 'Transportes Cruz Selvatico'
+  const razonSocialEmpresa = empresa?.razonSocial || 'EMPRESA DE TURISMO & SERVICIOS MULTIPLES CRUZ SELVATICO S.A.C.'
   const rucEmpresa = empresa?.rucEmisor || ''
   const direccionEmpresa = empresa?.direccionFiscal || ''
 
@@ -40,6 +41,10 @@ const ComprobantePrint = ({ comprobante, empresa }) => {
           alt={nombreEmpresa}
           className="h-12 w-auto object-contain mx-auto mb-2"
         />
+        <p className="text-xs font-bold text-gray-800">{nombreEmpresa}</p>
+        {(tipo === 'BOLETA' || tipo === 'FACTURA') && (
+          <p className="text-xs text-gray-600 leading-tight">Razon Social: {razonSocialEmpresa}</p>
+        )}
         {rucEmpresa && <p className="text-xs text-gray-600 font-medium">RUC: {rucEmpresa}</p>}
         {direccionEmpresa && <p className="text-xs text-gray-500 leading-tight mb-2">{direccionEmpresa}</p>}
         <p className="text-sm font-bold text-gray-900">{TITULOS[tipo] || 'COMPROBANTE'}</p>
@@ -125,6 +130,41 @@ const ComprobantePrint = ({ comprobante, empresa }) => {
           )}
         </div>
       </div>
+
+      {/* Detalle del Envio de Encomienda */}
+      {encomiendaDetalle && (
+        <div className="border-t border-dashed border-gray-300 pt-4 mb-4">
+          <p className="text-xs text-gray-500 mb-2">DETALLE DEL ENVIO</p>
+          <div className="space-y-1">
+            {encomiendaDetalle.tipoPaquete && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Tipo Paquete:</span>
+                <span className="text-sm font-medium text-gray-900">{encomiendaDetalle.tipoPaquete}</span>
+              </div>
+            )}
+            {encomiendaDetalle.descripcion && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Contenido:</span>
+                <span className="text-sm font-medium text-gray-900 text-right max-w-[60%]">{encomiendaDetalle.descripcion}</span>
+              </div>
+            )}
+            {encomiendaDetalle.peso && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Peso:</span>
+                <span className="text-sm font-medium text-gray-900">{parseFloat(encomiendaDetalle.peso).toFixed(2)} kg</span>
+              </div>
+            )}
+            {(encomiendaDetalle.alto || encomiendaDetalle.ancho || encomiendaDetalle.largo) && (
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">Dimensiones:</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {parseFloat(encomiendaDetalle.alto).toFixed(0)} x {parseFloat(encomiendaDetalle.ancho).toFixed(0)} x {parseFloat(encomiendaDetalle.largo).toFixed(0)} cm
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Comentarios */}
       {comprobante.comentario && (

@@ -100,6 +100,8 @@ const RegistroEncomiendaPage = () => {
 
   // Datos de empresa para impresión
   const [datosEmpresa, setDatosEmpresa] = useState(null)
+  const [configSunat, setConfigSunat] = useState(null)
+  const [incluyeIgv, setIncluyeIgv] = useState(true)
 
   // Pago al recojo y clave de seguridad
   const [pagoAlRecojo, setPagoAlRecojo] = useState(false)
@@ -122,6 +124,10 @@ const RegistroEncomiendaPage = () => {
       ])
       if (configSunatRes?.configuracion) {
         setDatosEmpresa(configSunatRes.configuracion)
+        setConfigSunat(configSunatRes.configuracion)
+        if (configSunatRes.configuracion.exoneradoIgv) {
+          setIncluyeIgv(false)
+        }
       }
       setPuntos(puntosRes.puntos || [])
       setTiposPaquete(tiposPaqueteRes.configuraciones || [])
@@ -486,6 +492,7 @@ const RegistroEncomiendaPage = () => {
         puntosACanjear: parseInt(puntosACanjear) || 0,
         // Si es pago al recojo, forzar VERIFICACION; sino usar el tipo seleccionado
         tipoDocumento: pagoAlRecojo ? 'VERIFICACION' : tipoDocumento,
+        incluyeIgv: (!pagoAlRecojo && tipoDocumento !== 'VERIFICACION') ? incluyeIgv : undefined,
         pagoAlRecojo,
         claveSeguridad: claveSeguridad || null,
         idPrecioBase: parseInt(idPrecioBaseSeleccionado)
@@ -552,6 +559,7 @@ const RegistroEncomiendaPage = () => {
     setClienteFactura({ ruc: '', razonSocial: '', direccion: '' })
     setErrorBusquedaRuc('')
     setErrorBusquedaDestinatario('')
+    setIncluyeIgv(configSunat?.exoneradoIgv ? false : true)
     setPagoAlRecojo(false)
     setClaveSeguridad('')
     setConfirmarClave('')
@@ -1151,6 +1159,33 @@ const RegistroEncomiendaPage = () => {
                     </button>
                   ))}
                 </div>
+
+              {/* Toggle IGV - Solo para BOLETA o FACTURA */}
+              {(tipoDocumento === 'BOLETA' || tipoDocumento === 'FACTURA') && (
+                <div className="mt-4 flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50">
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Incluir IGV</span>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {incluyeIgv
+                        ? `Gravado - Se aplicara ${parseFloat(configSunat?.igvPorcentaje) || 18}% de IGV`
+                        : 'Exonerado - No se aplicara IGV (Ley de la Amazonia)'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIncluyeIgv(prev => !prev)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      incluyeIgv ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        incluyeIgv ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
 
               {/* Datos adicionales para Factura */}
               {tipoDocumento === 'FACTURA' && (
@@ -1844,6 +1879,14 @@ const RegistroEncomiendaPage = () => {
                     comentario: comprobanteRegistrado.comentario || encomiendaRegistrada.comentario || null
                   }}
                   empresa={datosEmpresa}
+                  encomiendaDetalle={{
+                    tipoPaquete: encomiendaRegistrada.tipoPaquete,
+                    descripcion: encomiendaRegistrada.descripcion,
+                    peso: encomiendaRegistrada.peso,
+                    alto: encomiendaRegistrada.alto,
+                    ancho: encomiendaRegistrada.ancho,
+                    largo: encomiendaRegistrada.largo
+                  }}
                 />
               </div>
             )}

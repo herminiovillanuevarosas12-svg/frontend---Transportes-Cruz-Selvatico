@@ -102,6 +102,7 @@ const EncomiendasIndexPage = () => {
   // Modal de ver comprobante
   const [verComprobanteModal, setVerComprobanteModal] = useState({ open: false, encomienda: null })
   const [comprobanteParaVer, setComprobanteParaVer] = useState(null)
+  const [encomiendaDetalleComprobante, setEncomiendaDetalleComprobante] = useState(null)
   const [cargandoComprobante, setCargandoComprobante] = useState(false)
 
   // Modal de entrega
@@ -221,6 +222,12 @@ const EncomiendasIndexPage = () => {
         total: comp.total,
         fechaEmision: comp.fechaEmision
       })
+      // Guardar detalle de encomienda si el comprobante es de tipo ENCOMIENDA
+      if (comp.origen?.tipo === 'ENCOMIENDA' && comp.origen?.paquete) {
+        setEncomiendaDetalleComprobante(comp.origen.paquete)
+      } else {
+        setEncomiendaDetalleComprobante(null)
+      }
     } catch (error) {
       console.error('Error cargando comprobante:', error)
       toast.error('Error al cargar comprobante')
@@ -1708,7 +1715,7 @@ const EncomiendasIndexPage = () => {
           </div>
         ) : comprobanteParaVer ? (
           <div className="no-print">
-            <ComprobantePrint comprobante={comprobanteParaVer} empresa={datosEmpresa} />
+            <ComprobantePrint comprobante={comprobanteParaVer} empresa={datosEmpresa} encomiendaDetalle={encomiendaDetalleComprobante} />
           </div>
         ) : null}
       </Modal>
@@ -1845,7 +1852,7 @@ const EncomiendasIndexPage = () => {
       {/* Area de impresion - Solo visible al imprimir */}
       {comprobanteParaVer && printTarget === 'comprobante' && (
         <div className="print-area" id="comprobante-print-area">
-          <ComprobantePrint comprobante={comprobanteParaVer} empresa={datosEmpresa} />
+          <ComprobantePrint comprobante={comprobanteParaVer} empresa={datosEmpresa} encomiendaDetalle={encomiendaDetalleComprobante} />
         </div>
       )}
     </>

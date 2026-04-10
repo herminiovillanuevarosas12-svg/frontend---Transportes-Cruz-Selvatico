@@ -884,6 +884,14 @@ const RetiroEncomiendaPage = () => {
               hora: null
             }}
             empresa={datosEmpresa}
+            encomiendaDetalle={encomienda ? {
+              tipoPaquete: encomienda.tipoPaquete,
+              descripcion: encomienda.descripcion,
+              peso: encomienda.peso,
+              alto: encomienda.alto,
+              ancho: encomienda.ancho,
+              largo: encomienda.largo
+            } : null}
           />
         </div>
       )}

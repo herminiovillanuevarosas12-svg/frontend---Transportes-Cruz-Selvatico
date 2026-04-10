@@ -30,6 +30,7 @@ import rutasService from '../../services/rutasService'
 import ticketsService from '../../services/ticketsService'
 import clientesService from '../../services/clientesService'
 import configuracionService from '../../services/configuracionService'
+import facturacionService from '../../services/facturacionService'
 import useDocLookup from '../../hooks/useDocLookup'
 import { getTodayInPeru } from '../../utils/dateUtils'
 
@@ -92,6 +93,8 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
     direccion: ''
   })
   const [errorBusquedaRuc, setErrorBusquedaRuc] = useState('')
+  const [configSunat, setConfigSunat] = useState(null)
+  const [incluyeIgv, setIncluyeIgv] = useState(true)
 
   // Hook para busqueda de DNI/RUC en SUNAT
   const { loading: buscandoDoc, consultarDni, consultarRuc, reset: resetDocLookup } = useDocLookup()
@@ -115,8 +118,22 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
       cargarRutas()
       cargarClientes()
       cargarConfigPuntos()
+      cargarConfigSunat()
     }
   }, [isOpen])
+
+  const cargarConfigSunat = async () => {
+    try {
+      const response = await facturacionService.obtenerConfiguracion()
+      const config = response.configuracion
+      setConfigSunat(config)
+      if (config?.exoneradoIgv) {
+        setIncluyeIgv(false)
+      }
+    } catch (error) {
+      console.error('Error cargando config SUNAT:', error)
+    }
+  }
 
   // Actualizar ruta seleccionada cuando cambia idRuta
   useEffect(() => {
@@ -312,6 +329,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
         metodoPago,
         puntosACanjear: parseInt(puntosACanjear) || 0,
         tipoDocumento,
+        incluyeIgv: tipoDocumento !== 'VERIFICACION' ? incluyeIgv : undefined,
         ...(precioManual !== null && { precioManual })
       }
 
@@ -355,6 +373,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
     setClienteFactura({ ruc: '', razonSocial: '', direccion: '' })
     setErrorBusquedaRuc('')
     setPrecioManual(null)
+    setIncluyeIgv(configSunat?.exoneradoIgv ? false : true)
     resetDocLookup()
   }
 
@@ -621,6 +640,33 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
                 ))}
               </div>
             </div>
+
+            {/* Toggle IGV - Solo para BOLETA o FACTURA */}
+            {(tipoDocumento === 'BOLETA' || tipoDocumento === 'FACTURA') && (
+              <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50">
+                <div>
+                  <span className="text-sm font-medium text-gray-700">Incluir IGV</span>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {incluyeIgv
+                      ? `Gravado - Se aplicara ${parseFloat(configSunat?.igvPorcentaje) || 18}% de IGV`
+                      : 'Exonerado - No se aplicara IGV (Ley de la Amazonia)'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIncluyeIgv(prev => !prev)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    incluyeIgv ? 'bg-amber-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      incluyeIgv ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
 
             {/* Datos adicionales para Factura */}
             {tipoDocumento === 'FACTURA' && (

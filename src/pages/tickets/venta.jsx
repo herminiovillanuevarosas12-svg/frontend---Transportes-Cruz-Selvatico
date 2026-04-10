@@ -67,6 +67,8 @@ const VentaTicketPage = () => {
 
   // Datos de empresa para impresión
   const [datosEmpresa, setDatosEmpresa] = useState(null)
+  const [configSunat, setConfigSunat] = useState(null)
+  const [incluyeIgv, setIncluyeIgv] = useState(true)
 
   // Datos del formulario
   const [formData, setFormData] = useState({
@@ -102,7 +104,13 @@ const VentaTicketPage = () => {
     cargarConfiguracionPuntos()
     // Cargar datos de empresa para impresión
     facturacionService.obtenerConfiguracion()
-      .then(res => setDatosEmpresa(res.configuracion))
+      .then(res => {
+        setDatosEmpresa(res.configuracion)
+        setConfigSunat(res.configuracion)
+        if (res.configuracion?.exoneradoIgv) {
+          setIncluyeIgv(false)
+        }
+      })
       .catch(() => {}) // Silenciar error si no hay configuración
   }, [])
 
@@ -257,7 +265,7 @@ const VentaTicketPage = () => {
           }))
           toast.success(value.length === 8 ? 'Datos obtenidos de RENIEC' : 'Datos obtenidos de SUNAT')
         } else if (!result) {
-          toast.info('Documento no encontrado. Ingrese los datos manualmente.')
+          toast('Documento no encontrado. Ingrese los datos manualmente.')
         }
       }
     }
@@ -350,6 +358,7 @@ const VentaTicketPage = () => {
         metodoPago: formData.metodoPago,
         puntosACanjear: parseInt(puntosACanjear) || 0,
         tipoDocumento,
+        incluyeIgv: tipoDocumento !== 'VERIFICACION' ? incluyeIgv : undefined,
         ...(precioManual !== null && { precioManual })
       }
 
@@ -412,6 +421,7 @@ const VentaTicketPage = () => {
     setTipoDocumento('')
     setClienteFactura({ ruc: '', razonSocial: '', direccion: '' })
     setErrorBusquedaRuc('')
+    setIncluyeIgv(configSunat?.exoneradoIgv ? false : true)
     setStep(1)
 
     // Forzar recarga de disponibilidad (el useEffect no se dispara porque ruta/fecha no cambian)
@@ -876,6 +886,33 @@ const VentaTicketPage = () => {
                 ))}
               </div>
             </div>
+
+            {/* Toggle IGV - Solo para BOLETA o FACTURA */}
+            {(tipoDocumento === 'BOLETA' || tipoDocumento === 'FACTURA') && (
+              <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 bg-gray-50">
+                <div>
+                  <span className="text-sm font-medium text-gray-700">Incluir IGV</span>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {incluyeIgv
+                      ? `Gravado - Se aplicara ${parseFloat(configSunat?.igvPorcentaje) || 18}% de IGV`
+                      : 'Exonerado - No se aplicara IGV (Ley de la Amazonia)'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIncluyeIgv(prev => !prev)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    incluyeIgv ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      incluyeIgv ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
 
             {/* Datos adicionales para Factura */}
             {tipoDocumento === 'FACTURA' && (
