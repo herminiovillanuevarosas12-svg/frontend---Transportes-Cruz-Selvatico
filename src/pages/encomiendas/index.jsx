@@ -5,13 +5,16 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint, QRGenerator } from '../../components/common'
+import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint, QRGenerator, RotuloEncomiendaPrint } from '../../components/common'
 import { PermissionGate } from '../../features/auth'
 import encomiendasService from '../../services/encomiendasService'
 import { getUploadUrl } from '../../services/apiClient'
 import facturacionService from '../../services/facturacionService'
 import configuracionService from '../../services/configuracionService'
 import { formatDateOnly, formatTimestamp } from '../../utils/dateUtils'
+import debugLog from '../../utils/debugLog'
+import bluetoothPrinter from '../../services/bluetoothPrinter'
+import { setPrintPageSize, clearPrintPageSize } from '../../utils/printPageSize'
 import useDocLookup from '../../hooks/useDocLookup'
 import {
   Package,
@@ -27,6 +30,7 @@ import {
   FileText,
   Receipt,
   Printer,
+  Tag,
   AlertCircle,
   Clock,
   Camera,
@@ -34,7 +38,10 @@ import {
   Loader2,
   PackageCheck,
   ImagePlus,
-  Lock
+  Lock,
+  Bluetooth,
+  BluetoothConnected,
+  BluetoothOff
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -115,6 +122,54 @@ const EncomiendasIndexPage = () => {
 
   // Control de impresion
   const [printTarget, setPrintTarget] = useState(null)
+
+  // Estado de la impresora Bluetooth
+  const [btState, setBtState] = useState(bluetoothPrinter.getState())
+  const [btBusy, setBtBusy] = useState(false)
+  useEffect(() => {
+    const unsub = bluetoothPrinter.subscribe(setBtState)
+    bluetoothPrinter.tryReconnect().catch(() => {})
+    return unsub
+  }, [])
+
+  const handleConectarBT = async () => {
+    if (btState.isConnected) {
+      await bluetoothPrinter.disconnect()
+      toast.success('Impresora desconectada')
+      return
+    }
+    if (!btState.isAvailable) {
+      toast.error('Web Bluetooth no disponible. Use Chrome o Edge en Android/Windows.')
+      return
+    }
+    try {
+      setBtBusy(true)
+      const st = await bluetoothPrinter.requestAndConnect()
+      toast.success(`Impresora conectada: ${st.deviceName || 'sin nombre'}`)
+    } catch (err) {
+      const msg = err?.name === 'NotFoundError' ? 'No seleccionó ninguna impresora' : (err?.message || 'Error al conectar')
+      toast.error(msg)
+    } finally {
+      setBtBusy(false)
+    }
+  }
+
+  const handleTestBT = async () => {
+    try {
+      setBtBusy(true)
+      await bluetoothPrinter.printTestPage()
+      toast.success('Test enviado a impresora')
+    } catch (err) {
+      toast.error(err?.message || 'Error al imprimir test')
+    } finally {
+      setBtBusy(false)
+    }
+  }
+
+  const handleProtocolChange = (e) => {
+    bluetoothPrinter.setProtocol(e.target.value)
+    toast.success(`Protocolo: ${e.target.value === 'auto' ? 'Auto' : e.target.value.toUpperCase()}`)
+  }
 
   // Constantes para catálogos SUNAT
   const MOTIVOS_TRASLADO = [
@@ -239,10 +294,25 @@ const EncomiendasIndexPage = () => {
 
   // Función para imprimir comprobante
   const handlePrintComprobante = () => {
+    debugLog.info('print:comprobante', 'Click Imprimir Comprobante', {})
     setPrintTarget('comprobante')
+    setPrintPageSize('comprobante')
     setTimeout(() => {
-      window.print()
-      setTimeout(() => setPrintTarget(null), 500)
+      const area = document.getElementById('comprobante-print-area') || document.querySelector('.print-area')
+      debugLog.info('print:comprobante', 'DOM antes de window.print()', {
+        existeArea: !!area,
+        areaChildren: area?.children?.length || 0,
+        mediaPrintMatches: window.matchMedia?.('print')?.matches,
+      })
+      try {
+        window.print()
+      } catch (err) {
+        debugLog.error('print:comprobante', 'window.print() excepción', { err: String(err) })
+      }
+      setTimeout(() => {
+        setPrintTarget(null)
+        clearPrintPageSize()
+      }, 500)
     }, 300)
   }
 
@@ -277,10 +347,6 @@ const EncomiendasIndexPage = () => {
       toast.error('Ingrese un DNI valido de 8 digitos')
       return
     }
-    if (!fotoEntrega) {
-      toast.error('Debe adjuntar una foto de evidencia')
-      return
-    }
     const tieneClave = encomiendaDetalleEntrega?.clave_seguridad || encomiendaDetalleEntrega?.claveSeguridad
     if (tieneClave && !entregarForm.claveIngresada) {
       toast.error('Ingrese la clave de seguridad')
@@ -290,7 +356,7 @@ const EncomiendasIndexPage = () => {
       setProcesandoEntrega(true)
       await encomiendasService.retirar(entregarModal.encomienda.id, {
         dniRetiro: entregarForm.dniRetiro,
-        fotoBase64: fotoEntrega,
+        fotoBase64: fotoEntrega || undefined,
         nota: entregarForm.nota || 'Entrega registrada desde lista',
         claveIngresada: entregarForm.claveIngresada || undefined
       })
@@ -323,18 +389,149 @@ const EncomiendasIndexPage = () => {
   }
 
   const handleReimprimir = async (encomienda) => {
+    debugLog.info('print:guia', 'Click Reimprimir Guía', { id: encomienda?.id, codigo: encomienda?.codigoTracking || encomienda?.codigo })
     try {
+      const t0 = performance.now()
       const response = await encomiendasService.imprimir(encomienda.id)
+      debugLog.info('print:guia', 'API imprimir() OK', {
+        ms: Math.round(performance.now() - t0),
+        hasEncomienda: !!response?.encomienda,
+        codigo: response?.encomienda?.codigo,
+        hasQr: !!response?.encomienda?.qr,
+        qrLen: response?.encomienda?.qr?.length || 0,
+      })
       setPrintData(response.encomienda)
       setPrintTarget('guia')
-      // Esperar a que el DOM se actualice con los datos de impresion
+      setPrintPageSize('guia')
+      debugLog.info('print:guia', 'printData/printTarget seteados, esperando 300ms', {})
+
       setTimeout(() => {
-        window.print()
-        setTimeout(() => setPrintTarget(null), 500)
+        const area = document.querySelector('.print-area')
+        const allAreas = document.querySelectorAll('.print-area')
+        debugLog.info('print:guia', 'DOM antes de window.print()', {
+          areasEnDOM: allAreas.length,
+          firstAreaChildren: area?.children?.length || 0,
+          firstAreaHTML: area?.innerHTML?.length || 0,
+          mediaPrintMatches: window.matchMedia?.('print')?.matches,
+          devicePixelRatio: window.devicePixelRatio,
+          viewport: `${window.innerWidth}x${window.innerHeight}`,
+        })
+        try {
+          const ret = window.print()
+          debugLog.info('print:guia', 'window.print() retornó', { ret: typeof ret === 'undefined' ? 'undefined' : String(ret) })
+        } catch (err) {
+          debugLog.error('print:guia', 'window.print() lanzó excepción', { err: String(err), stack: err?.stack })
+        }
+        setTimeout(() => {
+          setPrintTarget(null)
+          clearPrintPageSize()
+        }, 500)
       }, 300)
     } catch (error) {
+      debugLog.error('print:guia', 'Error en flujo Reimprimir', { err: String(error), msg: error?.message, stack: error?.stack })
       console.error('Error obteniendo datos de impresion:', error)
       toast.error('Error al preparar la impresion')
+    }
+  }
+
+  const handleImprimirRotulo = async (encomienda) => {
+    const btSt = bluetoothPrinter.getState()
+    debugLog.info('print:rotulo', '=== INICIO Click Imprimir Rótulo ===', {
+      id: encomienda?.id,
+      codigo: encomienda?.codigoTracking || encomienda?.codigo,
+      ua: navigator.userAgent,
+      isAndroid: /Android/i.test(navigator.userAgent),
+      isMobile: /Mobi|Android/i.test(navigator.userAgent),
+      btConnected: btSt.isConnected,
+      btDevice: btSt.deviceName,
+    })
+    try {
+      const t0 = performance.now()
+      const response = await encomiendasService.imprimir(encomienda.id)
+      debugLog.info('print:rotulo', 'API imprimir() OK', {
+        ms: Math.round(performance.now() - t0),
+        codigo: response?.encomienda?.codigo,
+        origen: response?.encomienda?.origen,
+        destino: response?.encomienda?.destino,
+        hasDestinatario: !!response?.encomienda?.destinatario,
+        hasQr: !!response?.encomienda?.qr,
+      })
+
+      // === RUTA 1: Web Bluetooth (envío directo según protocolo activo) ===
+      if (btSt.isConnected) {
+        debugLog.info('print:rotulo', `Usando ruta Bluetooth (${(btSt.effectiveProtocol || 'tspl').toUpperCase()})`, {
+          device: btSt.deviceName,
+          protocolSelected: btSt.protocol,
+          protocolEffective: btSt.effectiveProtocol,
+        })
+        try {
+          await bluetoothPrinter.printRotulo(response.encomienda)
+          toast.success('Rótulo enviado a impresora BT')
+          return
+        } catch (err) {
+          debugLog.error('print:rotulo', 'Falló envío BT, fallback a window.print()', { err: String(err) })
+          toast.error('Error BT: ' + (err?.message || 'desconocido') + '. Usando impresora del sistema...')
+        }
+      } else {
+        debugLog.info('print:rotulo', 'BT no conectado, usando window.print()', {})
+      }
+
+      // === RUTA 2: Fallback window.print() con @page forzado a 76mm ===
+      setPrintData(response.encomienda)
+      setPrintTarget('rotulo')
+      document.documentElement.classList.add('printing-rotulo')
+      document.body.classList.add('printing-rotulo')
+      setPrintPageSize('rotulo')
+      debugLog.info('print:rotulo', 'Estado seteado, clases agregadas, @page=76mm 76mm', {
+        htmlClass: document.documentElement.className,
+        bodyClass: document.body.className,
+      })
+
+      setTimeout(() => {
+        const wrap = document.getElementById('rotulo-encomienda-print')
+        const qrImg = wrap?.querySelector('img')
+        const cs = wrap ? window.getComputedStyle(wrap) : null
+
+        debugLog.info('print:rotulo', 'DOM antes de window.print()', {
+          existeWrapId: !!wrap,
+          wrapChildren: wrap?.children?.length || 0,
+          rect: wrap ? {
+            w: Math.round(wrap.getBoundingClientRect().width),
+            h: Math.round(wrap.getBoundingClientRect().height),
+          } : null,
+          computedDisplay: cs?.display,
+          qrPresente: !!qrImg,
+          qrComplete: qrImg?.complete,
+          qrNaturalW: qrImg?.naturalWidth,
+          mediaPrintMatches: window.matchMedia?.('print')?.matches,
+          viewport: `${window.innerWidth}x${window.innerHeight}`,
+        })
+
+        if (!wrap) debugLog.error('print:rotulo', 'CRÍTICO: #rotulo-encomienda-print no existe en DOM', {})
+        if (qrImg && !qrImg.complete) debugLog.warn('print:rotulo', 'QR aún no terminó de cargar', {})
+
+        try {
+          window.print()
+        } catch (err) {
+          debugLog.error('print:rotulo', 'window.print() excepción', { err: String(err) })
+        }
+
+        setTimeout(() => {
+          document.documentElement.classList.remove('printing-rotulo')
+          document.body.classList.remove('printing-rotulo')
+          clearPrintPageSize()
+          setPrintTarget(null)
+          debugLog.info('print:rotulo', 'Cleanup ejecutado', {})
+        }, 500)
+      }, 300)
+    } catch (error) {
+      debugLog.error('print:rotulo', 'Error en flujo Imprimir Rótulo', {
+        err: String(error),
+        msg: error?.message,
+        status: error?.response?.status,
+        data: error?.response?.data,
+      })
+      toast.error('Error al preparar el rotulo')
     }
   }
 
@@ -562,6 +759,16 @@ const EncomiendasIndexPage = () => {
           >
             Guia
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Tag}
+            className="text-pink-600 hover:bg-pink-50"
+            onClick={() => handleImprimirRotulo(row)}
+            title="Imprimir Rotulo Adhesivo 100x150mm"
+          >
+            Rotulo
+          </Button>
           {!row.idComprobante && !row.id_comprobante && (
             <PermissionGate permission="FACTURACION_EMITIR">
               <Button
@@ -637,7 +844,44 @@ const EncomiendasIndexPage = () => {
             <h1 className="text-2xl font-bold text-gray-900">Encomiendas</h1>
             <p className="text-gray-500">Gestion de envios y paquetes</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={btState.protocol || 'auto'}
+              onChange={handleProtocolChange}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+              title="Protocolo de la impresora térmica"
+            >
+              <option value="auto">Protocolo: Auto{btState.effectiveProtocol ? ` (${btState.effectiveProtocol.toUpperCase()})` : ''}</option>
+              <option value="tspl">Protocolo: TSPL (TSC, EX58C)</option>
+              <option value="escpos">Protocolo: ESC/POS (genérica)</option>
+            </select>
+            <Button
+              variant="outline"
+              icon={btState.isConnected ? BluetoothConnected : (btState.isAvailable ? Bluetooth : BluetoothOff)}
+              onClick={handleConectarBT}
+              disabled={btBusy}
+              className={btState.isConnected ? 'border-green-500 text-green-700' : ''}
+              title={btState.isConnected
+                ? `Conectado: ${btState.deviceName || 'sin nombre'} (${btState.effectiveProtocol?.toUpperCase()}) - click para desconectar`
+                : (btState.isAvailable ? 'Conectar impresora Bluetooth' : 'Web Bluetooth no disponible en este navegador')}
+            >
+              {btBusy
+                ? 'Conectando...'
+                : btState.isConnected
+                  ? `BT: ${btState.deviceName || 'OK'}`
+                  : 'Conectar Impresora BT'}
+            </Button>
+            {btState.isConnected && (
+              <Button
+                variant="outline"
+                icon={Printer}
+                onClick={handleTestBT}
+                disabled={btBusy}
+                title="Imprimir página de prueba"
+              >
+                Test
+              </Button>
+            )}
             <Button
               variant="outline"
               icon={Filter}
@@ -1160,6 +1404,13 @@ const EncomiendasIndexPage = () => {
               <span className="guia-cs-gracias">Gracias por su preferencia</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Area de impresion Rotulo Adhesivo 100x150mm */}
+      {printData && printTarget === 'rotulo' && (
+        <div className="print-area" id="rotulo-encomienda-print">
+          <RotuloEncomiendaPrint encomienda={printData} />
         </div>
       )}
 
@@ -1795,7 +2046,7 @@ const EncomiendasIndexPage = () => {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Foto de Evidencia *
+                Foto de Evidencia (opcional)
               </label>
               <input
                 ref={fotoEntregaRef}

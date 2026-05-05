@@ -607,7 +607,9 @@
   .print-area,
   .print-area *,
   #comprobante-print-area,
-  #comprobante-print-area * {
+  #comprobante-print-area *,
+  #rotulo-encomienda-print,
+  #rotulo-encomienda-print * {
     visibility: visible !important;
     color: black !important;
   }
@@ -1203,6 +1205,227 @@
 
   .guia-cs-estado-pendiente {
     background: #fff3e0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* ============================================
+   ROTULO ADHESIVO - Etiqueta 100x150mm (4"x6")
+   Estandar paqueteria (Olva, Shalom, FedEx, UPS)
+   Ticketera termica directa 4" (cabezal 104mm)
+   ============================================ */
+
+.rotulo-ad {
+  width: 76mm;
+  max-width: 76mm;
+  height: 76mm;
+  max-height: 76mm;
+  padding: 2mm 2.5mm;
+  margin: 0;
+  font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+  color: #000;
+  background: #fff;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rotulo-ad-header {
+  text-align: center;
+  margin-bottom: 0.8mm;
+}
+
+.rotulo-ad-empresa {
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #000;
+}
+
+.rotulo-ad-codigo-box {
+  text-align: center;
+  border: 1pt solid #000;
+  border-radius: 1mm;
+  padding: 0.6mm 2mm;
+  margin-bottom: 1mm;
+}
+
+.rotulo-ad-codigo-label {
+  display: block;
+  font-size: 5.5pt;
+  letter-spacing: 0.5px;
+  color: #000;
+  text-transform: uppercase;
+}
+
+.rotulo-ad-codigo {
+  display: block;
+  font-size: 12pt;
+  font-weight: 800;
+  font-family: 'Nunito Sans', monospace;
+  line-height: 1.05;
+  letter-spacing: -0.3px;
+  color: #000;
+}
+
+.rotulo-ad-qr-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0.5mm 0 0.8mm 0;
+}
+
+.rotulo-ad-qr,
+.rotulo-ad-qr-wrap img,
+.rotulo-ad-qr-wrap svg,
+.rotulo-ad-qr-wrap canvas {
+  width: 40mm !important;
+  height: 40mm !important;
+  max-width: 40mm !important;
+  max-height: 40mm !important;
+  display: block;
+}
+
+.rotulo-ad-ruta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5mm;
+  margin: 0.3mm 0;
+}
+
+.rotulo-ad-ruta-col {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.rotulo-ad-ruta-label {
+  font-size: 5pt;
+  color: #000;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1;
+}
+
+.rotulo-ad-ruta-valor {
+  font-size: 9pt;
+  font-weight: 800;
+  color: #000;
+  line-height: 1.05;
+  word-break: break-word;
+}
+
+.rotulo-ad-ruta-arrow {
+  font-size: 10pt;
+  font-weight: 700;
+  color: #000;
+  line-height: 1;
+}
+
+.rotulo-ad-divider {
+  border: 0;
+  border-top: 0.5pt dashed #000;
+  margin: 0.8mm 0;
+}
+
+.rotulo-ad-dest {
+  text-align: center;
+}
+
+.rotulo-ad-dest-label {
+  display: block;
+  font-size: 5.5pt;
+  font-weight: 700;
+  color: #000;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  line-height: 1;
+  margin-bottom: 0.3mm;
+}
+
+.rotulo-ad-dest-nombre {
+  font-size: 9.5pt;
+  font-weight: 800;
+  color: #000;
+  line-height: 1.1;
+  word-break: break-word;
+}
+
+.rotulo-ad-dest-info {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 3mm;
+  margin-top: 0.6mm;
+  padding: 0 1mm;
+}
+
+.rotulo-ad-dest-row {
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: #000;
+}
+
+.rotulo-ad-k {
+  color: #000;
+  font-weight: 400;
+  margin-right: 0.6mm;
+}
+
+/* ====== PRINT: aisla el rotulo a su propia @page ====== */
+@media print {
+  @page rotulo-encomienda {
+    size: 76mm 76mm;
+    margin: 0;
+  }
+
+  #rotulo-encomienda-print {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 76mm !important;
+    max-width: 76mm !important;
+    height: 76mm !important;
+    max-height: 76mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    z-index: 999999 !important;
+    overflow: hidden !important;
+    page: rotulo-encomienda !important;
+    page-break-after: always !important;
+  }
+
+  /* Override del reset global (body width: 80mm) cuando se
+     imprime un rotulo adhesivo. Se activa via clase agregada
+     por JS antes de window.print(). */
+  html.printing-rotulo,
+  body.printing-rotulo {
+    width: 76mm !important;
+    max-width: 76mm !important;
+  }
+
+  #rotulo-encomienda-print .rotulo-ad {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    height: 76mm !important;
+    max-height: 76mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  #rotulo-encomienda-print .rotulo-ad-codigo-box {
+    border: 1pt solid #000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }

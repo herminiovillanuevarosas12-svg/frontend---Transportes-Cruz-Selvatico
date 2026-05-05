@@ -285,7 +285,7 @@ const EscaneoAlmacenPage = () => {
                       type="text"
                       value={codigoManual}
                       onChange={(e) => setCodigoManual(e.target.value.toUpperCase())}
-                      placeholder="Ej: ENC-20250119-0001"
+                      placeholder="Ej: ENC-00000001"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-center font-mono text-lg uppercase"
                       autoFocus
                     />

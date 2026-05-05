@@ -144,7 +144,7 @@ const TrackingPage = () => {
                     type="text"
                     value={codigo}
                     onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-                    placeholder="Ej: ENC-20250118-00001"
+                    placeholder="Ej: ENC-00000001"
                     className="w-full pl-12 pr-4 py-4 border-0 bg-gray-50 rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white outline-none text-lg transition-all"
                     disabled={loading}
                   />
