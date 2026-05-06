@@ -15,9 +15,11 @@
  */
 
 import debugLog from '../utils/debugLog'
+import { getFormatById, DEFAULT_FORMAT_ID } from './printFormats'
 
 const STORAGE_KEY = 'bt_printer_device'
 const PROTOCOL_KEY = 'bt_printer_protocol'
+const FORMAT_KEY = 'bt_printer_format'
 
 // ─── BLE / GATT (config exacta para EX58C-4EE7) ───
 const SERVICE_UUID = '49535343-fe7d-4ae5-8fa9-9fafd205e455'
@@ -49,7 +51,22 @@ let connection = null
 let selectedProtocol = (() => {
   try { return localStorage.getItem(PROTOCOL_KEY) || 'auto' } catch { return 'auto' }
 })()
+let selectedFormatId = (() => {
+  try { return localStorage.getItem(FORMAT_KEY) || DEFAULT_FORMAT_ID } catch { return DEFAULT_FORMAT_ID }
+})()
 const listeners = new Set()
+
+// ─── Formato de papel ───
+export function getFormat() { return selectedFormatId }
+export function getFormatObject() { return getFormatById(selectedFormatId) }
+export function setFormat(id) {
+  const fmt = getFormatById(id)
+  if (!fmt) return
+  selectedFormatId = fmt.id
+  try { localStorage.setItem(FORMAT_KEY, fmt.id) } catch {}
+  debugLog.info('bt:format', 'Formato seteado', { id: fmt.id, widthMm: fmt.widthMm, heightMm: fmt.heightMm })
+  emit(getState())
+}
 
 // ─── Protocolo: auto-detect por nombre del device ───
 function autoDetectProtocol(deviceName) {
@@ -97,6 +114,7 @@ export function subscribe(fn) {
 }
 
 export function getState() {
+  const fmt = getFormatObject()
   return {
     isAvailable: typeof navigator !== 'undefined' && !!navigator.bluetooth,
     isConnected: !!(connection && connection.device?.gatt?.connected),
@@ -106,6 +124,10 @@ export function getState() {
     characteristicUuid: connection?.characteristic?.uuid || null,
     protocol: selectedProtocol,
     effectiveProtocol: getActiveProtocol(),
+    formatId: fmt.id,
+    formatLabel: fmt.label,
+    formatWidthMm: fmt.widthMm,
+    formatHeightMm: fmt.heightMm,
   }
 }
 
@@ -463,9 +485,14 @@ async function drawRotuloCanvas(encomienda) {
 // Construcción del job TSPL
 // ──────────────────────────────────────────────────────────────────────────
 
-function buildTSPLHeader(altoMm) {
+function buildTSPLHeader(widthMm, altoMm) {
+  // Backwards-compat: si solo se pasa un argumento, asumir el 58mm original
+  if (altoMm === undefined) {
+    altoMm = widthMm
+    widthMm = 58
+  }
   const lines = [
-    `SIZE 58 mm,${altoMm} mm`,
+    `SIZE ${widthMm} mm,${altoMm} mm`,
     'GAP 0,0',
     'DIRECTION 1',
     'REFERENCE 0,0',
@@ -729,18 +756,228 @@ async function printTestPageESCPOS() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// API pública: dispatcher según protocolo activo
+// Render genérico para formatos != 76x76 (TSPL).
+// El layout se adapta proporcionalmente al widthDots/heightMm del formato.
+// El formato '76x76' (default) NO pasa por aquí — sigue con el flujo original.
+// ──────────────────────────────────────────────────────────────────────────
+
+async function drawRotuloCanvasGeneric(encomienda, format) {
+  const W = format.widthDots
+  const isFixedHeight = !!format.heightMm
+  const targetH = isFixedHeight ? format.heightMm * DOTS_PER_MM : 700
+
+  const codigo = stripDiacritics(encomienda?.codigo || encomienda?.codigoTracking || '-')
+  const origen = stripDiacritics(encomienda?.origen || encomienda?.puntoOrigen?.nombre || '-')
+  const destino = stripDiacritics(encomienda?.destino || encomienda?.puntoDestino?.nombre || '-')
+  const dest = encomienda?.destinatario || {}
+  const destNombre = stripDiacritics(dest.nombre || '-')
+  const destTel = stripDiacritics(dest.telefono || '-')
+  const destDni = stripDiacritics(dest.dni || '')
+
+  // Modo según espacio disponible
+  const tiny = W < 350 || (isFixedHeight && targetH < 280)        // 40x30, 50x30
+  const small = !tiny && (W < 500 || (isFixedHeight && targetH < 400)) // 60x40, 40x60, 100x70 chico
+  const full = !tiny && !small                                     // 80mm/100x150/100x70 grande
+
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = targetH
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#FFF'
+  ctx.fillRect(0, 0, W, targetH)
+  ctx.fillStyle = '#000'
+  ctx.imageSmoothingEnabled = false
+  ctx.textBaseline = 'top'
+  ctx.textAlign = 'center'
+
+  // Escalas proporcionales al ancho
+  const fEmpresa = Math.max(12, Math.round(W * 0.055))
+  const fLabel = Math.max(9, Math.round(W * 0.027))
+  const fCodigo = Math.max(18, Math.round(W * 0.075))
+  const fRuta = Math.max(12, Math.round(W * 0.045))
+  const fNombre = Math.max(14, Math.round(W * 0.055))
+  const fTel = Math.max(11, Math.round(W * 0.035))
+
+  let y = Math.round(W * 0.02)
+  const PAD = Math.round(W * 0.02)
+
+  // Empresa (omitir en tiny)
+  if (!tiny) {
+    ctx.font = `bold ${fEmpresa}px sans-serif`
+    ctx.fillText('CRUZ SELVATICO', W / 2, y)
+    y += fEmpresa + 4
+  }
+
+  // Caja del código
+  const boxX = Math.round(W * 0.05)
+  const boxW = W - boxX * 2
+  const boxH = fCodigo + (tiny ? 6 : 12)
+  ctx.lineWidth = 2
+  ctx.strokeRect(boxX, y, boxW, boxH)
+  if (!tiny) {
+    ctx.font = `bold ${fLabel}px sans-serif`
+    ctx.fillText('CODIGO', W / 2, y + 2)
+  }
+  ctx.font = `bold ${fCodigo}px sans-serif`
+  ctx.fillText(codigo, W / 2, y + (tiny ? 2 : fLabel + 2))
+  y += boxH + 4
+
+  // QR (centrado, tamaño ~50% del ancho)
+  let qrLoaded = false
+  if (encomienda?.qr) {
+    try {
+      const img = await loadImage(encomienda.qr)
+      const qrSize = tiny ? Math.min(W - 40, targetH - y - 20) : Math.round(W * 0.5)
+      const qrX = (W - qrSize) / 2
+      ctx.drawImage(img, qrX, y, qrSize, qrSize)
+      y += qrSize + 4
+      qrLoaded = true
+    } catch (err) {
+      debugLog.warn('bt:render', 'QR no se pudo cargar (genérico)', { err: String(err) })
+    }
+  }
+  if (!qrLoaded) y += 4
+
+  // Ruta (omitir en tiny)
+  if (!tiny) {
+    ctx.font = `bold ${fLabel}px sans-serif`
+    ctx.fillText('DE', W / 4, y)
+    ctx.fillText('PARA', (W * 3) / 4, y)
+    y += fLabel + 2
+    ctx.font = `bold ${fRuta}px sans-serif`
+    ctx.fillText(origen, W / 4, y)
+    ctx.fillText(destino, (W * 3) / 4, y)
+    ctx.font = `bold ${Math.round(fRuta * 1.1)}px sans-serif`
+    ctx.fillText('→', W / 2, y - 1)
+    y += fRuta + 6
+  }
+
+  // Destinatario (solo en full)
+  if (full) {
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.setLineDash([4, 3])
+    ctx.moveTo(boxX, y)
+    ctx.lineTo(W - boxX, y)
+    ctx.stroke()
+    ctx.setLineDash([])
+    y += 4
+    ctx.font = `bold ${fLabel}px sans-serif`
+    ctx.fillText('DESTINATARIO', W / 2, y)
+    y += fLabel + 2
+    ctx.font = `bold ${fNombre}px sans-serif`
+    ctx.fillText(destNombre, W / 2, y)
+    y += fNombre + 4
+    ctx.font = `bold ${fTel}px sans-serif`
+    ctx.fillText(`Tel: ${destTel}`, W / 2, y)
+    y += fTel + 2
+    if (destDni) {
+      ctx.fillText(`DNI: ${destDni}`, W / 2, y)
+      y += fTel + 2
+    }
+  }
+
+  y += PAD
+
+  // Recortar al alto usado (alineado a múltiplo de 8 dots = 1mm)
+  // Si formato tiene heightMm fijo, respetarlo SIEMPRE.
+  let finalH
+  if (isFixedHeight) {
+    finalH = targetH
+  } else {
+    finalH = Math.min(Math.ceil(y / 8) * 8, targetH)
+  }
+
+  const trimmed = document.createElement('canvas')
+  trimmed.width = W
+  trimmed.height = finalH
+  const tctx = trimmed.getContext('2d')
+  tctx.fillStyle = '#FFF'
+  tctx.fillRect(0, 0, W, finalH)
+  tctx.drawImage(canvas, 0, 0)
+
+  return trimmed
+}
+
+async function printRotuloTSPLGeneric(encomienda, format) {
+  if (!connection?.characteristic) throw new Error('Impresora BT no conectada')
+
+  debugLog.info('bt:print', '=== INICIO printRotulo (TSPL genérico) ===', {
+    formatId: format.id,
+    widthMm: format.widthMm,
+    heightMm: format.heightMm,
+    widthDots: format.widthDots,
+    codigo: encomienda?.codigo,
+    device: connection.device?.name,
+  })
+
+  const tCanvas = performance.now()
+  const canvas = await drawRotuloCanvasGeneric(encomienda, format)
+  debugLog.info('bt:render', 'Canvas genérico listo', {
+    width: canvas.width,
+    height: canvas.height,
+    ms: Math.round(performance.now() - tCanvas),
+  })
+
+  const bitmap = canvasToTSPLBitmap(canvas)
+  debugLog.info('bt:render', 'Bitmap genérico rasterizado', {
+    widthBytes: bitmap.widthBytes,
+    height: bitmap.height,
+    bytes: bitmap.bytes.length,
+  })
+
+  const altoTotalMm = format.heightMm || Math.ceil(bitmap.height / DOTS_PER_MM)
+
+  const header = buildTSPLHeader(format.widthMm, altoTotalMm)
+  const bitmapBlock = buildBitmapBlock(bitmap)
+  const footer = buildPrintFooter()
+  const job = concatBytes(header, bitmapBlock, footer)
+
+  debugLog.info('bt:print', 'Job TSPL genérico ensamblado', {
+    formatId: format.id,
+    widthMm: format.widthMm,
+    altoTotalMm,
+    totalBytes: job.length,
+    chunks: Math.ceil(job.length / CHUNK_SIZE),
+  })
+
+  const tSend = performance.now()
+  await writeRaw(job)
+  debugLog.info('bt:print', '=== Job genérico enviado ===', {
+    ms: Math.round(performance.now() - tSend),
+    bytes: job.length,
+  })
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// API pública: render del canvas SIN imprimir (para preview en UI)
+// ──────────────────────────────────────────────────────────────────────────
+
+export async function renderPreviewCanvas(encomienda, formatId) {
+  const fmt = formatId ? getFormatById(formatId) : getFormatObject()
+  if (fmt.isDefault) {
+    return drawRotuloCanvas(encomienda)
+  }
+  return drawRotuloCanvasGeneric(encomienda, fmt)
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// API pública: dispatcher según protocolo y formato activo
 // ──────────────────────────────────────────────────────────────────────────
 
 export async function printRotulo(encomienda) {
   const proto = getActiveProtocol()
+  const fmt = getFormatObject()
   debugLog.info('bt:print', 'Dispatcher printRotulo', {
-    selected: selectedProtocol,
-    effective: proto,
+    protocol: proto,
+    formatId: fmt.id,
+    isDefault: !!fmt.isDefault,
     deviceName: connection?.device?.name,
   })
   if (proto === 'escpos') return printRotuloESCPOS(encomienda)
-  return printRotuloTSPL(encomienda)
+  // TSPL: si formato es el default 76x76, usar flujo ORIGINAL intacto.
+  if (fmt.isDefault) return printRotuloTSPL(encomienda)
+  return printRotuloTSPLGeneric(encomienda, fmt)
 }
 
 export async function printTestPage() {
@@ -780,9 +1017,13 @@ export default {
   getProtocol,
   getEffectiveProtocol,
   setProtocol,
+  getFormat,
+  getFormatObject,
+  setFormat,
   requestAndConnect,
   disconnect,
   printRotulo,
   printTestPage,
   tryReconnect,
+  renderPreviewCanvas,
 }

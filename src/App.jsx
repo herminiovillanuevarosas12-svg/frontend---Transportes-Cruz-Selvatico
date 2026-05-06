@@ -7,10 +7,6 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import AppRoutes from './routes/AppRoutes'
-import DebugConsole from './components/common/DebugConsole'
-import installPrintDiagnostics from './utils/printDiagnostics'
-
-installPrintDiagnostics()
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -25,7 +21,6 @@ function App() {
     <>
       <ScrollToTop />
       <AppRoutes />
-      <DebugConsole />
       <Toaster
         position="top-right"
         toastOptions={{

@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint, QRGenerator, RotuloEncomiendaPrint } from '../../components/common'
+import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint, QRGenerator, RotuloEncomiendaPrint, RotuloPreviewModal } from '../../components/common'
 import { PermissionGate } from '../../features/auth'
 import encomiendasService from '../../services/encomiendasService'
 import { getUploadUrl } from '../../services/apiClient'
@@ -14,6 +14,7 @@ import configuracionService from '../../services/configuracionService'
 import { formatDateOnly, formatTimestamp } from '../../utils/dateUtils'
 import debugLog from '../../utils/debugLog'
 import bluetoothPrinter from '../../services/bluetoothPrinter'
+import { PRINT_FORMATS } from '../../services/printFormats'
 import { setPrintPageSize, clearPrintPageSize } from '../../utils/printPageSize'
 import useDocLookup from '../../hooks/useDocLookup'
 import {
@@ -123,6 +124,9 @@ const EncomiendasIndexPage = () => {
   // Control de impresion
   const [printTarget, setPrintTarget] = useState(null)
 
+  // Modal de preview de rótulo
+  const [rotuloPreviewModal, setRotuloPreviewModal] = useState({ open: false, encomienda: null })
+
   // Estado de la impresora Bluetooth
   const [btState, setBtState] = useState(bluetoothPrinter.getState())
   const [btBusy, setBtBusy] = useState(false)
@@ -169,6 +173,12 @@ const EncomiendasIndexPage = () => {
   const handleProtocolChange = (e) => {
     bluetoothPrinter.setProtocol(e.target.value)
     toast.success(`Protocolo: ${e.target.value === 'auto' ? 'Auto' : e.target.value.toUpperCase()}`)
+  }
+
+  const handleFormatChange = (e) => {
+    bluetoothPrinter.setFormat(e.target.value)
+    const fmt = PRINT_FORMATS.find((f) => f.id === e.target.value)
+    toast.success(`Formato: ${fmt?.label || e.target.value}`)
   }
 
   // Constantes para catálogos SUNAT
@@ -434,105 +444,67 @@ const EncomiendasIndexPage = () => {
     }
   }
 
+  // Click en "Imprimir Rótulo" → carga datos y abre modal de preview.
   const handleImprimirRotulo = async (encomienda) => {
-    const btSt = bluetoothPrinter.getState()
-    debugLog.info('print:rotulo', '=== INICIO Click Imprimir Rótulo ===', {
+    debugLog.info('print:rotulo', 'Click Imprimir Rótulo (abrir preview)', {
       id: encomienda?.id,
       codigo: encomienda?.codigoTracking || encomienda?.codigo,
-      ua: navigator.userAgent,
-      isAndroid: /Android/i.test(navigator.userAgent),
-      isMobile: /Mobi|Android/i.test(navigator.userAgent),
-      btConnected: btSt.isConnected,
-      btDevice: btSt.deviceName,
     })
     try {
-      const t0 = performance.now()
       const response = await encomiendasService.imprimir(encomienda.id)
       debugLog.info('print:rotulo', 'API imprimir() OK', {
-        ms: Math.round(performance.now() - t0),
         codigo: response?.encomienda?.codigo,
-        origen: response?.encomienda?.origen,
-        destino: response?.encomienda?.destino,
-        hasDestinatario: !!response?.encomienda?.destinatario,
         hasQr: !!response?.encomienda?.qr,
       })
+      setRotuloPreviewModal({ open: true, encomienda: response.encomienda })
+    } catch (error) {
+      debugLog.error('print:rotulo', 'Error cargando datos de rótulo', {
+        err: String(error),
+        status: error?.response?.status,
+      })
+      toast.error('Error al preparar el rotulo')
+    }
+  }
 
-      // === RUTA 1: Web Bluetooth (envío directo según protocolo activo) ===
-      if (btSt.isConnected) {
-        debugLog.info('print:rotulo', `Usando ruta Bluetooth (${(btSt.effectiveProtocol || 'tspl').toUpperCase()})`, {
-          device: btSt.deviceName,
-          protocolSelected: btSt.protocol,
-          protocolEffective: btSt.effectiveProtocol,
-        })
-        try {
-          await bluetoothPrinter.printRotulo(response.encomienda)
-          toast.success('Rótulo enviado a impresora BT')
-          return
-        } catch (err) {
-          debugLog.error('print:rotulo', 'Falló envío BT, fallback a window.print()', { err: String(err) })
-          toast.error('Error BT: ' + (err?.message || 'desconocido') + '. Usando impresora del sistema...')
-        }
-      } else {
-        debugLog.info('print:rotulo', 'BT no conectado, usando window.print()', {})
-      }
+  // Confirmación desde el modal de preview → ejecuta impresión real (BT o fallback).
+  const handleConfirmarImpresionRotulo = async () => {
+    const enc = rotuloPreviewModal.encomienda
+    if (!enc) throw new Error('Sin datos de encomienda')
 
-      // === RUTA 2: Fallback window.print() con @page forzado a 76mm ===
-      setPrintData(response.encomienda)
+    const btSt = bluetoothPrinter.getState()
+    debugLog.info('print:rotulo', 'Confirmar impresión desde modal', {
+      btConnected: btSt.isConnected,
+      formatId: btSt.formatId,
+      protocol: btSt.effectiveProtocol,
+    })
+
+    if (btSt.isConnected) {
+      await bluetoothPrinter.printRotulo(enc)
+      toast.success('Rótulo enviado a impresora BT')
+      return
+    }
+
+    // Fallback window.print con @page forzado al formato seleccionado
+    return new Promise((resolve) => {
+      setPrintData(enc)
       setPrintTarget('rotulo')
       document.documentElement.classList.add('printing-rotulo')
       document.body.classList.add('printing-rotulo')
       setPrintPageSize('rotulo')
-      debugLog.info('print:rotulo', 'Estado seteado, clases agregadas, @page=76mm 76mm', {
-        htmlClass: document.documentElement.className,
-        bodyClass: document.body.className,
-      })
 
       setTimeout(() => {
-        const wrap = document.getElementById('rotulo-encomienda-print')
-        const qrImg = wrap?.querySelector('img')
-        const cs = wrap ? window.getComputedStyle(wrap) : null
-
-        debugLog.info('print:rotulo', 'DOM antes de window.print()', {
-          existeWrapId: !!wrap,
-          wrapChildren: wrap?.children?.length || 0,
-          rect: wrap ? {
-            w: Math.round(wrap.getBoundingClientRect().width),
-            h: Math.round(wrap.getBoundingClientRect().height),
-          } : null,
-          computedDisplay: cs?.display,
-          qrPresente: !!qrImg,
-          qrComplete: qrImg?.complete,
-          qrNaturalW: qrImg?.naturalWidth,
-          mediaPrintMatches: window.matchMedia?.('print')?.matches,
-          viewport: `${window.innerWidth}x${window.innerHeight}`,
-        })
-
-        if (!wrap) debugLog.error('print:rotulo', 'CRÍTICO: #rotulo-encomienda-print no existe en DOM', {})
-        if (qrImg && !qrImg.complete) debugLog.warn('print:rotulo', 'QR aún no terminó de cargar', {})
-
-        try {
-          window.print()
-        } catch (err) {
+        try { window.print() } catch (err) {
           debugLog.error('print:rotulo', 'window.print() excepción', { err: String(err) })
         }
-
         setTimeout(() => {
           document.documentElement.classList.remove('printing-rotulo')
           document.body.classList.remove('printing-rotulo')
           clearPrintPageSize()
           setPrintTarget(null)
-          debugLog.info('print:rotulo', 'Cleanup ejecutado', {})
+          resolve()
         }, 500)
       }, 300)
-    } catch (error) {
-      debugLog.error('print:rotulo', 'Error en flujo Imprimir Rótulo', {
-        err: String(error),
-        msg: error?.message,
-        status: error?.response?.status,
-        data: error?.response?.data,
-      })
-      toast.error('Error al preparar el rotulo')
-    }
+    })
   }
 
   const handleFacturar = (encomienda) => {
@@ -854,6 +826,16 @@ const EncomiendasIndexPage = () => {
               <option value="auto">Protocolo: Auto{btState.effectiveProtocol ? ` (${btState.effectiveProtocol.toUpperCase()})` : ''}</option>
               <option value="tspl">Protocolo: TSPL (TSC, EX58C)</option>
               <option value="escpos">Protocolo: ESC/POS (genérica)</option>
+            </select>
+            <select
+              value={btState.formatId || '76x76'}
+              onChange={handleFormatChange}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+              title="Tamaño del rótulo a imprimir"
+            >
+              {PRINT_FORMATS.map((f) => (
+                <option key={f.id} value={f.id}>{f.label}</option>
+              ))}
             </select>
             <Button
               variant="outline"
@@ -1413,6 +1395,16 @@ const EncomiendasIndexPage = () => {
           <RotuloEncomiendaPrint encomienda={printData} />
         </div>
       )}
+
+      {/* Modal de previsualización del rótulo antes de imprimir */}
+      <RotuloPreviewModal
+        isOpen={rotuloPreviewModal.open}
+        onClose={() => setRotuloPreviewModal({ open: false, encomienda: null })}
+        encomienda={rotuloPreviewModal.encomienda}
+        onPrint={handleConfirmarImpresionRotulo}
+        btConnected={btState.isConnected}
+        deviceName={btState.deviceName}
+      />
 
       {/* Modal Facturacion */}
       <Modal
