@@ -14,7 +14,7 @@ import configuracionService from '../../services/configuracionService'
 import { formatDateOnly, formatTimestamp } from '../../utils/dateUtils'
 import debugLog from '../../utils/debugLog'
 import bluetoothPrinter from '../../services/bluetoothPrinter'
-import { PRINT_FORMATS } from '../../services/printFormats'
+import { PRINTER_PROFILES } from '../../services/printing/profiles'
 import { setPrintPageSize, clearPrintPageSize } from '../../utils/printPageSize'
 import useDocLookup from '../../hooks/useDocLookup'
 import {
@@ -177,7 +177,7 @@ const EncomiendasIndexPage = () => {
 
   const handleFormatChange = (e) => {
     bluetoothPrinter.setFormat(e.target.value)
-    const fmt = PRINT_FORMATS.find((f) => f.id === e.target.value)
+    const fmt = PRINTER_PROFILES.find((f) => f.id === e.target.value)
     toast.success(`Formato: ${fmt?.label || e.target.value}`)
   }
 
@@ -484,7 +484,8 @@ const EncomiendasIndexPage = () => {
       return
     }
 
-    // Fallback window.print con @page forzado al formato seleccionado
+    // Fallback window.print: el HTML del rótulo en CSS está fijado a 76×76 mm,
+    // por lo que se mantiene el page size 'rotulo' acoplado a ese layout.
     return new Promise((resolve) => {
       setPrintData(enc)
       setPrintTarget('rotulo')
@@ -833,7 +834,7 @@ const EncomiendasIndexPage = () => {
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
               title="Tamaño del rótulo a imprimir"
             >
-              {PRINT_FORMATS.map((f) => (
+              {PRINTER_PROFILES.map((f) => (
                 <option key={f.id} value={f.id}>{f.label}</option>
               ))}
             </select>

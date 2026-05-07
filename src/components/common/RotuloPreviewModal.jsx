@@ -9,7 +9,7 @@ import { Printer, Loader2 } from 'lucide-react'
 import Modal from './Modal'
 import Button from './Button'
 import bluetoothPrinter from '../../services/bluetoothPrinter'
-import { PRINT_FORMATS } from '../../services/printFormats'
+import { PRINTER_PROFILES } from '../../services/printing/profiles'
 
 const PREVIEW_MAX_WIDTH = 320
 
@@ -82,7 +82,13 @@ export default function RotuloPreviewModal({ isOpen, onClose, encomienda, onPrin
     }
   }
 
-  const fmt = PRINT_FORMATS.find((f) => f.id === formatId) || PRINT_FORMATS[0]
+  const profile = PRINTER_PROFILES.find((p) => p.id === formatId) || PRINTER_PROFILES[0]
+  const fmt = {
+    widthMm: profile.paper.widthMm,
+    heightMm: profile.paper.heightMm,
+    widthDots: profile.paper.widthDotsImprimibles,
+    isLabel: profile.paper.mode !== 'continuous',
+  }
 
   return (
     <Modal
@@ -121,7 +127,7 @@ export default function RotuloPreviewModal({ isOpen, onClose, encomienda, onPrin
             disabled={printing}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-primary-200 focus:border-primary-500 outline-none"
           >
-            {PRINT_FORMATS.map((f) => (
+            {PRINTER_PROFILES.map((f) => (
               <option key={f.id} value={f.id}>{f.label}</option>
             ))}
           </select>
