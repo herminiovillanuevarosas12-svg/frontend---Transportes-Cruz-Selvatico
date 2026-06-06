@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint, QRGenerator, RotuloEncomiendaPrint, RotuloPreviewModal } from '../../components/common'
 import { PermissionGate } from '../../features/auth'
@@ -17,6 +18,8 @@ import bluetoothPrinter from '../../services/bluetoothPrinter'
 import { PRINTER_PROFILES } from '../../services/printing/profiles'
 import { setPrintPageSize, clearPrintPageSize } from '../../utils/printPageSize'
 import useDocLookup from '../../hooks/useDocLookup'
+import { generarListaEncomiendasPDF } from '../../components/encomiendas/encomiendasListaPDF'
+import { comprimirImagenADataUrl, mensajeErrorImagen } from '../../utils/imageCompression'
 import {
   Package,
   Search,
@@ -42,7 +45,8 @@ import {
   Lock,
   Bluetooth,
   BluetoothConnected,
-  BluetoothOff
+  BluetoothOff,
+  FileDown
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -61,6 +65,9 @@ const EncomiendasIndexPage = () => {
     dni: ''
   })
   const [showFilters, setShowFilters] = useState(false)
+
+  // Exportación PDF
+  const [exportandoPdf, setExportandoPdf] = useState(false)
 
   // Modal de detalle
   const [detalleModal, setDetalleModal] = useState({ open: false, encomienda: null })
@@ -257,6 +264,43 @@ const EncomiendasIndexPage = () => {
     setPagination(prev => ({ ...prev, page: 1 }))
   }
 
+  // Exportar listado a PDF respetando los filtros activos
+  const handleExportarPDF = async () => {
+    try {
+      setExportandoPdf(true)
+      const baseParams = { ...filters }
+      // Limpiar params vacios (igual que cargarEncomiendas)
+      Object.keys(baseParams).forEach(key => {
+        if (baseParams[key] === '') delete baseParams[key]
+      })
+
+      // Traer TODOS los registros que coinciden con los filtros (no solo la pagina actual)
+      const limit = 500
+      let page = 1
+      let totalPages = 1
+      let todas = []
+      do {
+        const response = await encomiendasService.listar({ ...baseParams, page, limit })
+        todas = todas.concat(response.encomiendas || [])
+        totalPages = response.pagination?.totalPages || 1
+        page++
+      } while (page <= totalPages && page <= 20) // tope de seguridad: 10,000 registros
+
+      if (todas.length === 0) {
+        toast.error('No hay encomiendas para exportar')
+        return
+      }
+
+      await generarListaEncomiendasPDF(todas, filters, datosEmpresa?.razonSocial || 'Cruz Selvatico')
+      toast.success(`PDF generado con ${todas.length} encomienda${todas.length !== 1 ? 's' : ''}`)
+    } catch (error) {
+      console.error('Error exportando PDF:', error)
+      toast.error('Error al exportar PDF')
+    } finally {
+      setExportandoPdf(false)
+    }
+  }
+
   // Función para ver comprobante emitido
   const handleVerComprobante = async (encomienda) => {
     const comprobanteId = encomienda.idComprobante || encomienda.id_comprobante
@@ -340,16 +384,21 @@ const EncomiendasIndexPage = () => {
     }
   }
 
-  const handleFotoEntregaChange = (e) => {
+  const handleFotoEntregaChange = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('La foto no debe superar 5MB')
-      return
+    try {
+      // Recodificar SIEMPRE a JPEG comprimido (max 1600px, calidad 0.8):
+      // - normaliza formatos no renderizables (HEIC/HEIF de Android/iPhone)
+      // - reduce el payload para evitar errores de tamano y timeouts
+      const dataUrl = await comprimirImagenADataUrl(file, { maxSizeMB: 10 })
+      setFotoEntrega(dataUrl)
+    } catch (error) {
+      toast.error(mensajeErrorImagen(error))
+      if (fotoEntregaRef.current) {
+        fotoEntregaRef.current.value = ''
+      }
     }
-    const reader = new FileReader()
-    reader.onloadend = () => setFotoEntrega(reader.result)
-    reader.readAsDataURL(file)
   }
 
   const confirmarEntrega = async () => {
@@ -872,6 +921,15 @@ const EncomiendasIndexPage = () => {
             >
               Filtros
             </Button>
+            <Button
+              variant="outline"
+              icon={FileDown}
+              onClick={handleExportarPDF}
+              disabled={exportandoPdf || loading}
+              title="Exportar listado a PDF (respeta los filtros activos)"
+            >
+              {exportandoPdf ? 'Exportando...' : 'Exportar PDF'}
+            </Button>
             <PermissionGate permission="ENCOMIENDAS_REGISTRAR">
               <Button
                 icon={Plus}
@@ -1390,11 +1448,15 @@ const EncomiendasIndexPage = () => {
         </div>
       )}
 
-      {/* Area de impresion Rotulo Adhesivo 100x150mm */}
-      {printData && printTarget === 'rotulo' && (
+      {/* Area de impresion Rotulo Adhesivo 76x76mm.
+          Se renderiza via portal como hijo directo de <body>: al imprimir,
+          el CSS (.printing-rotulo) oculta #root con display:none para que
+          el documento mida exactamente 76mm y se genere UNA sola pagina. */}
+      {printData && printTarget === 'rotulo' && createPortal(
         <div className="print-area" id="rotulo-encomienda-print">
           <RotuloEncomiendaPrint encomienda={printData} />
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal de previsualización del rótulo antes de imprimir */}

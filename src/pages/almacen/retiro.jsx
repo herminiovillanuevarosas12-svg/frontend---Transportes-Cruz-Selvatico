@@ -9,6 +9,7 @@ import { Card, Button, ComprobantePrint } from '../../components/common'
 import encomiendasService from '../../services/encomiendasService'
 import facturacionService from '../../services/facturacionService'
 import useDocLookup from '../../hooks/useDocLookup'
+import { comprimirImagenADataUrl, mensajeErrorImagen } from '../../utils/imageCompression'
 import {
   Package,
   ArrowLeft,
@@ -177,30 +178,22 @@ const RetiroEncomiendaPage = () => {
     }
   }
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validar que sea una imagen
-    if (!file.type.startsWith('image/')) {
-      toast.error('Por favor seleccione una imagen valida')
-      return
+    try {
+      // Recodificar SIEMPRE a JPEG comprimido (max 1600px, calidad 0.8):
+      // - normaliza formatos no renderizables (HEIC/HEIF de Android/iPhone)
+      // - reduce el payload para evitar errores de tamano y timeouts
+      const dataUrl = await comprimirImagenADataUrl(file, { maxSizeMB: 10 })
+      setFotoEvidencia(dataUrl)
+    } catch (error) {
+      toast.error(mensajeErrorImagen(error))
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
     }
-
-    // Validar tamano (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('La imagen no debe superar los 10MB')
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setFotoEvidencia(event.target.result)
-    }
-    reader.onerror = () => {
-      toast.error('Error al leer la imagen')
-    }
-    reader.readAsDataURL(file)
   }
 
   const validarFormulario = () => {
@@ -749,6 +742,11 @@ const RetiroEncomiendaPage = () => {
                   src={fotoEvidencia}
                   alt="Evidencia"
                   className="w-full rounded-xl"
+                  onError={() => {
+                    // Si el navegador no puede renderizar la foto, no es valida como evidencia
+                    setFotoEvidencia(null)
+                    toast.error('La imagen no se pudo mostrar. Intente con otra foto o use la camara.')
+                  }}
                 />
                 <button
                   onClick={eliminarFoto}
