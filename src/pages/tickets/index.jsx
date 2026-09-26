@@ -10,6 +10,14 @@ import { PermissionGate } from '../../features/auth'
 import ticketsService from '../../services/ticketsService'
 import facturacionService from '../../services/facturacionService'
 import configuracionService from '../../services/configuracionService'
+import useDocLookup from '../../hooks/useDocLookup'
+import {
+  detectarTipoDocumento,
+  normalizarDocumento,
+  ajustarTipoPorNumero,
+  CODIGO_DNI,
+  CODIGO_RUC
+} from '../../utils/documentoIdentidad'
 import {
   Ticket,
   Search,
@@ -21,7 +29,8 @@ import {
   User,
   FileText,
   Receipt,
-  Eye
+  Eye,
+  AlertCircle
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -70,6 +79,8 @@ const TicketsIndexPage = () => {
   })
   const [configSunat, setConfigSunat] = useState(null)
   const [procesandoFactura, setProcesandoFactura] = useState(false)
+  const { loading: buscandoDoc, consultarDocumentoDiferido } = useDocLookup()
+  const [errorBusquedaDoc, setErrorBusquedaDoc] = useState('')
 
   // Modal de ver comprobante
   const [verComprobanteModal, setVerComprobanteModal] = useState({ open: false, ticket: null })
@@ -194,19 +205,83 @@ const TicketsIndexPage = () => {
   }
 
   const handleFacturar = (ticket) => {
-    // Pre-llenar con datos del pasajero
+    // Pre-llenar con datos del pasajero (tipo de documento deducido del número registrado)
+    const numDocPasajero = ticket.pasajero?.documentoIdentidad || ''
+    setErrorBusquedaDoc('')
     setFacturarForm({
       tipoComprobante: '03',
       serie: 'BT74',
       incluyeIgv: configSunat?.exoneradoIgv ? false : true,
       cliente: {
-        tipoDoc: '1',
-        numDoc: ticket.pasajero?.documentoIdentidad || '',
+        tipoDoc: detectarTipoDocumento(numDocPasajero),
+        numDoc: numDocPasajero,
         razonSocial: ticket.pasajero?.nombreCompleto || '',
         direccion: ''
       }
     })
     setFacturarModal({ open: true, ticket })
+  }
+
+  // Cambio de tipo de comprobante: factura exige RUC; si el documento actual no es RUC se limpia
+  // para no emitir una factura con DNI y nombre de persona
+  const handleTipoComprobanteFactura = (tipoComprobante) => {
+    setErrorBusquedaDoc('')
+    setFacturarForm(prev => {
+      const esFactura = tipoComprobante === '01'
+      const tipoDocActual = detectarTipoDocumento(prev.cliente.numDoc || '')
+      const mantieneDoc = !esFactura || tipoDocActual === CODIGO_RUC
+      return {
+        ...prev,
+        tipoComprobante,
+        serie: esFactura ? 'FT74' : 'BT74',
+        cliente: mantieneDoc
+          ? { ...prev.cliente, tipoDoc: esFactura ? CODIGO_RUC : tipoDocActual }
+          : { tipoDoc: CODIGO_RUC, numDoc: '', razonSocial: '', direccion: '' }
+      }
+    })
+  }
+
+  // Cambio de tipo de documento: adapta el número al nuevo tipo y limpia el nombre
+  const handleTipoDocFactura = (tipoDoc) => {
+    setErrorBusquedaDoc('')
+    setFacturarForm(prev => ({
+      ...prev,
+      cliente: { tipoDoc, numDoc: normalizarDocumento(tipoDoc, prev.cliente.numDoc), razonSocial: '', direccion: '' }
+    }))
+  }
+
+  // Cambio del número: limpia el nombre y lo autocompleta desde RENIEC (DNI) o SUNAT (RUC).
+  // La consulta es diferida: si el usuario sigue escribiendo (de 8 a 11 dígitos) se cancela.
+  const handleNumDocFactura = async (valor) => {
+    const esFactura = facturarForm.tipoComprobante === '01'
+    const numDoc = normalizarDocumento(facturarForm.cliente.tipoDoc, valor)
+    const tipoDoc = esFactura ? CODIGO_RUC : ajustarTipoPorNumero(facturarForm.cliente.tipoDoc, numDoc)
+    setErrorBusquedaDoc('')
+    setFacturarForm(prev => ({
+      ...prev,
+      cliente: { ...prev.cliente, tipoDoc, numDoc, razonSocial: '', direccion: '' }
+    }))
+
+    const debeConsultar = (tipoDoc === CODIGO_RUC && numDoc.length === 11)
+      || (tipoDoc === CODIGO_DNI && numDoc.length === 8)
+    if (!debeConsultar) return
+
+    const result = await consultarDocumentoDiferido(numDoc)
+    if (result === undefined) return // cancelada por una escritura posterior
+    if (!result) {
+      setErrorBusquedaDoc(tipoDoc === CODIGO_RUC
+        ? 'RUC no encontrado. Verifique que el número sea correcto.'
+        : 'DNI no encontrado. Ingrese el nombre manualmente.')
+      return
+    }
+    setFacturarForm(prev => ({
+      ...prev,
+      cliente: {
+        ...prev.cliente,
+        razonSocial: result.nombre_completo || result.razon_social || '',
+        direccion: result.tipoDoc === CODIGO_RUC ? (result.direccion || '') : ''
+      }
+    }))
   }
 
   const confirmarFacturacion = async () => {
@@ -599,12 +674,7 @@ const TicketsIndexPage = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
               <select
                 value={facturarForm.tipoComprobante}
-                onChange={(e) => setFacturarForm(prev => ({
-                  ...prev,
-                  tipoComprobante: e.target.value,
-                  serie: e.target.value === '01' ? 'FT74' : 'BT74',
-                  cliente: { ...prev.cliente, tipoDoc: e.target.value === '01' ? '6' : '1' }
-                }))}
+                onChange={(e) => handleTipoComprobanteFactura(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
               >
                 <option value="03">Boleta</option>
@@ -634,27 +704,43 @@ const TicketsIndexPage = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Doc.</label>
                 <select
                   value={facturarForm.cliente.tipoDoc}
-                  onChange={(e) => setFacturarForm(prev => ({
-                    ...prev,
-                    cliente: { ...prev.cliente, tipoDoc: e.target.value }
-                  }))}
+                  onChange={(e) => handleTipoDocFactura(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
                 >
-                  <option value="1">DNI</option>
-                  <option value="6">RUC</option>
+                  {facturarForm.tipoComprobante === '01' ? (
+                    <option value="6">RUC</option>
+                  ) : (
+                    <>
+                      <option value="1">DNI</option>
+                      <option value="4">CE</option>
+                      <option value="6">RUC</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Numero Doc.</label>
-                <input
-                  type="text"
-                  value={facturarForm.cliente.numDoc}
-                  onChange={(e) => setFacturarForm(prev => ({
-                    ...prev,
-                    cliente: { ...prev.cliente, numDoc: e.target.value }
-                  }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={facturarForm.cliente.numDoc}
+                    onChange={(e) => handleNumDocFactura(e.target.value)}
+                    maxLength={facturarForm.cliente.tipoDoc === '4' ? 12 : 11}
+                    inputMode={facturarForm.cliente.tipoDoc === '4' ? 'text' : 'numeric'}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
+                  />
+                  {buscandoDoc && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                </div>
+                {errorBusquedaDoc && (
+                  <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {errorBusquedaDoc}
+                  </p>
+                )}
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Razon Social / Nombre</label>
@@ -665,9 +751,25 @@ const TicketsIndexPage = () => {
                     ...prev,
                     cliente: { ...prev.cliente, razonSocial: e.target.value }
                   }))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
+                  readOnly={facturarForm.cliente.tipoDoc === '6'}
+                  className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none ${facturarForm.cliente.tipoDoc === '6' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 />
+                {facturarForm.cliente.tipoDoc === '6' && (
+                  <p className="text-xs text-gray-500 mt-1">Se autocompleta con los datos del RUC</p>
+                )}
               </div>
+              {facturarForm.cliente.tipoDoc === '6' && (
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Direccion Fiscal</label>
+                  <input
+                    type="text"
+                    value={facturarForm.cliente.direccion}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none bg-gray-100 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Se autocompleta con los datos del RUC</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

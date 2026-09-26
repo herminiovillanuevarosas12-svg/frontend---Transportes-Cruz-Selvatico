@@ -4,6 +4,7 @@
  */
 
 import { formatTimestamp } from '../../utils/dateUtils'
+import { siglaDocumento } from '../../utils/documentoIdentidad'
 
 const EncomiendaPrint = ({ encomienda, empresa }) => {
   if (!encomienda) return null
@@ -84,7 +85,7 @@ const EncomiendaPrint = ({ encomienda, empresa }) => {
             <span className="text-sm font-medium text-gray-900">{encomienda.remitente?.nombre}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-sm text-gray-600">DNI:</span>
+            <span className="text-sm text-gray-600">{siglaDocumento(encomienda.remitente?.dni)}:</span>
             <span className="text-sm font-medium text-gray-900">{encomienda.remitente?.dni}</span>
           </div>
           <div className="flex justify-between">

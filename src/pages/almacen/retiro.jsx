@@ -244,6 +244,7 @@ const RetiroEncomiendaPage = () => {
       // Preparar payload
       const payload = {
         dniRetiro: dniRetira,
+        nombreRetiro: nombreRetira.trim(),
         fotoBase64: fotoEvidencia,
         nota: `Retiro por: ${nombreRetira}`,
         claveIngresada: encomienda?.tieneClaveSeguridad ? claveIngresada : null
@@ -863,12 +864,10 @@ const RetiroEncomiendaPage = () => {
             comprobante={{
               tipoDocumento: comprobanteRetiro.tipoDocumento,
               numeroCompleto: comprobanteRetiro.numeroCompleto,
-              clienteNombre: tipoComprobanteRetiro === 'FACTURA'
-                ? clienteFacturaRetiro.razonSocial
-                : encomienda?.destinatarioNombre,
-              clienteDocumento: tipoComprobanteRetiro === 'FACTURA'
-                ? clienteFacturaRetiro.ruc
-                : dniRetira,
+              clienteNombre: comprobanteRetiro.clienteRazonSocial
+                || (tipoComprobanteRetiro === 'FACTURA' ? clienteFacturaRetiro.razonSocial : nombreRetira),
+              clienteDocumento: comprobanteRetiro.clienteNumDoc
+                || (tipoComprobanteRetiro === 'FACTURA' ? clienteFacturaRetiro.ruc : dniRetira),
               clienteDireccion: tipoComprobanteRetiro === 'FACTURA'
                 ? clienteFacturaRetiro.direccion
                 : '',

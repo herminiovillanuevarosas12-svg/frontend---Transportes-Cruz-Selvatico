@@ -5,6 +5,7 @@
  */
 
 import QRGenerator from './QRGenerator'
+import { siglaDocumento } from '../../utils/documentoIdentidad'
 
 const RotuloEncomiendaPrint = ({ encomienda }) => {
   if (!encomienda) return null
@@ -55,7 +56,7 @@ const RotuloEncomiendaPrint = ({ encomienda }) => {
           </div>
           {destinatarioDni && (
             <div className="rotulo-ad-dest-row">
-              <span className="rotulo-ad-k">DNI:</span>{destinatarioDni}
+              <span className="rotulo-ad-k">{siglaDocumento(destinatarioDni)}:</span>{destinatarioDni}
             </div>
           )}
         </div>

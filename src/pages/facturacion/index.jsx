@@ -292,37 +292,56 @@ const FacturacionPage = () => {
     }
   }
 
-  const handleVerPdf = (url) => {
-    if (url) {
-      window.open(url, '_blank')
-    }
+  // Un documento aceptado (o anulado después de aceptarse) existe en KEYFACIL y tiene PDF/XML
+  const tieneArchivosKeyfacil = (item) =>
+    !!item && ['ACEPTADO', 'ANULADO', 'ACEPTADA', 'ANULADA'].includes(item.estado)
+
+  const descargarBlob = (blob, nombreArchivo) => {
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = nombreArchivo
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
   }
 
-  const handleDescargarXml = async (comprobante) => {
-    try {
-      // Si tiene xmlUrl directa, abrir en nueva pestaña
-      const xmlUrl = comprobante.xmlUrl || comprobante.xml_url
-      if (xmlUrl) {
-        window.open(xmlUrl, '_blank')
-        return
+  // Las descargas piden responseType blob: si el backend responde error, el JSON viene dentro del blob
+  const leerMensajeError = async (error) => {
+    const data = error?.response?.data
+    if (data instanceof Blob) {
+      try {
+        return JSON.parse(await data.text()).error || null
+      } catch (parseError) {
+        return null
       }
+    }
+    return data?.error || null
+  }
 
-      // Si no, descargar via endpoint del backend
-      const response = await facturacionService.descargarXml(comprobante.id)
-
-      // Si fue redirect (el backend redirigió a la URL), el blob ya contiene el XML
-      const blob = new Blob([response.data], { type: 'application/xml' })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${comprobante.numeroCompleto || comprobante.numero_completo || 'comprobante'}.xml`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+  /**
+   * Descargar PDF o XML de un comprobante o guía.
+   * Los bytes siempre los sirve nuestro backend (que los obtiene de KEYFACIL),
+   * así no dependemos de URLs externas ni de redirecciones bloqueadas por CORS.
+   * @param {Object} item - Comprobante o guía
+   * @param {'pdf'|'xml'} tipo - Tipo de archivo
+   * @param {boolean} esGuia - true si el item es una guía de remisión
+   */
+  const handleDescargarArchivo = async (item, tipo, esGuia = false) => {
+    const etiqueta = tipo.toUpperCase()
+    try {
+      const descargar = esGuia
+        ? (tipo === 'pdf' ? facturacionService.descargarGuiaPdf : facturacionService.descargarGuiaXml)
+        : (tipo === 'pdf' ? facturacionService.descargarPdf : facturacionService.descargarXml)
+      const response = await descargar(item.id)
+      const numero = item.numeroCompleto || item.numero_completo || (esGuia ? 'guia' : 'comprobante')
+      const contentType = tipo === 'pdf' ? 'application/pdf' : 'application/xml'
+      descargarBlob(new Blob([response.data], { type: contentType }), `${numero}.${tipo}`)
     } catch (error) {
-      console.error('Error descargando XML:', error)
-      alert('No se pudo descargar el XML de este comprobante')
+      console.error(`Error descargando ${etiqueta}:`, error)
+      const mensaje = await leerMensajeError(error)
+      alert(mensaje || `No se pudo descargar el ${etiqueta} de ${esGuia ? 'esta guía' : 'este comprobante'}`)
     }
   }
 
@@ -663,23 +682,23 @@ const FacturacionPage = () => {
           >
             <Eye className="w-4 h-4" />
           </button>
-          {(row.pdfUrl || row.pdf_url) && (
-            <button
-              onClick={() => handleVerPdf(row.pdfUrl || row.pdf_url)}
-              className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-              title="Ver PDF"
-            >
-              <FileDown className="w-4 h-4" />
-            </button>
-          )}
-          {row.estado === 'ACEPTADO' && (
-            <button
-              onClick={() => handleDescargarXml(row)}
-              className="p-1.5 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-              title="Descargar XML"
-            >
-              <FileCode2 className="w-4 h-4" />
-            </button>
+          {tieneArchivosKeyfacil(row) && (
+            <>
+              <button
+                onClick={() => handleDescargarArchivo(row, 'pdf')}
+                className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                title="Descargar PDF"
+              >
+                <FileDown className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleDescargarArchivo(row, 'xml')}
+                className="p-1.5 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                title="Descargar XML"
+              >
+                <FileCode2 className="w-4 h-4" />
+              </button>
+            </>
           )}
           {row.estado !== 'ANULADO' && (
             <button
@@ -772,14 +791,23 @@ const FacturacionPage = () => {
           >
             <Eye className="w-4 h-4" />
           </button>
-          {(row.pdfUrl || row.pdf_url) && (
-            <button
-              onClick={() => handleVerPdf(row.pdfUrl || row.pdf_url)}
-              className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-              title="Ver PDF"
-            >
-              <FileDown className="w-4 h-4" />
-            </button>
+          {tieneArchivosKeyfacil(row) && (
+            <>
+              <button
+                onClick={() => handleDescargarArchivo(row, 'pdf', true)}
+                className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                title="Descargar PDF"
+              >
+                <FileDown className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleDescargarArchivo(row, 'xml', true)}
+                className="p-1.5 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                title="Descargar XML"
+              >
+                <FileCode2 className="w-4 h-4" />
+              </button>
+            </>
           )}
           {row.estado !== 'ANULADA' && (
             <button
@@ -1094,8 +1122,7 @@ const FacturacionPage = () => {
                     ? [{ value: '6', label: 'RUC' }]
                     : [
                         { value: '1', label: 'DNI' },
-                        { value: '6', label: 'RUC' },
-                        { value: '-', label: 'Sin Doc.' }
+                        { value: '6', label: 'RUC' }
                       ]
                   }
                 />
@@ -1335,26 +1362,22 @@ const FacturacionPage = () => {
               </div>
             )}
 
-            {((selectedItem.pdfUrl || selectedItem.pdf_url) || selectedItem.estado === 'ACEPTADO') && (
+            {tieneArchivosKeyfacil(selectedItem) && (
               <div className="pt-4 border-t border-gray-200 flex items-center gap-3">
-                {(selectedItem.pdfUrl || selectedItem.pdf_url) && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleVerPdf(selectedItem.pdfUrl || selectedItem.pdf_url)}
-                    icon={FileDown}
-                  >
-                    Descargar PDF
-                  </Button>
-                )}
-                {selectedItem.estado === 'ACEPTADO' && activeTab !== 'guias' && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleDescargarXml(selectedItem)}
-                    icon={FileCode2}
-                  >
-                    Descargar XML
-                  </Button>
-                )}
+                <Button
+                  variant="secondary"
+                  onClick={() => handleDescargarArchivo(selectedItem, 'pdf', activeTab === 'guias')}
+                  icon={FileDown}
+                >
+                  Descargar PDF
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleDescargarArchivo(selectedItem, 'xml', activeTab === 'guias')}
+                  icon={FileCode2}
+                >
+                  Descargar XML
+                </Button>
               </div>
             )}
           </div>

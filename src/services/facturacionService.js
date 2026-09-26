@@ -69,14 +69,19 @@ const facturacionService = {
   },
 
   /**
-   * Descargar XML de un comprobante
+   * Descargar PDF de un comprobante (bytes servidos por el backend)
+   * @param {number} id - ID del comprobante
+   */
+  descargarPdf: async (id) => {
+    return apiClient.get(`/facturacion/comprobantes/${id}/pdf`, { responseType: 'blob' })
+  },
+
+  /**
+   * Descargar XML de un comprobante (bytes servidos por el backend)
    * @param {number} id - ID del comprobante
    */
   descargarXml: async (id) => {
-    const response = await apiClient.get(`/facturacion/comprobantes/${id}/xml`, {
-      responseType: 'blob'
-    })
-    return response
+    return apiClient.get(`/facturacion/comprobantes/${id}/xml`, { responseType: 'blob' })
   },
 
   /**
@@ -136,6 +141,22 @@ const facturacionService = {
   anularGuia: async (id, motivo) => {
     const response = await apiClient.post(`/facturacion/guias/${id}/anular`, { motivo })
     return response.data
+  },
+
+  /**
+   * Descargar PDF de una guía de remisión (bytes servidos por el backend)
+   * @param {number} id - ID de la guía
+   */
+  descargarGuiaPdf: async (id) => {
+    return apiClient.get(`/facturacion/guias/${id}/pdf`, { responseType: 'blob' })
+  },
+
+  /**
+   * Descargar XML de una guía de remisión (bytes servidos por el backend)
+   * @param {number} id - ID de la guía
+   */
+  descargarGuiaXml: async (id) => {
+    return apiClient.get(`/facturacion/guias/${id}/xml`, { responseType: 'blob' })
   },
 
   // =============================================================================

@@ -4,3 +4,4 @@
  */
 
 export { default as VentaInstantaneaModal } from './VentaInstantaneaModal'
+export { default as SelectorRuta } from './SelectorRuta'

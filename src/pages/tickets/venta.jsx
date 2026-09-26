@@ -13,7 +13,7 @@ import configuracionService from '../../services/configuracionService'
 import facturacionService from '../../services/facturacionService'
 import { formatDateOnly, formatTimeOnly, getTodayInPeru, isBeforeToday } from '../../utils/dateUtils'
 import useDocLookup from '../../hooks/useDocLookup'
-import { VentaInstantaneaModal } from '../../components/tickets'
+import { VentaInstantaneaModal, SelectorRuta } from '../../components/tickets'
 import {
   Ticket,
   Clock,
@@ -62,7 +62,7 @@ const VentaTicketPage = () => {
   const [precioManual, setPrecioManual] = useState(null)
 
   // Hook para auto-busqueda de DNI/RUC
-  const { loading: buscandoDoc, consultarDni, consultarRuc, reset: resetDocLookup } = useDocLookup()
+  const { loading: buscandoDoc, consultarRuc, consultarDocumentoDiferido, reset: resetDocLookup } = useDocLookup()
   const [errorBusquedaRuc, setErrorBusquedaRuc] = useState('')
 
   // Datos de empresa para impresión
@@ -203,6 +203,14 @@ const VentaTicketPage = () => {
     }
   }
 
+  // Cambio de ruta (inicio, fin y vehículo): limpia horario y disponibilidad previa
+  const handleRutaChange = (idRuta) => {
+    setFormData(prev => ({ ...prev, idRuta, idHorario: '' }))
+    if (!idRuta) {
+      setDisponibilidad(null)
+    }
+  }
+
   // Handler para Documento de Identidad - 8 digitos (DNI) o 11 digitos (RUC) con autocompletado
   const handleDocumentoChange = async (e) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 11)
@@ -237,20 +245,19 @@ const VentaTicketPage = () => {
       setShowClientesDropdown(false)
     }
 
-    // Si completa 8 (DNI) o 11 (RUC) digitos y no hay cliente local encontrado, buscar en API
-    // IMPORTANTE: Si tiene 8 digitos pero empieza con "10" o "20", es un RUC en progreso, no buscar
-    const esRucEnProgreso = value.length === 8 && (value.startsWith('10') || value.startsWith('20'))
-    const debeBuscar = (value.length === 8 && !esRucEnProgreso) || value.length === 11
+    // Si completa 8 (DNI) o 11 (RUC) digitos y no hay cliente local encontrado, buscar en API.
+    // La consulta es diferida: si el usuario sigue escribiendo (de 8 a 11 digitos) se cancela,
+    // asi no se consulta como DNI el inicio de un RUC (existen DNIs reales que empiezan en 10 y 20).
+    const debeBuscar = value.length === 8 || value.length === 11
 
     if (debeBuscar) {
       const clienteLocal = clientes.find(c => c.documentoIdentidad === value)
       if (clienteLocal) {
+        resetDocLookup()
         handleSeleccionarCliente(clienteLocal)
       } else {
-        // Buscar en API segun longitud
-        const result = value.length === 8
-          ? await consultarDni(value, true)
-          : await consultarRuc(value)
+        const result = await consultarDocumentoDiferido(value, { skipLocal: true })
+        if (result === undefined) return // cancelada por una escritura posterior
 
         if (result && !formData.pasajero.nombreCompleto) {
           // Extraer dirección con todas las variantes posibles de la API
@@ -583,25 +590,12 @@ const VentaTicketPage = () => {
         {/* Step 1: Seleccion de ruta y horario */}
         {step === 1 && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-6">
-            {/* Ruta */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ruta *
-              </label>
-              <select
-                name="idRuta"
-                value={formData.idRuta}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              >
-                <option value="">Seleccione una ruta</option>
-                {rutas.map(ruta => (
-                  <option key={ruta.id} value={ruta.id}>
-                    {ruta.puntoOrigen?.nombre} → {ruta.puntoDestino?.nombre} ({ruta.tipoCarro?.nombre || 'Estándar'}) - S/ {parseFloat(ruta.precioPasaje).toFixed(2)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Ruta: punto de inicio, punto de fin y vehículo */}
+            <SelectorRuta
+              rutas={rutas}
+              value={formData.idRuta}
+              onChange={handleRutaChange}
+            />
 
             {/* Fecha */}
             <div>

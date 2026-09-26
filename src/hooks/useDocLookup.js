@@ -3,15 +3,43 @@
  * Hook reutilizable para auto-busqueda de DNI/RUC
  * Logica MIXTA: Para DNI busca primero en BD local (tbl_pasajeros), luego en API
  *               Para RUC va directo a la API (no hay tabla local de empresas)
+ *
+ * No bloquea consultas repetidas: el backend cachea las respuestas de API Peru
+ * (tbl_cache_consulta_doc), asi que volver a escribir el mismo documento vuelve a
+ * autocompletar el nombre sin gastar cuota.
+ *
+ * consultarDocumentoDiferido(): espera a que el usuario deje de escribir antes de
+ * consultar. Evita consultar como DNI los 8 primeros digitos de un RUC sin depender
+ * de prefijos (existen DNIs reales que empiezan en 10 y 20).
  */
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import consultaDocService from '../services/consultaDocService'
 import clientesService from '../services/clientesService'
 
+export const DELAY_CONSULTA_DIFERIDA_MS = 600
+
 const useDocLookup = () => {
   const [loading, setLoading] = useState(false)
-  const lastQueryRef = useRef({ tipo: null, numero: null })
+  const timerRef = useRef(null)
+  const resolverPendienteRef = useRef(null)
+
+  /**
+   * Cancela una consulta diferida en espera (resuelve su promesa con undefined)
+   */
+  const cancelarDiferida = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (resolverPendienteRef.current) {
+      resolverPendienteRef.current(undefined)
+      resolverPendienteRef.current = null
+    }
+  }, [])
+
+  // Al desmontar, no dejar consultas programadas
+  useEffect(() => cancelarDiferida, [cancelarDiferida])
 
   /**
    * Consultar DNI con logica mixta (BD local primero, API despues)
@@ -25,13 +53,7 @@ const useDocLookup = () => {
       return null
     }
 
-    // Evitar consultas duplicadas
-    if (lastQueryRef.current.tipo === 'DNI' && lastQueryRef.current.numero === dni) {
-      return null
-    }
-
     setLoading(true)
-    lastQueryRef.current = { tipo: 'DNI', numero: dni }
 
     try {
       // 1. Buscar en BD local (tbl_pasajeros) primero
@@ -39,7 +61,6 @@ const useDocLookup = () => {
         try {
           const localResult = await clientesService.obtenerPorDni(dni)
           if (localResult?.cliente) {
-            setLoading(false)
             return {
               nombre_completo: localResult.cliente.nombreCompleto,
               telefono: localResult.cliente.telefono,
@@ -54,19 +75,18 @@ const useDocLookup = () => {
       // 2. Buscar en API Peru
       const apiResult = await consultaDocService.consultarDni(dni)
       if (apiResult?.success && apiResult?.data) {
-        setLoading(false)
         return {
           ...apiResult.data,
           source: apiResult.source || 'api'
         }
       }
 
-      setLoading(false)
       return null
     } catch (error) {
       console.error('Error consultando DNI:', error)
-      setLoading(false)
       return null
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -81,30 +101,23 @@ const useDocLookup = () => {
       return null
     }
 
-    // Evitar consultas duplicadas
-    if (lastQueryRef.current.tipo === 'RUC' && lastQueryRef.current.numero === ruc) {
-      return null
-    }
-
     setLoading(true)
-    lastQueryRef.current = { tipo: 'RUC', numero: ruc }
 
     try {
       const result = await consultaDocService.consultarRuc(ruc)
       if (result?.success && result?.data) {
-        setLoading(false)
         return {
           ...result.data,
           source: result.source || 'api'
         }
       }
 
-      setLoading(false)
       return null
     } catch (error) {
       console.error('Error consultando RUC:', error)
-      setLoading(false)
       return null
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -139,18 +152,39 @@ const useDocLookup = () => {
   }, [consultarDni, consultarRuc])
 
   /**
-   * Reset para limpiar estado cuando el usuario borra el campo
+   * Consultar documento cuando el usuario deja de escribir.
+   * Cada llamada cancela la anterior: si el usuario sigue tecleando de 8 a 11 digitos,
+   * la consulta como DNI nunca se dispara.
+   * @param {string} numero - Numero de documento (8 o 11 digitos)
+   * @param {Object} opciones - { skipLocal, delayMs }
+   * @returns {Promise<Object|null|undefined>} resultado, null si no se encontro, undefined si fue cancelada
+   */
+  const consultarDocumentoDiferido = useCallback((numero, { skipLocal = false, delayMs = DELAY_CONSULTA_DIFERIDA_MS } = {}) => {
+    cancelarDiferida()
+    return new Promise((resolve) => {
+      resolverPendienteRef.current = resolve
+      timerRef.current = setTimeout(async () => {
+        timerRef.current = null
+        resolverPendienteRef.current = null
+        resolve(await consultarDocumento(numero, skipLocal))
+      }, delayMs)
+    })
+  }, [cancelarDiferida, consultarDocumento])
+
+  /**
+   * Reset: cancela consultas diferidas pendientes y limpia el estado de carga
    */
   const reset = useCallback(() => {
-    lastQueryRef.current = { tipo: null, numero: null }
+    cancelarDiferida()
     setLoading(false)
-  }, [])
+  }, [cancelarDiferida])
 
   return {
     loading,
     consultarDni,
     consultarRuc,
     consultarDocumento,
+    consultarDocumentoDiferido,
     reset
   }
 }

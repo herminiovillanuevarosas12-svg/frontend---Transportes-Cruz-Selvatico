@@ -3,9 +3,9 @@
  * Formulario para registrar nueva encomienda
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Card, QRGenerator, ClienteCombobox, ComprobantePrint, Combobox } from '../../components/common'
+import { Button, Card, QRGenerator, ClienteCombobox, ComprobantePrint, Combobox, DocumentoIdentidadInput } from '../../components/common'
 import { formatTimestamp } from '../../utils/dateUtils'
 import puntosService from '../../services/puntosService'
 import encomiendasService from '../../services/encomiendasService'
@@ -14,7 +14,16 @@ import facturacionService from '../../services/facturacionService'
 import clientesService from '../../services/clientesService'
 import configTiposPaqueteService from '../../services/configTiposPaqueteService'
 import preciosBaseService from '../../services/preciosBaseService'
-import useDocLookup from '../../hooks/useDocLookup'
+import useDocLookup, { DELAY_CONSULTA_DIFERIDA_MS } from '../../hooks/useDocLookup'
+import {
+  CODIGO_DNI,
+  CODIGO_RUC,
+  obtenerTipoDocumento,
+  esDocumentoValido,
+  detectarTipoDocumento,
+  mensajeErrorDocumento,
+  siglaDocumento
+} from '../../utils/documentoIdentidad'
 import {
   Package,
   User,
@@ -62,10 +71,12 @@ const RegistroEncomiendaPage = () => {
     idPuntoDestino: '',
     // Remitente
     remitenteNombre: '',
+    remitenteTipoDoc: CODIGO_DNI,
     remitenteDni: '',
     remitenteTelefono: '',
     // Destinatario
     destinatarioNombre: '',
+    destinatarioTipoDoc: CODIGO_DNI,
     destinatarioDni: '',
     destinatarioTelefono: '',
     // Paquete
@@ -94,9 +105,21 @@ const RegistroEncomiendaPage = () => {
 
   // Hook para auto-busqueda de DNI/RUC
   const { loading: buscandoDoc, consultarDni, consultarRuc, reset: resetDocLookup } = useDocLookup()
+
+  // Consultas diferidas de DNI: se espera a que el usuario deje de escribir para no consultar
+  // como DNI los 8 primeros dígitos de un RUC (existen DNIs reales que empiezan en 10 y 20).
+  // Cada cambio del campo incrementa el contador; si al terminar la espera ya no es el último, se descarta.
+  const remitenteConsultaRef = useRef(0)
+  const destinatarioConsultaRef = useRef(0)
+  const esperarPausaEscritura = async (ref, consulta) => {
+    await new Promise(resolve => setTimeout(resolve, DELAY_CONSULTA_DIFERIDA_MS))
+    return ref.current === consulta
+  }
   const [errorBusquedaRuc, setErrorBusquedaRuc] = useState('')
   const [errorBusquedaDestinatario, setErrorBusquedaDestinatario] = useState('')
   const [buscandoDestinatario, setBuscandoDestinatario] = useState(false)
+  // Nombre del destinatario autocompletado desde BD local o API (bloquea el campo)
+  const [destinatarioAutocompletado, setDestinatarioAutocompletado] = useState(false)
 
   // Datos de empresa para impresión
   const [datosEmpresa, setDatosEmpresa] = useState(null)
@@ -251,73 +274,128 @@ const RegistroEncomiendaPage = () => {
     label: tipo.nombre_display
   }))
 
-  // Manejar cambio de DNI/RUC (8 o 11 numeros) y buscar cliente
-  const handleDniChange = async (e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 11)
-    setFormData(prev => ({ ...prev, remitenteDni: value }))
+  // Buscar un cliente ya registrado por su documento exacto (BD local, sin API externa)
+  const buscarClienteLocal = async (tipo, numero) => {
+    try {
+      if (tipo === CODIGO_DNI) {
+        const response = await clientesService.obtenerPorDni(numero)
+        return response.cliente || null
+      }
+      const response = await clientesService.listar({ search: numero, limit: 5 })
+      return (response.clientes || []).find(c => c.documentoIdentidad === numero) || null
+    } catch {
+      return null
+    }
+  }
 
-    // Si se limpió el DNI/RUC, limpiar cliente encontrado y nombre
-    if (value.length < 8) {
+  // Datos de un documento: clientes locales primero; luego API de Perú si el tipo la tiene
+  const buscarDatosDocumento = async (tipo, numero) => {
+    const clienteLocal = await buscarClienteLocal(tipo, numero)
+    if (clienteLocal) {
+      return {
+        cliente: clienteLocal,
+        nombre: clienteLocal.nombreCompleto,
+        razonSocial: clienteLocal.nombreCompleto,
+        direccion: '',
+        telefono: clienteLocal.telefono || ''
+      }
+    }
+    if (!obtenerTipoDocumento(tipo).consultaApi) return null
+    const result = tipo === CODIGO_RUC
+      ? await consultarRuc(numero)
+      : await consultarDni(numero, true)
+    if (!result) return null
+    return {
+      cliente: null,
+      nombre: result.nombre_completo || result.razon_social || result.nombre_o_razon_social || '',
+      razonSocial: result.razon_social || result.nombre_o_razon_social || '',
+      direccion: result.direccion || result.direccion_completa || result.domicilio_fiscal || '',
+      telefono: result.telefono || ''
+    }
+  }
+
+  // Manejar cambio de tipo/número de documento del remitente y buscar cliente
+  const handleRemitenteDocumentoChange = async ({ tipo, numero }) => {
+    const consulta = ++remitenteConsultaRef.current
+    setFormData(prev => ({ ...prev, remitenteTipoDoc: tipo, remitenteDni: numero }))
+
+    // Documento incompleto: limpiar cliente encontrado y nombre
+    if (!esDocumentoValido(tipo, numero)) {
       setClienteEncontrado(null)
       setPuntosACanjear(0)
-      setFormData(prev => ({ ...prev, remitenteDni: value, remitenteNombre: '' }))
+      setFormData(prev => ({ ...prev, remitenteTipoDoc: tipo, remitenteDni: numero, remitenteNombre: '' }))
       return
     }
 
-    // Buscar cliente cuando se completan 8 (DNI) o 11 (RUC) digitos
-    // IMPORTANTE: Si tiene 8 digitos pero empieza con "10" o "20", es un RUC en progreso, no buscar
-    const esRucEnProgreso = value.length === 8 && (value.startsWith('10') || value.startsWith('20'))
-    const debeBuscar = (value.length === 8 && !esRucEnProgreso) || value.length === 11
+    // DNI: esperar a que el usuario deje de escribir (podría seguir hacia un RUC de 11 dígitos)
+    if (tipo === CODIGO_DNI && !(await esperarPausaEscritura(remitenteConsultaRef, consulta))) return
 
-    if (debeBuscar) {
-      setBuscandoCliente(true)
-      // Resetear el hook para permitir consultas repetidas
-      resetDocLookup()
-      try {
-        // Solo buscar en BD local si es DNI (8 dígitos)
-        // El endpoint /clientes/dni solo acepta DNI, no RUC
-        if (value.length === 8) {
-          const response = await clientesService.obtenerPorDni(value)
-          if (response.cliente) {
-            setClienteEncontrado(response.cliente)
-            // Autocompletar nombre y teléfono (siempre sobreescribir)
-            setFormData(prev => ({
-              ...prev,
-              remitenteNombre: response.cliente.nombreCompleto,
-              remitenteTelefono: formatTelefono(response.cliente.telefono || '')
-            }))
-            setBuscandoCliente(false)
-            return
-          }
-        }
-        // Si es RUC (11 dígitos) o DNI no encontrado en BD local, buscar en API Peru
-        setClienteEncontrado(null)
-        const result = value.length === 8
-          ? await consultarDni(value, true)
-          : await consultarRuc(value)
-        if (result) {
-          // Siempre sobreescribir el nombre con el resultado de la API
-          setFormData(prev => ({
-            ...prev,
-            remitenteNombre: result.nombre_completo || result.razon_social || result.nombre_o_razon_social || ''
-          }))
-        }
-      } catch (error) {
-        // Cliente no encontrado en BD local, buscar en API Peru como fallback
-        setClienteEncontrado(null)
-        const result = value.length === 8
-          ? await consultarDni(value, true)
-          : await consultarRuc(value)
-        if (result) {
-          // Siempre sobreescribir el nombre con el resultado de la API
-          setFormData(prev => ({
-            ...prev,
-            remitenteNombre: result.nombre_completo || result.razon_social || result.nombre_o_razon_social || ''
-          }))
-        }
-      } finally {
-        setBuscandoCliente(false)
+    setBuscandoCliente(true)
+    // Resetear el hook para permitir consultas repetidas
+    resetDocLookup()
+    try {
+      const datos = await buscarDatosDocumento(tipo, numero)
+      setClienteEncontrado(datos?.cliente || null)
+      if (datos) {
+        setFormData(prev => ({
+          ...prev,
+          remitenteNombre: datos.nombre,
+          remitenteTelefono: datos.telefono ? formatTelefono(datos.telefono) : prev.remitenteTelefono
+        }))
       }
+    } finally {
+      setBuscandoCliente(false)
+    }
+  }
+
+  // Manejar cambio de tipo/número de documento del destinatario y autocompletar
+  const handleDestinatarioDocumentoChange = async ({ tipo, numero }) => {
+    const consulta = ++destinatarioConsultaRef.current
+    setErrorBusquedaDestinatario('')
+    setDestinatarioAutocompletado(false)
+    setFormData(prev => ({
+      ...prev,
+      destinatarioTipoDoc: tipo,
+      destinatarioDni: numero,
+      destinatarioNombre: ''
+    }))
+    // Si se seleccionó un cliente del buscador y cambia el documento, limpiar selección
+    if (destinatarioEncontrado && numero !== destinatarioEncontrado.documentoIdentidad) {
+      setDestinatarioEncontrado(null)
+    }
+
+    if (!esDocumentoValido(tipo, numero)) return
+    // DNI: esperar a que el usuario deje de escribir (podría seguir hacia un RUC de 11 dígitos)
+    if (tipo === CODIGO_DNI && !(await esperarPausaEscritura(destinatarioConsultaRef, consulta))) return
+
+    setBuscandoDestinatario(true)
+    // Resetear el hook para permitir consultas repetidas del mismo documento
+    resetDocLookup()
+    try {
+      const datos = await buscarDatosDocumento(tipo, numero)
+      if (datos) {
+        setDestinatarioEncontrado(datos.cliente)
+        setDestinatarioAutocompletado(Boolean(datos.nombre))
+        setFormData(prev => ({
+          ...prev,
+          destinatarioNombre: datos.nombre,
+          destinatarioTelefono: datos.telefono ? formatTelefono(datos.telefono) : prev.destinatarioTelefono
+        }))
+        // Si es RUC y tipo de comprobante es Factura, auto-llenar datos de factura
+        if (tipo === CODIGO_RUC && tipoDocumento === 'FACTURA') {
+          setClienteFactura({
+            ruc: numero,
+            razonSocial: datos.razonSocial || datos.nombre,
+            direccion: datos.direccion
+          })
+          setErrorBusquedaRuc('')
+        }
+      } else {
+        const queIngresar = tipo === CODIGO_RUC ? 'la razón social' : 'el nombre'
+        setErrorBusquedaDestinatario(`${obtenerTipoDocumento(tipo).nombre} no encontrado. Ingrese ${queIngresar} manualmente.`)
+      }
+    } finally {
+      setBuscandoDestinatario(false)
     }
   }
 
@@ -363,9 +441,9 @@ const RegistroEncomiendaPage = () => {
       { campo: 'idPuntoOrigen', nombre: 'Punto de origen' },
       { campo: 'idPuntoDestino', nombre: 'Punto de destino' },
       { campo: 'remitenteNombre', nombre: 'Nombre del remitente' },
-      { campo: 'remitenteDni', nombre: 'DNI del remitente' },
+      { campo: 'remitenteDni', nombre: 'Documento del remitente' },
       { campo: 'remitenteTelefono', nombre: 'Telefono del remitente' },
-      { campo: 'destinatarioDni', nombre: 'DNI del destinatario' },
+      { campo: 'destinatarioDni', nombre: 'Documento del destinatario' },
       { campo: 'destinatarioNombre', nombre: 'Nombre del destinatario' },
       { campo: 'destinatarioTelefono', nombre: 'Telefono del destinatario' },
       { campo: 'tipoPaquete', nombre: 'Tipo de paquete' },
@@ -387,16 +465,16 @@ const RegistroEncomiendaPage = () => {
       return false
     }
 
-    // Validar DNI/RUC remitente (8 o 11 digitos)
-    if (formData.remitenteDni.length !== 8 && formData.remitenteDni.length !== 11) {
-      toast.error('El DNI debe tener 8 digitos o el RUC debe tener 11 digitos')
-      return false
-    }
-
-    // Validar DNI/RUC destinatario (8 o 11 digitos)
-    if (formData.destinatarioDni.length !== 8 && formData.destinatarioDni.length !== 11) {
-      toast.error('El DNI debe tener 8 digitos o el RUC debe tener 11 digitos')
-      return false
+    // Validar documento de remitente y destinatario según su tipo (DNI, CE o RUC)
+    const documentos = [
+      { tipo: formData.remitenteTipoDoc, numero: formData.remitenteDni, rol: 'remitente' },
+      { tipo: formData.destinatarioTipoDoc, numero: formData.destinatarioDni, rol: 'destinatario' }
+    ]
+    for (const { tipo, numero, rol } of documentos) {
+      if (!esDocumentoValido(tipo, numero)) {
+        toast.error(mensajeErrorDocumento(tipo, rol))
+        return false
+      }
     }
 
     // Validar telefonos (9 digitos, formato: 999 999 999)
@@ -434,7 +512,7 @@ const RegistroEncomiendaPage = () => {
 
     // Validar datos de factura (solo si se selecciono factura y NO es pago al recojo)
     if (!pagoAlRecojo && tipoDocumento === 'FACTURA') {
-      if (!clienteFactura.ruc || clienteFactura.ruc.length !== 11) {
+      if (!esDocumentoValido(CODIGO_RUC, clienteFactura.ruc)) {
         toast.error('El RUC debe tener 11 digitos')
         return false
       }
@@ -471,13 +549,13 @@ const RegistroEncomiendaPage = () => {
         remitente: {
           nombre: formData.remitenteNombre,
           dni: formData.remitenteDni,
-          tipoDocumento: formData.remitenteDni.length === 11 ? '6' : '1',
+          tipoDocumento: formData.remitenteTipoDoc,
           telefono: formData.remitenteTelefono.replace(/\s/g, '')
         },
         destinatario: {
           nombre: formData.destinatarioNombre,
           dni: formData.destinatarioDni || null,
-          tipoDocumento: formData.destinatarioDni?.length === 11 ? '6' : '1',
+          tipoDocumento: formData.destinatarioTipoDoc,
           telefono: formData.destinatarioTelefono.replace(/\s/g, '')
         },
         paquete: {
@@ -537,9 +615,11 @@ const RegistroEncomiendaPage = () => {
       idPuntoOrigen: '',
       idPuntoDestino: '',
       remitenteNombre: '',
+      remitenteTipoDoc: CODIGO_DNI,
       remitenteDni: '',
       remitenteTelefono: '',
       destinatarioNombre: '',
+      destinatarioTipoDoc: CODIGO_DNI,
       destinatarioDni: '',
       destinatarioTelefono: '',
       tipoPaquete: '',
@@ -554,6 +634,7 @@ const RegistroEncomiendaPage = () => {
     setComprobanteRegistrado(null)
     setClienteEncontrado(null)
     setDestinatarioEncontrado(null)
+    setDestinatarioAutocompletado(false)
     setPuntosACanjear(0)
     setTipoDocumento('')
     setClienteFactura({ ruc: '', razonSocial: '', direccion: '' })
@@ -646,13 +727,14 @@ const RegistroEncomiendaPage = () => {
               {/* Busqueda de Cliente */}
               <div className="mb-4">
                 <ClienteCombobox
-                  label="Buscar Cliente (DNI o Nombre)"
+                  label="Buscar Cliente (Documento o Nombre)"
                   value={clienteEncontrado}
                   onChange={(cliente) => {
                     setClienteEncontrado(cliente)
                     setFormData(prev => ({
                       ...prev,
                       remitenteNombre: cliente.nombreCompleto,
+                      remitenteTipoDoc: detectarTipoDocumento(cliente.documentoIdentidad),
                       remitenteDni: cliente.documentoIdentidad,
                       remitenteTelefono: formatTelefono(cliente.telefono || '')
                     }))
@@ -663,12 +745,13 @@ const RegistroEncomiendaPage = () => {
                     setFormData(prev => ({
                       ...prev,
                       remitenteNombre: '',
+                      remitenteTipoDoc: CODIGO_DNI,
                       remitenteDni: '',
                       remitenteTelefono: ''
                     }))
                     setPuntosACanjear(0)
                   }}
-                  placeholder="Buscar por DNI o nombre del cliente..."
+                  placeholder="Buscar por documento o nombre del cliente..."
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Si el cliente no existe, complete los datos manualmente abajo
@@ -689,33 +772,14 @@ const RegistroEncomiendaPage = () => {
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    DNI / RUC *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="remitenteDni"
-                      value={formData.remitenteDni}
-                      onChange={handleDniChange}
-                      placeholder="12345678 o 20123456789"
-                      maxLength={11}
-                      inputMode="numeric"
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    />
-                    {buscandoCliente && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-                  </div>
-                  {clienteEncontrado && !clienteEncontrado.id && formData.remitenteDni.length === 8 && (
-                    <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                      Cliente nuevo - se registrara automaticamente
-                    </p>
-                  )}
-                </div>
+                <DocumentoIdentidadInput
+                  name="remitenteDni"
+                  tipo={formData.remitenteTipoDoc}
+                  numero={formData.remitenteDni}
+                  onChange={handleRemitenteDocumentoChange}
+                  buscando={buscandoCliente}
+                  color="blue"
+                />
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Telefono *
@@ -782,13 +846,15 @@ const RegistroEncomiendaPage = () => {
               {/* Busqueda de Destinatario */}
               <div className="mb-4">
                 <ClienteCombobox
-                  label="Buscar Destinatario (DNI o Nombre)"
+                  label="Buscar Destinatario (Documento o Nombre)"
                   value={destinatarioEncontrado}
                   onChange={(cliente) => {
                     setDestinatarioEncontrado(cliente)
+                    setDestinatarioAutocompletado(Boolean(cliente.nombreCompleto))
                     setFormData(prev => ({
                       ...prev,
                       destinatarioNombre: cliente.nombreCompleto,
+                      destinatarioTipoDoc: detectarTipoDocumento(cliente.documentoIdentidad),
                       destinatarioDni: cliente.documentoIdentidad,
                       destinatarioTelefono: formatTelefono(cliente.telefono || '')
                     }))
@@ -796,15 +862,17 @@ const RegistroEncomiendaPage = () => {
                   }}
                   onClear={() => {
                     setDestinatarioEncontrado(null)
+                    setDestinatarioAutocompletado(false)
                     setFormData(prev => ({
                       ...prev,
                       destinatarioNombre: '',
+                      destinatarioTipoDoc: CODIGO_DNI,
                       destinatarioDni: '',
                       destinatarioTelefono: ''
                     }))
                     setErrorBusquedaDestinatario('')
                   }}
-                  placeholder="Buscar por DNI o nombre del destinatario..."
+                  placeholder="Buscar por documento o nombre del destinatario..."
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Si el destinatario no existe, complete los datos manualmente abajo
@@ -813,71 +881,14 @@ const RegistroEncomiendaPage = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    DNI / RUC *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      name="destinatarioDni"
-                      value={formData.destinatarioDni}
-                      onChange={async (e) => {
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 11)
-                        setErrorBusquedaDestinatario('')
-                        setFormData(prev => ({
-                          ...prev,
-                          destinatarioDni: value,
-                          destinatarioNombre: ''
-                        }))
-                        // Si se selecciono un cliente del combobox y cambia el DNI, limpiar seleccion
-                        if (destinatarioEncontrado && value !== destinatarioEncontrado.documentoIdentidad) {
-                          setDestinatarioEncontrado(null)
-                        }
-                        // Auto-busqueda cuando se completa el DNI (8) o RUC (11)
-                        // IMPORTANTE: Si tiene 8 digitos pero empieza con "10" o "20", es un RUC en progreso
-                        const esRucEnProgreso = value.length === 8 && (value.startsWith('10') || value.startsWith('20'))
-                        const debeBuscar = (value.length === 8 && !esRucEnProgreso) || value.length === 11
-
-                        if (debeBuscar) {
-                          setBuscandoDestinatario(true)
-                          // Resetear el hook para permitir consultas repetidas del mismo documento
-                          resetDocLookup()
-                          const result = value.length === 8
-                            ? await consultarDni(value)
-                            : await consultarRuc(value)
-                          setBuscandoDestinatario(false)
-                          if (result) {
-                            setErrorBusquedaDestinatario('')
-                            setFormData(prev => ({
-                              ...prev,
-                              destinatarioNombre: result.nombre_completo || result.razon_social || result.nombre_o_razon_social || '',
-                              destinatarioTelefono: result.telefono ? formatTelefono(result.telefono) : prev.destinatarioTelefono
-                            }))
-                            // Si es RUC y tipo de comprobante es Factura, auto-llenar datos de factura
-                            if (value.length === 11 && tipoDocumento === 'FACTURA') {
-                              setClienteFactura({
-                                ruc: value,
-                                razonSocial: result.razon_social || result.nombre_o_razon_social || '',
-                                direccion: result.direccion || result.direccion_completa || result.domicilio_fiscal || ''
-                              })
-                              setErrorBusquedaRuc('')
-                            }
-                          } else {
-                            setErrorBusquedaDestinatario(value.length === 8 ? 'DNI no encontrado. Ingrese el nombre manualmente.' : 'RUC no encontrado. Ingrese la razón social manualmente.')
-                          }
-                        }
-                      }}
-                      placeholder="12345678 o 20123456789"
-                      maxLength={11}
-                      inputMode="numeric"
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    />
-                    {buscandoDestinatario && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-                  </div>
+                  <DocumentoIdentidadInput
+                    name="destinatarioDni"
+                    tipo={formData.destinatarioTipoDoc}
+                    numero={formData.destinatarioDni}
+                    onChange={handleDestinatarioDocumentoChange}
+                    buscando={buscandoDestinatario}
+                    color="purple"
+                  />
                   {errorBusquedaDestinatario && (
                     <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" />
@@ -895,11 +906,11 @@ const RegistroEncomiendaPage = () => {
                     value={formData.destinatarioNombre}
                     onChange={handleChange}
                     placeholder="Nombre del destinatario o razon social"
-                    readOnly={(formData.destinatarioDni.length === 8 || formData.destinatarioDni.length === 11) && formData.destinatarioNombre !== ''}
-                    className={`w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none ${(formData.destinatarioDni.length === 8 || formData.destinatarioDni.length === 11) && formData.destinatarioNombre !== '' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    readOnly={destinatarioAutocompletado}
+                    className={`w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none ${destinatarioAutocompletado ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   />
-                  {(formData.destinatarioDni.length === 8 || formData.destinatarioDni.length === 11) && formData.destinatarioNombre !== '' && (
-                    <p className="text-xs text-gray-500 mt-1">Autocompletado con datos del {formData.destinatarioDni.length === 11 ? 'RUC' : 'DNI'}</p>
+                  {destinatarioAutocompletado && (
+                    <p className="text-xs text-gray-500 mt-1">Autocompletado con datos del {obtenerTipoDocumento(formData.destinatarioTipoDoc).sigla}</p>
                   )}
                 </div>
                 <div>
@@ -1121,7 +1132,7 @@ const RegistroEncomiendaPage = () => {
                         // Si se selecciona Factura y el destinatario tiene un RUC, auto-llenar datos de factura
                         if (tipo.value === 'FACTURA') {
                           const dniDest = formData.destinatarioDni
-                          const esRuc = dniDest.length === 11 && (dniDest.startsWith('10') || dniDest.startsWith('20'))
+                          const esRuc = formData.destinatarioTipoDoc === CODIGO_RUC && esDocumentoValido(CODIGO_RUC, dniDest)
                           if (esRuc && clienteFactura.ruc !== dniDest) {
                             setClienteFactura(prev => ({ ...prev, ruc: dniDest }))
                             resetDocLookup()
@@ -1211,7 +1222,7 @@ const RegistroEncomiendaPage = () => {
                               direccion: ''
                             }))
                             // Auto-busqueda cuando se completa el RUC
-                            if (value.length === 11) {
+                            if (esDocumentoValido(CODIGO_RUC, value)) {
                               // Siempre consultar API para obtener razón social Y dirección fiscal
                               resetDocLookup()
                               const result = await consultarRuc(value)
@@ -1482,7 +1493,7 @@ const RegistroEncomiendaPage = () => {
                   <div>
                     <p className="text-xs text-gray-500 uppercase mb-1">REMITENTE</p>
                     <p className="font-medium">{encomiendaRegistrada.remitenteNombre}</p>
-                    <p className="text-sm text-gray-600">DNI: {encomiendaRegistrada.remitenteDni}</p>
+                    <p className="text-sm text-gray-600">{siglaDocumento(encomiendaRegistrada.remitenteDni)}: {encomiendaRegistrada.remitenteDni}</p>
                     <p className="text-sm text-gray-600">Tel: {encomiendaRegistrada.remitenteTelefono}</p>
                   </div>
 
@@ -1491,7 +1502,7 @@ const RegistroEncomiendaPage = () => {
                     <p className="text-xs text-gray-500 uppercase mb-1">DESTINATARIO</p>
                     <p className="font-medium">{encomiendaRegistrada.destinatarioNombre}</p>
                     {encomiendaRegistrada.destinatario_dni && (
-                      <p className="text-sm text-gray-600">DNI: {encomiendaRegistrada.destinatario_dni}</p>
+                      <p className="text-sm text-gray-600">{siglaDocumento(encomiendaRegistrada.destinatario_dni)}: {encomiendaRegistrada.destinatario_dni}</p>
                     )}
                     <p className="text-sm text-gray-600">Tel: {encomiendaRegistrada.destinatarioTelefono}</p>
                   </div>

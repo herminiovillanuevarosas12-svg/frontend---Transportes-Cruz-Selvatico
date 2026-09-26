@@ -18,6 +18,7 @@ import bluetoothPrinter from '../../services/bluetoothPrinter'
 import { PRINTER_PROFILES } from '../../services/printing/profiles'
 import { setPrintPageSize, clearPrintPageSize } from '../../utils/printPageSize'
 import useDocLookup from '../../hooks/useDocLookup'
+import { detectarTipoDocumento, CODIGO_RUC } from '../../utils/documentoIdentidad'
 import { generarListaEncomiendasPDF } from '../../components/encomiendas/encomiendasListaPDF'
 import { comprimirImagenADataUrl, mensajeErrorImagen } from '../../utils/imageCompression'
 import {
@@ -564,7 +565,7 @@ const EncomiendasIndexPage = () => {
       serie: 'BT74',
       incluyeIgv: configSunat?.exoneradoIgv ? false : true,
       cliente: {
-        tipoDoc: '1',
+        tipoDoc: detectarTipoDocumento(encomienda.remitenteDni || ''),
         numDoc: encomienda.remitenteDni || '',
         razonSocial: encomienda.remitenteNombre || '',
         direccion: ''
@@ -1534,12 +1535,24 @@ const EncomiendasIndexPage = () => {
               <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
               <select
                 value={facturarForm.tipoComprobante}
-                onChange={(e) => setFacturarForm(prev => ({
-                  ...prev,
-                  tipoComprobante: e.target.value,
-                  serie: e.target.value === '01' ? 'FT74' : 'BT74',
-                  cliente: { ...prev.cliente, tipoDoc: e.target.value === '01' ? '6' : '1' }
-                }))}
+                onChange={(e) => {
+                  // Factura exige RUC: si el documento actual no es RUC se limpia para evitar
+                  // emitir una factura con DNI y nombre de persona
+                  const esFactura = e.target.value === '01'
+                  setErrorBusquedaDoc('')
+                  setFacturarForm(prev => {
+                    const tipoDocActual = detectarTipoDocumento(prev.cliente.numDoc || '')
+                    const mantieneDoc = !esFactura || tipoDocActual === CODIGO_RUC
+                    return {
+                      ...prev,
+                      tipoComprobante: e.target.value,
+                      serie: esFactura ? 'FT74' : 'BT74',
+                      cliente: mantieneDoc
+                        ? { ...prev.cliente, tipoDoc: esFactura ? CODIGO_RUC : tipoDocActual }
+                        : { tipoDoc: CODIGO_RUC, numDoc: '', razonSocial: '', direccion: '' }
+                    }
+                  })
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
               >
                 <option value="03">Boleta</option>
