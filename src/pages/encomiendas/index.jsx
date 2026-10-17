@@ -6,8 +6,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint, QRGenerator, RotuloEncomiendaPrint, RotuloPreviewModal } from '../../components/common'
-import { PermissionGate } from '../../features/auth'
+import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint, QRGenerator, RotuloEncomiendaPrint, RotuloPreviewModal, DocumentoIdentidadInput, GuiaEntregaPrint } from '../../components/common'
+import { PermissionGate, useAuthStore } from '../../features/auth'
 import encomiendasService from '../../services/encomiendasService'
 import { getUploadUrl } from '../../services/apiClient'
 import facturacionService from '../../services/facturacionService'
@@ -18,8 +18,22 @@ import bluetoothPrinter from '../../services/bluetoothPrinter'
 import { PRINTER_PROFILES } from '../../services/printing/profiles'
 import { setPrintPageSize, clearPrintPageSize } from '../../utils/printPageSize'
 import useDocLookup from '../../hooks/useDocLookup'
-import { detectarTipoDocumento, CODIGO_RUC } from '../../utils/documentoIdentidad'
+import {
+  TIPOS_DOCUMENTO,
+  CODIGO_DNI,
+  CODIGO_RUC,
+  detectarTipoDocumento,
+  normalizarDocumento,
+  ajustarTipoPorNumero,
+  obtenerTipoDocumento,
+  esDocumentoValido,
+  mensajeErrorDocumento,
+  siglaDocumento
+} from '../../utils/documentoIdentidad'
 import { generarListaEncomiendasPDF } from '../../components/encomiendas/encomiendasListaPDF'
+import { generarGuiaEntregaPDF } from '../../components/encomiendas/guiaEntregaPDF'
+import { generarManifiestoPDF } from '../../components/encomiendas/manifiestoEncomiendasPDF'
+import { esSeleccionableParaManifiesto, resumirSeleccionManifiesto } from '../../utils/manifiestoEncomiendas'
 import { comprimirImagenADataUrl, mensajeErrorImagen } from '../../utils/imageCompression'
 import {
   Package,
@@ -47,12 +61,16 @@ import {
   Bluetooth,
   BluetoothConnected,
   BluetoothOff,
-  FileDown
+  FileDown,
+  ClipboardList,
+  FileStack
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const EncomiendasIndexPage = () => {
   const navigate = useNavigate()
+  const user = useAuthStore(state => state.user)
+  const hasPermission = useAuthStore(state => state.hasPermission)
   const [encomiendas, setEncomiendas] = useState([])
   const [loading, setLoading] = useState(false)
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 })
@@ -69,6 +87,16 @@ const EncomiendasIndexPage = () => {
 
   // Exportación PDF
   const [exportandoPdf, setExportandoPdf] = useState(false)
+
+  // Manifiesto de encomiendas: selección de encomiendas En ruta (id -> encomienda, persiste entre páginas)
+  const [modoManifiesto, setModoManifiesto] = useState(false)
+  const [seleccionManifiesto, setSeleccionManifiesto] = useState({})
+  const [generandoManifiesto, setGenerandoManifiesto] = useState(false)
+  const [descargandoManifiesto, setDescargandoManifiesto] = useState(null)
+  const [manifiestosModal, setManifiestosModal] = useState(false)
+  const [manifiestos, setManifiestos] = useState([])
+  const [manifiestosPagination, setManifiestosPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 })
+  const [cargandoManifiestos, setCargandoManifiestos] = useState(false)
 
   // Modal de detalle
   const [detalleModal, setDetalleModal] = useState({ open: false, encomienda: null })
@@ -106,7 +134,7 @@ const EncomiendasIndexPage = () => {
   const [procesandoGuia, setProcesandoGuia] = useState(false)
 
   // Hook para auto-busqueda de DNI/RUC
-  const { loading: buscandoDoc, consultarDni, consultarRuc, reset: resetDocLookup } = useDocLookup()
+  const { loading: buscandoDoc, consultarDni, consultarRuc, consultarDocumentoDiferido, reset: resetDocLookup } = useDocLookup()
   const [errorBusquedaDoc, setErrorBusquedaDoc] = useState('')
 
   // Datos de empresa para impresión
@@ -123,11 +151,16 @@ const EncomiendasIndexPage = () => {
 
   // Modal de entrega
   const [entregarModal, setEntregarModal] = useState({ open: false, encomienda: null })
-  const [entregarForm, setEntregarForm] = useState({ dniRetiro: '', nota: '', claveIngresada: '' })
+  const [entregarForm, setEntregarForm] = useState({ tipoDocRetiro: CODIGO_DNI, dniRetiro: '', nombreRetiro: '', nota: '', claveIngresada: '' })
   const [fotoEntrega, setFotoEntrega] = useState(null)
   const [procesandoEntrega, setProcesandoEntrega] = useState(false)
   const [encomiendaDetalleEntrega, setEncomiendaDetalleEntrega] = useState(null)
   const fotoEntregaRef = useRef(null)
+
+  // Entrega confirmada: datos de quien recibe para imprimir la guía de entrega
+  const [entregaRegistrada, setEntregaRegistrada] = useState(null)
+  const [guiaEntregaData, setGuiaEntregaData] = useState(null)
+  const [preparandoGuiaEntrega, setPreparandoGuiaEntrega] = useState(false)
 
   // Control de impresion
   const [printTarget, setPrintTarget] = useState(null)
@@ -220,7 +253,11 @@ const EncomiendasIndexPage = () => {
 
       const response = await encomiendasService.listar(params)
       setEncomiendas(response.encomiendas || [])
-      setPagination(prev => ({ ...prev, total: response.total || 0 }))
+      setPagination(prev => ({
+        ...prev,
+        total: response.pagination?.total || 0,
+        totalPages: response.pagination?.totalPages || 1
+      }))
     } catch (error) {
       console.error('Error cargando encomiendas:', error)
       toast.error('Error al cargar encomiendas')
@@ -302,6 +339,113 @@ const EncomiendasIndexPage = () => {
     }
   }
 
+  // Manifiesto: entrar al modo selección mostrando solo las encomiendas En ruta
+  const handleIniciarManifiesto = () => {
+    setModoManifiesto(true)
+    setSeleccionManifiesto({})
+    setShowFilters(true)
+    setFilters(prev => ({ ...prev, estado: 'EN_RUTA' }))
+    setPagination(prev => ({ ...prev, page: 1 }))
+  }
+
+  const handleCancelarManifiesto = () => {
+    setModoManifiesto(false)
+    setSeleccionManifiesto({})
+  }
+
+  const toggleSeleccionManifiesto = (encomienda) => {
+    setSeleccionManifiesto(prev => {
+      const siguiente = { ...prev }
+      if (siguiente[encomienda.id]) delete siguiente[encomienda.id]
+      else siguiente[encomienda.id] = encomienda
+      return siguiente
+    })
+  }
+
+  const seleccionablesPagina = encomiendas.filter(esSeleccionableParaManifiesto)
+  const paginaSeleccionada = seleccionablesPagina.length > 0 &&
+    seleccionablesPagina.every(e => seleccionManifiesto[e.id])
+
+  const toggleSeleccionPagina = () => {
+    setSeleccionManifiesto(prev => {
+      const siguiente = { ...prev }
+      seleccionablesPagina.forEach(e => {
+        if (paginaSeleccionada) delete siguiente[e.id]
+        else siguiente[e.id] = e
+      })
+      return siguiente
+    })
+  }
+
+  const resumenSeleccion = resumirSeleccionManifiesto(Object.values(seleccionManifiesto))
+
+  const handleGenerarManifiesto = async () => {
+    const ids = Object.keys(seleccionManifiesto).map(Number)
+    if (ids.length === 0) {
+      toast.error('Seleccione al menos una encomienda En ruta')
+      return
+    }
+
+    try {
+      setGenerandoManifiesto(true)
+      const { mensaje, manifiesto } = await encomiendasService.generarManifiesto(ids)
+      toast.success(mensaje)
+      setModoManifiesto(false)
+      setSeleccionManifiesto({})
+      cargarEncomiendas()
+      try {
+        await generarManifiestoPDF(manifiesto)
+      } catch (errorPdf) {
+        console.error('Error generando PDF del manifiesto:', errorPdf)
+        toast.error(`El manifiesto ${manifiesto.numeroCompleto} se generó, pero falló la descarga del PDF. Descárguelo desde "Manifiestos".`)
+      }
+    } catch (error) {
+      console.error('Error generando manifiesto:', error)
+      toast.error(error.response?.data?.error || 'Error al generar el manifiesto')
+      // Otra persona pudo incluir alguna encomienda: refrescar para mostrar los bloqueos
+      if (error.response?.status === 409) cargarEncomiendas()
+    } finally {
+      setGenerandoManifiesto(false)
+    }
+  }
+
+  const handleDescargarManifiesto = async (idManifiesto) => {
+    try {
+      setDescargandoManifiesto(idManifiesto)
+      const { manifiesto } = await encomiendasService.obtenerManifiesto(idManifiesto)
+      await generarManifiestoPDF(manifiesto)
+    } catch (error) {
+      console.error('Error descargando manifiesto:', error)
+      toast.error(error.response?.data?.error || 'Error al descargar el manifiesto')
+    } finally {
+      setDescargandoManifiesto(null)
+    }
+  }
+
+  const cargarManifiestos = async (page = 1) => {
+    try {
+      setCargandoManifiestos(true)
+      const response = await encomiendasService.listarManifiestos({ page, limit: manifiestosPagination.limit })
+      setManifiestos(response.manifiestos || [])
+      setManifiestosPagination(prev => ({
+        ...prev,
+        page,
+        total: response.pagination?.total || 0,
+        totalPages: response.pagination?.totalPages || 1
+      }))
+    } catch (error) {
+      console.error('Error cargando manifiestos:', error)
+      toast.error('Error al cargar los manifiestos')
+    } finally {
+      setCargandoManifiestos(false)
+    }
+  }
+
+  const handleAbrirManifiestos = () => {
+    setManifiestosModal(true)
+    cargarManifiestos(1)
+  }
+
   // Función para ver comprobante emitido
   const handleVerComprobante = async (encomienda) => {
     const comprobanteId = encomienda.idComprobante || encomienda.id_comprobante
@@ -373,9 +517,11 @@ const EncomiendasIndexPage = () => {
 
   // Funciones de entrega
   const handleAbrirEntregarModal = async (encomienda) => {
-    setEntregarForm({ dniRetiro: '', nota: '', claveIngresada: '' })
+    resetDocLookup()
+    setEntregarForm({ tipoDocRetiro: CODIGO_DNI, dniRetiro: '', nombreRetiro: '', nota: '', claveIngresada: '' })
     setFotoEntrega(null)
     setEncomiendaDetalleEntrega(null)
+    setEntregaRegistrada(null)
     setEntregarModal({ open: true, encomienda })
     try {
       const response = await encomiendasService.obtener(encomienda.id)
@@ -383,6 +529,27 @@ const EncomiendasIndexPage = () => {
     } catch (error) {
       console.error('Error cargando detalle para entrega:', error)
     }
+  }
+
+  const cerrarEntregarModal = () => {
+    setEntregarModal({ open: false, encomienda: null })
+    setEntregaRegistrada(null)
+  }
+
+  // Documento de quien retira: limpia el nombre y lo autocompleta desde RENIEC/SUNAT,
+  // los clientes registrados o, si el documento coincide, el destinatario.
+  const handleDocumentoEntregaChange = async ({ tipo, numero }) => {
+    setEntregarForm(prev => ({ ...prev, tipoDocRetiro: tipo, dniRetiro: numero, nombreRetiro: '' }))
+    if (!esDocumentoValido(tipo, numero)) return
+
+    const result = await consultarDocumentoDiferido(numero, { tipo })
+    if (result === undefined) return // cancelada por una escritura posterior
+    const dniDestinatario = String(encomiendaDetalleEntrega?.destinatario_dni || '').trim().toUpperCase()
+    const nombre = result?.nombre_completo || result?.razon_social
+      || (numero === dniDestinatario ? encomiendaDetalleEntrega?.destinatarioNombre : '')
+    if (!nombre) return
+    // No pisar un nombre que el usuario escribió mientras se consultaba
+    setEntregarForm(prev => (prev.nombreRetiro ? prev : { ...prev, nombreRetiro: nombre }))
   }
 
   const handleFotoEntregaChange = async (e) => {
@@ -402,11 +569,33 @@ const EncomiendasIndexPage = () => {
     }
   }
 
-  const confirmarEntrega = async () => {
-    if (!entregarForm.dniRetiro || entregarForm.dniRetiro.length !== 8) {
-      toast.error('Ingrese un DNI valido de 8 digitos')
-      return
+  // Datos de quien recibe tomados del formulario (valida documento y nombre).
+  // Sirven para confirmar la entrega y para imprimir la guía antes de confirmarla.
+  const entregaDesdeFormulario = () => {
+    if (!esDocumentoValido(entregarForm.tipoDocRetiro, entregarForm.dniRetiro)) {
+      toast.error(mensajeErrorDocumento(entregarForm.tipoDocRetiro, 'quien retira'))
+      return null
     }
+    const nombre = entregarForm.nombreRetiro.trim()
+    if (!nombre) {
+      toast.error('Ingrese el nombre de quien retira')
+      return null
+    }
+    return {
+      encomiendaId: entregarModal.encomienda.id,
+      nombre,
+      tipoDoc: entregarForm.tipoDocRetiro,
+      numeroDoc: entregarForm.dniRetiro,
+      fecha: new Date().toISOString(),
+      atendidoPor: user?.nombres || '',
+      nota: entregarForm.nota.trim(),
+      comprobante: ''
+    }
+  }
+
+  const confirmarEntrega = async () => {
+    const entrega = entregaDesdeFormulario()
+    if (!entrega) return
     const tieneClave = encomiendaDetalleEntrega?.clave_seguridad || encomiendaDetalleEntrega?.claveSeguridad
     if (tieneClave && !entregarForm.claveIngresada) {
       toast.error('Ingrese la clave de seguridad')
@@ -414,20 +603,71 @@ const EncomiendasIndexPage = () => {
     }
     try {
       setProcesandoEntrega(true)
-      await encomiendasService.retirar(entregarModal.encomienda.id, {
-        dniRetiro: entregarForm.dniRetiro,
+      const response = await encomiendasService.retirar(entrega.encomiendaId, {
+        dniRetiro: entrega.numeroDoc,
+        tipoDocRetiro: entrega.tipoDoc,
+        nombreRetiro: entrega.nombre,
         fotoBase64: fotoEntrega || undefined,
-        nota: entregarForm.nota || 'Entrega registrada desde lista',
+        nota: entrega.nota ? `Retiro por: ${entrega.nombre} - ${entrega.nota}` : `Retiro por: ${entrega.nombre}`,
         claveIngresada: entregarForm.claveIngresada || undefined
       })
       toast.success('Entrega registrada exitosamente')
-      setEntregarModal({ open: false, encomienda: null })
+      // El modal queda abierto en modo "entrega registrada" para imprimir la guía de entrega
+      setEntregaRegistrada({
+        ...entrega,
+        fecha: response.encomienda?.dateTimeModification || entrega.fecha,
+        comprobante: response.comprobante?.numeroCompleto || ''
+      })
       cargarEncomiendas()
     } catch (error) {
       console.error('Error registrando entrega:', error)
       toast.error(error.response?.data?.error || 'Error al registrar entrega')
     } finally {
       setProcesandoEntrega(false)
+    }
+  }
+
+  // Guía de entrega (80mm): datos de la encomienda + firma de recepción de quien retira.
+  // Antes de confirmar usa los datos del formulario; después, los de la entrega registrada.
+  const handleImprimirGuiaEntrega = async () => {
+    const entrega = entregaRegistrada || entregaDesdeFormulario()
+    if (!entrega) return
+    try {
+      setPreparandoGuiaEntrega(true)
+      const response = await encomiendasService.imprimir(entrega.encomiendaId)
+      setGuiaEntregaData({ encomienda: response.encomienda, entrega })
+      setPrintTarget('entrega')
+      setPrintPageSize('guia')
+
+      setTimeout(() => {
+        try { window.print() } catch (err) {
+          debugLog.error('print:entrega', 'window.print() excepción', { err: String(err) })
+        }
+        setTimeout(() => {
+          setPrintTarget(null)
+          clearPrintPageSize()
+        }, 500)
+      }, 300)
+    } catch (error) {
+      console.error('Error preparando guía de entrega:', error)
+      toast.error('Error al preparar la guía de entrega')
+    } finally {
+      setPreparandoGuiaEntrega(false)
+    }
+  }
+
+  const handleDescargarGuiaEntrega = async () => {
+    const entrega = entregaRegistrada || entregaDesdeFormulario()
+    if (!entrega) return
+    try {
+      setPreparandoGuiaEntrega(true)
+      const response = await encomiendasService.imprimir(entrega.encomiendaId)
+      await generarGuiaEntregaPDF(response.encomienda, entrega)
+    } catch (error) {
+      console.error('Error generando PDF de guía de entrega:', error)
+      toast.error('Error al generar el PDF de la guía de entrega')
+    } finally {
+      setPreparandoGuiaEntrega(false)
     }
   }
 
@@ -572,6 +812,49 @@ const EncomiendasIndexPage = () => {
       }
     })
     setFacturarModal({ open: true, encomienda })
+  }
+
+  // Cambio de tipo de documento del cliente: adapta el número al nuevo tipo y limpia el nombre
+  const handleTipoDocFacturar = (tipoDoc) => {
+    setErrorBusquedaDoc('')
+    setFacturarForm(prev => ({
+      ...prev,
+      cliente: { tipoDoc, numDoc: normalizarDocumento(tipoDoc, prev.cliente.numDoc), razonSocial: '', direccion: '' }
+    }))
+  }
+
+  // Cambio del número: limpia el nombre y lo autocompleta desde RENIEC (DNI), SUNAT (RUC)
+  // o los clientes registrados (CE). La consulta es diferida: si el usuario sigue escribiendo se cancela.
+  const handleNumDocFacturar = async (valor) => {
+    const esFactura = facturarForm.tipoComprobante === '01'
+    const numDoc = normalizarDocumento(facturarForm.cliente.tipoDoc, valor)
+    const tipoDoc = esFactura ? CODIGO_RUC : ajustarTipoPorNumero(facturarForm.cliente.tipoDoc, numDoc)
+    setErrorBusquedaDoc('')
+    setFacturarForm(prev => ({
+      ...prev,
+      cliente: { ...prev.cliente, tipoDoc, numDoc, razonSocial: '', direccion: '' }
+    }))
+
+    if (!esDocumentoValido(tipoDoc, numDoc)) return
+
+    const result = await consultarDocumentoDiferido(numDoc, { tipo: tipoDoc })
+    if (result === undefined) return // cancelada por una escritura posterior
+    if (!result) {
+      if (obtenerTipoDocumento(tipoDoc).consultaApi) {
+        setErrorBusquedaDoc(tipoDoc === CODIGO_RUC
+          ? 'RUC no encontrado. Verifique que el número sea correcto.'
+          : 'DNI no encontrado. Ingrese el nombre manualmente.')
+      }
+      return
+    }
+    setFacturarForm(prev => ({
+      ...prev,
+      cliente: {
+        ...prev.cliente,
+        razonSocial: result.nombre_completo || result.razon_social || '',
+        direccion: tipoDoc === CODIGO_RUC ? (result.direccion || '') : ''
+      }
+    }))
   }
 
   const confirmarFacturacion = async () => {
@@ -744,10 +1027,31 @@ const EncomiendasIndexPage = () => {
     {
       key: 'estadoActual',
       header: 'Estado',
-      render: (value) => (
-        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getEstadoColor(value)}`}>
-          {value?.replace(/_/g, ' ') || 'N/A'}
-        </span>
+      render: (value, row) => (
+        <div className="flex flex-col items-start gap-1">
+          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getEstadoColor(value)}`}>
+            {value?.replace(/_/g, ' ') || 'N/A'}
+          </span>
+          {row.manifiesto && (
+            hasPermission('ENCOMIENDAS_MANIFIESTO') ? (
+              <button
+                type="button"
+                onClick={() => handleDescargarManifiesto(row.manifiesto.id)}
+                disabled={descargandoManifiesto === row.manifiesto.id}
+                className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-green-800 hover:underline disabled:opacity-50"
+                title="Descargar manifiesto"
+              >
+                <ClipboardList className="w-3 h-3" />
+                {row.manifiesto.numeroCompleto}
+              </button>
+            ) : (
+              <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-green-800">
+                <ClipboardList className="w-3 h-3" />
+                {row.manifiesto.numeroCompleto}
+              </span>
+            )
+          )}
+        </div>
       )
     },
     {
@@ -858,6 +1162,43 @@ const EncomiendasIndexPage = () => {
     }
   ]
 
+  // En modo manifiesto se antepone la columna de selección
+  const columnaSeleccion = {
+    key: 'seleccionManifiesto',
+    header: (
+      <input
+        type="checkbox"
+        className="w-4 h-4 accent-green-700"
+        checked={paginaSeleccionada}
+        onChange={toggleSeleccionPagina}
+        disabled={seleccionablesPagina.length === 0}
+        title="Seleccionar las encomiendas En ruta de esta página"
+      />
+    ),
+    render: (_, row) => {
+      if (row.manifiesto) {
+        return (
+          <span title={`Ya pertenece al manifiesto ${row.manifiesto.numeroCompleto}`}>
+            <Lock className="w-4 h-4 text-gray-400" />
+          </span>
+        )
+      }
+      const seleccionable = esSeleccionableParaManifiesto(row)
+      return (
+        <input
+          type="checkbox"
+          className="w-4 h-4 accent-green-700"
+          checked={Boolean(seleccionManifiesto[row.id])}
+          onChange={() => toggleSeleccionManifiesto(row)}
+          disabled={!seleccionable}
+          title={seleccionable ? 'Incluir en el manifiesto' : 'Solo se pueden incluir encomiendas En ruta'}
+        />
+      )
+    }
+  }
+
+  const columnasTabla = modoManifiesto ? [columnaSeleccion, ...columns] : columns
+
   return (
     <>
       <div className="space-y-6">
@@ -931,6 +1272,26 @@ const EncomiendasIndexPage = () => {
             >
               {exportandoPdf ? 'Exportando...' : 'Exportar PDF'}
             </Button>
+            <PermissionGate permission="ENCOMIENDAS_MANIFIESTO">
+              <Button
+                variant="outline"
+                icon={FileStack}
+                onClick={handleAbrirManifiestos}
+                title="Ver y descargar los manifiestos generados"
+              >
+                Manifiestos
+              </Button>
+              {!modoManifiesto && (
+                <Button
+                  variant="outline"
+                  icon={ClipboardList}
+                  onClick={handleIniciarManifiesto}
+                  title="Seleccionar encomiendas En ruta para generar un manifiesto"
+                >
+                  Generar Manifiesto
+                </Button>
+              )}
+            </PermissionGate>
             <PermissionGate permission="ENCOMIENDAS_REGISTRAR">
               <Button
                 icon={Plus}
@@ -964,7 +1325,7 @@ const EncomiendasIndexPage = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  DNI (Remitente/Destinatario)
+                  Documento (Remitente/Destinatario)
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -973,8 +1334,8 @@ const EncomiendasIndexPage = () => {
                     name="dni"
                     value={filters.dni}
                     onChange={handleFilterChange}
-                    placeholder="Buscar por DNI..."
-                    maxLength={8}
+                    placeholder="Buscar por documento..."
+                    maxLength={12}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
                   />
                 </div>
@@ -1030,10 +1391,48 @@ const EncomiendasIndexPage = () => {
           </Card>
         )}
 
+        {/* Barra de selección del manifiesto */}
+        {modoManifiesto && (
+          <Card className="border-2 border-green-600">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+              <div>
+                <p className="font-semibold text-gray-900">
+                  Generar manifiesto: seleccione las encomiendas En ruta
+                </p>
+                <p className="text-sm text-gray-600">
+                  {resumenSeleccion.cantidad} seleccionada{resumenSeleccion.cantidad !== 1 ? 's' : ''}
+                  {' · '}{resumenSeleccion.pesoTotal.toFixed(2)} kg
+                  {' · '}S/ {resumenSeleccion.fleteTotal.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Las que ya pertenecen a un manifiesto aparecen bloqueadas. El flujo de cada encomienda no cambia.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={handleCancelarManifiesto}
+                  disabled={generandoManifiesto}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  icon={ClipboardList}
+                  onClick={handleGenerarManifiesto}
+                  loading={generandoManifiesto}
+                  disabled={resumenSeleccion.cantidad === 0}
+                >
+                  Generar manifiesto ({resumenSeleccion.cantidad})
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Tabla */}
         <Card padding={false}>
           <Table
-            columns={columns}
+            columns={columnasTabla}
             data={encomiendas}
             loading={loading}
             emptyMessage="No hay encomiendas registradas"
@@ -1041,11 +1440,70 @@ const EncomiendasIndexPage = () => {
               page: pagination.page,
               limit: pagination.limit,
               total: pagination.total,
-              onPageChange: (page) => setPagination(prev => ({ ...prev, page }))
+              totalPages: pagination.totalPages
             }}
+            onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
           />
         </Card>
       </div>
+
+      {/* Modal Manifiestos generados */}
+      <Modal
+        isOpen={manifiestosModal}
+        onClose={() => setManifiestosModal(false)}
+        title="Manifiestos de encomiendas"
+        size="xl"
+      >
+        <Table
+          columns={[
+            {
+              key: 'numeroCompleto',
+              header: 'Numero',
+              render: (value) => <span className="whitespace-nowrap font-mono font-semibold text-gray-900">{value}</span>
+            },
+            {
+              key: 'fechaEmision',
+              header: 'Fecha',
+              render: (value) => <span className="text-sm text-gray-600">{formatTimestamp(value)}</span>
+            },
+            {
+              key: 'cantidad',
+              header: 'Encomiendas',
+              render: (value) => <span className="text-gray-900">{value}</span>
+            },
+            {
+              key: 'fleteTotal',
+              header: 'Flete total',
+              render: (value) => <span className="font-medium text-gray-900">S/ {Number(value || 0).toFixed(2)}</span>
+            },
+            {
+              key: 'usuarioEmision',
+              header: 'Generado por',
+              render: (value) => <span className="text-sm text-gray-600">{value}</span>
+            },
+            {
+              key: 'acciones',
+              header: '',
+              render: (_, row) => (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={FileDown}
+                  onClick={() => handleDescargarManifiesto(row.id)}
+                  loading={descargandoManifiesto === row.id}
+                >
+                  PDF
+                </Button>
+              )
+            }
+          ]}
+          data={manifiestos}
+          loading={cargandoManifiestos}
+          emptyMessage="Todavía no se ha generado ningún manifiesto"
+          pagination={manifiestosPagination}
+          onPageChange={cargarManifiestos}
+        />
+      </Modal>
 
 
       {/* Modal Detalle */}
@@ -1093,7 +1551,7 @@ const EncomiendasIndexPage = () => {
                 </div>
                 <div className="space-y-2 text-sm">
                   <p className="text-gray-900">{detalleModal.encomienda.remitenteNombre}</p>
-                  <p className="text-gray-500">DNI: {detalleModal.encomienda.remitenteDni}</p>
+                  <p className="text-gray-500">{siglaDocumento(detalleModal.encomienda.remitenteDni)}: {detalleModal.encomienda.remitenteDni}</p>
                   <div className="flex items-center gap-1 text-gray-500">
                     <Phone className="w-4 h-4" />
                     {detalleModal.encomienda.remitenteTelefono}
@@ -1212,7 +1670,7 @@ const EncomiendasIndexPage = () => {
                           {/* DNI de retiro si existe */}
                           {evento.dniRetiro && (
                             <p className="text-sm text-gray-600 mt-2">
-                              <strong>DNI de quien retira:</strong> {evento.dniRetiro}
+                              <strong>Documento de quien retira:</strong> {evento.dniRetiro}
                             </p>
                           )}
 
@@ -1449,6 +1907,13 @@ const EncomiendasIndexPage = () => {
         </div>
       )}
 
+      {/* Area de impresion Guia de Entrega - con firma de recepcion */}
+      {guiaEntregaData && printTarget === 'entrega' && (
+        <div className="print-area" id="guia-entrega-print">
+          <GuiaEntregaPrint encomienda={guiaEntregaData.encomienda} entrega={guiaEntregaData.entrega} />
+        </div>
+      )}
+
       {/* Area de impresion Rotulo Adhesivo 76x76mm.
           Se renderiza via portal como hijo directo de <body>: al imprimir,
           el CSS (.printing-rotulo) oculta #root con display:none para que
@@ -1582,14 +2047,16 @@ const EncomiendasIndexPage = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Doc.</label>
                 <select
                   value={facturarForm.cliente.tipoDoc}
-                  onChange={(e) => setFacturarForm(prev => ({
-                    ...prev,
-                    cliente: { ...prev.cliente, tipoDoc: e.target.value }
-                  }))}
+                  onChange={(e) => handleTipoDocFacturar(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
                 >
-                  <option value="1">DNI</option>
-                  <option value="6">RUC</option>
+                  {facturarForm.tipoComprobante === '01' ? (
+                    <option value={CODIGO_RUC}>RUC</option>
+                  ) : (
+                    TIPOS_DOCUMENTO.map(t => (
+                      <option key={t.codigo} value={t.codigo} title={t.nombre}>{t.sigla}</option>
+                    ))
+                  )}
                 </select>
               </div>
               <div>
@@ -1598,46 +2065,11 @@ const EncomiendasIndexPage = () => {
                   <input
                     type="text"
                     value={facturarForm.cliente.numDoc}
-                    onChange={async (e) => {
-                      const value = e.target.value.replace(/\D/g, '')
-                      setErrorBusquedaDoc('')
-                      setFacturarForm(prev => ({
-                        ...prev,
-                        cliente: { ...prev.cliente, numDoc: value, razonSocial: '', direccion: '' }
-                      }))
-                      // Auto-busqueda cuando se completa el documento
-                      if (facturarForm.cliente.tipoDoc === '6' && value.length === 11) {
-                        const result = await consultarRuc(value)
-                        if (result) {
-                          setErrorBusquedaDoc('')
-                          setFacturarForm(prev => ({
-                            ...prev,
-                            cliente: {
-                              ...prev.cliente,
-                              razonSocial: result.razon_social || result.nombre_o_razon_social || '',
-                              direccion: result.direccion || result.domicilio_fiscal || ''
-                            }
-                          }))
-                        } else {
-                          setErrorBusquedaDoc('RUC no encontrado. Verifique que el número sea correcto.')
-                        }
-                      } else if (facturarForm.cliente.tipoDoc === '1' && value.length === 8) {
-                        const result = await consultarDni(value)
-                        if (result) {
-                          setErrorBusquedaDoc('')
-                          setFacturarForm(prev => ({
-                            ...prev,
-                            cliente: {
-                              ...prev.cliente,
-                              razonSocial: result.nombre_completo || ''
-                            }
-                          }))
-                        } else {
-                          setErrorBusquedaDoc('DNI no encontrado. Verifique que el número sea correcto.')
-                        }
-                      }
-                    }}
-                    maxLength={facturarForm.cliente.tipoDoc === '6' ? 11 : 8}
+                    onChange={(e) => handleNumDocFacturar(e.target.value)}
+                    placeholder={obtenerTipoDocumento(facturarForm.cliente.tipoDoc).placeholder}
+                    maxLength={obtenerTipoDocumento(facturarForm.cliente.tipoDoc).alfanumerico ? 12 : 11}
+                    inputMode={obtenerTipoDocumento(facturarForm.cliente.tipoDoc).alfanumerico ? 'text' : 'numeric'}
+                    autoCapitalize="characters"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
                   />
                   {buscandoDoc && (
@@ -1885,12 +2317,13 @@ const EncomiendasIndexPage = () => {
                   value={guiaEncomiendaForm.conductor.tipoDoc}
                   onChange={(e) => setGuiaEncomiendaForm(prev => ({
                     ...prev,
-                    conductor: { ...prev.conductor, tipoDoc: e.target.value }
+                    conductor: { ...prev.conductor, tipoDoc: e.target.value, numDoc: normalizarDocumento(e.target.value, prev.conductor.numDoc) }
                   }))}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
                 >
-                  <option value="1">DNI</option>
-                  <option value="6">RUC</option>
+                  {TIPOS_DOCUMENTO.map(t => (
+                    <option key={t.codigo} value={t.codigo} title={t.nombre}>{t.sigla}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -1900,13 +2333,14 @@ const EncomiendasIndexPage = () => {
                     type="text"
                     value={guiaEncomiendaForm.conductor.numDoc}
                     onChange={async (e) => {
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 8)
+                      const value = normalizarDocumento(guiaEncomiendaForm.conductor.tipoDoc, e.target.value)
+                      const tipoDoc = ajustarTipoPorNumero(guiaEncomiendaForm.conductor.tipoDoc, value)
                       setGuiaEncomiendaForm(prev => ({
                         ...prev,
-                        conductor: { ...prev.conductor, numDoc: value }
+                        conductor: { ...prev.conductor, tipoDoc, numDoc: value }
                       }))
-                      // Auto-busqueda cuando se completa el DNI del conductor
-                      if (value.length === 8) {
+                      // Auto-busqueda cuando se completa el DNI del conductor (CE y RUC no tienen datos de persona)
+                      if (tipoDoc === CODIGO_DNI && value.length === 8) {
                         const result = await consultarDni(value, true) // skipLocal=true
                         if (result) {
                           setGuiaEncomiendaForm(prev => ({
@@ -1920,8 +2354,10 @@ const EncomiendasIndexPage = () => {
                         }
                       }
                     }}
-                    placeholder="12345678"
-                    maxLength={8}
+                    placeholder={obtenerTipoDocumento(guiaEncomiendaForm.conductor.tipoDoc).placeholder}
+                    maxLength={obtenerTipoDocumento(guiaEncomiendaForm.conductor.tipoDoc).alfanumerico ? 12 : 11}
+                    inputMode={obtenerTipoDocumento(guiaEncomiendaForm.conductor.tipoDoc).alfanumerico ? 'text' : 'numeric'}
+                    autoCapitalize="characters"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
                   />
                   {buscandoDoc && (
@@ -2042,27 +2478,82 @@ const EncomiendasIndexPage = () => {
       {/* Modal Entrega */}
       <Modal
         isOpen={entregarModal.open}
-        onClose={() => setEntregarModal({ open: false, encomienda: null })}
-        title="Registrar Entrega"
+        onClose={cerrarEntregarModal}
+        title={entregaRegistrada ? 'Entrega Registrada' : 'Registrar Entrega'}
+        size="lg"
         footer={
-          <>
+          <div className="flex flex-wrap items-center gap-2 w-full">
+            {/* Guía de entrega con firma de recepción: disponible antes y después de confirmar */}
             <Button
               variant="secondary"
-              onClick={() => setEntregarModal({ open: false, encomienda: null })}
+              size="sm"
+              icon={Printer}
+              onClick={handleImprimirGuiaEntrega}
+              disabled={preparandoGuiaEntrega}
+              title="Imprimir guía de entrega con firma de recepción"
             >
-              Cancelar
+              Imprimir guía
             </Button>
             <Button
-              onClick={confirmarEntrega}
-              disabled={procesandoEntrega}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
+              variant="secondary"
+              size="sm"
+              icon={FileDown}
+              onClick={handleDescargarGuiaEntrega}
+              disabled={preparandoGuiaEntrega}
+              title="Descargar guía de entrega en PDF"
             >
-              {procesandoEntrega ? 'Registrando...' : 'Confirmar Entrega'}
+              Descargar PDF
             </Button>
-          </>
+
+            <div className="flex items-center gap-2 ml-auto">
+              {entregaRegistrada ? (
+                <Button variant="secondary" onClick={cerrarEntregarModal}>
+                  Cerrar
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={cerrarEntregarModal}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={confirmarEntrega}
+                    disabled={procesandoEntrega}
+                    className="bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    {procesandoEntrega ? 'Registrando...' : 'Confirmar Entrega'}
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         }
       >
-        {entregarModal.encomienda && (
+        {entregarModal.encomienda && entregaRegistrada && (
+          <div className="text-center py-2">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8 text-green-600" />
+            </div>
+            <p className="text-gray-900">
+              Encomienda <strong>{entregarModal.encomienda.codigoTracking}</strong> entregada
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              Recibe: {entregaRegistrada.nombre} ({obtenerTipoDocumento(entregaRegistrada.tipoDoc).sigla} {entregaRegistrada.numeroDoc})
+            </p>
+            {entregaRegistrada.comprobante && (
+              <p className="text-sm text-gray-600">
+                Comprobante: {entregaRegistrada.comprobante}
+              </p>
+            )}
+            <p className="text-sm text-orange-700 bg-orange-50 border border-orange-100 rounded-lg p-3 mt-4">
+              Imprima la guía de entrega para que quien recibe firme la recepción.
+            </p>
+          </div>
+        )}
+
+        {entregarModal.encomienda && !entregaRegistrada && (
           <div className="space-y-4">
             <div className="bg-orange-50 border border-orange-100 rounded-lg p-4">
               <p className="text-sm text-orange-800">
@@ -2076,18 +2567,27 @@ const EncomiendasIndexPage = () => {
               </p>
             </div>
 
+            <DocumentoIdentidadInput
+              name="dniRetiro"
+              label="Documento de quien retira *"
+              tipo={entregarForm.tipoDocRetiro}
+              numero={entregarForm.dniRetiro}
+              onChange={handleDocumentoEntregaChange}
+              buscando={buscandoDoc}
+              color="orange"
+            />
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                DNI de quien retira *
+                Nombre de quien retira *
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  value={entregarForm.dniRetiro}
-                  onChange={(e) => setEntregarForm(prev => ({ ...prev, dniRetiro: e.target.value.replace(/\D/g, '') }))}
-                  placeholder="Ingrese DNI (8 digitos)"
-                  maxLength={8}
+                  value={entregarForm.nombreRetiro}
+                  onChange={(e) => setEntregarForm(prev => ({ ...prev, nombreRetiro: e.target.value }))}
+                  placeholder="Se autocompleta con el documento"
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-200 focus:border-orange-500 outline-none"
                 />
               </div>

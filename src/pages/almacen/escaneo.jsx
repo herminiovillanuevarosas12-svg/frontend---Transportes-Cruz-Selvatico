@@ -1,6 +1,6 @@
 /**
  * Escaneo de Encomiendas Page
- * Escaneo QR con camara, ingreso manual por codigo, y busqueda por DNI
+ * Escaneo QR con camara, ingreso manual por codigo, y busqueda por documento (DNI, CE o RUC)
  */
 
 import { useState, useCallback } from 'react'
@@ -47,7 +47,7 @@ const EscaneoAlmacenPage = () => {
   const [modo, setModo] = useState('qr')
   const [codigoManual, setCodigoManual] = useState('')
   const [alertaRetiro, setAlertaRetiro] = useState(null)
-  // Estado para busqueda por DNI
+  // Estado para busqueda por documento del remitente o destinatario
   const [dniBusqueda, setDniBusqueda] = useState('')
   const [listaEncomiendas, setListaEncomiendas] = useState(null)
 
@@ -105,7 +105,7 @@ const EscaneoAlmacenPage = () => {
     e.preventDefault()
     const dni = dniBusqueda.trim()
     if (!dni || dni.length < 6) {
-      toast.error('Ingrese un DNI valido (minimo 6 digitos)')
+      toast.error('Ingrese un documento valido (minimo 6 caracteres)')
       return
     }
 
@@ -122,12 +122,12 @@ const EscaneoAlmacenPage = () => {
         toast.success(`${response.encomiendas.length} encomienda(s) encontrada(s)`)
       } else {
         setListaEncomiendas([])
-        setError('No se encontraron encomiendas vigentes para este DNI')
+        setError('No se encontraron encomiendas vigentes para este documento')
       }
     } catch (error) {
-      console.error('Error buscando por DNI:', error)
-      setError(error.response?.data?.error || 'Error al buscar por DNI')
-      toast.error('Error al buscar por DNI')
+      console.error('Error buscando por documento:', error)
+      setError(error.response?.data?.error || 'Error al buscar por documento')
+      toast.error('Error al buscar por documento')
     } finally {
       setLoading(false)
     }
@@ -242,7 +242,7 @@ const EscaneoAlmacenPage = () => {
                   }`}
                 >
                   <Contact className="w-4 h-4" />
-                  Buscar DNI
+                  Buscar Doc.
                 </button>
               </div>
             </div>
@@ -315,23 +315,24 @@ const EscaneoAlmacenPage = () => {
                   <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Contact className="w-8 h-8 text-emerald-600" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900">Buscar por DNI</h3>
+                  <h3 className="text-lg font-medium text-gray-900">Buscar por documento</h3>
                   <p className="text-sm text-gray-500 mt-1">
-                    Ingrese el DNI del remitente o destinatario
+                    Ingrese el DNI, carnet de extranjería o RUC del remitente o destinatario
                   </p>
                 </div>
 
                 <form onSubmit={handleBusquedaDni} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      DNI del Cliente
+                      Documento del Cliente
                     </label>
                     <input
                       type="text"
                       value={dniBusqueda}
-                      onChange={(e) => setDniBusqueda(e.target.value.replace(/\D/g, ''))}
+                      onChange={(e) => setDniBusqueda(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                       placeholder="Ej: 12345678"
                       maxLength={15}
+                      autoCapitalize="characters"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none text-center font-mono text-lg"
                       autoFocus
                     />
@@ -378,7 +379,7 @@ const EscaneoAlmacenPage = () => {
           </Card>
         )}
 
-        {/* Lista de encomiendas por DNI */}
+        {/* Lista de encomiendas por documento */}
         {listaEncomiendas && !encomienda && !loading && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -387,7 +388,7 @@ const EscaneoAlmacenPage = () => {
                   Encomiendas vigentes
                 </h3>
                 <p className="text-sm text-gray-500">
-                  DNI: {dniBusqueda} — {listaEncomiendas.length} resultado(s)
+                  Documento: {dniBusqueda} — {listaEncomiendas.length} resultado(s)
                 </p>
               </div>
               <Button variant="outline" icon={RefreshCw} onClick={resetScan} size="sm">
@@ -401,9 +402,9 @@ const EscaneoAlmacenPage = () => {
                   <Package className="w-8 h-8 text-gray-400" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Sin encomiendas vigentes</h3>
-                <p className="text-gray-500 mb-4">No hay encomiendas pendientes para este DNI.</p>
+                <p className="text-gray-500 mb-4">No hay encomiendas pendientes para este documento.</p>
                 <Button icon={RefreshCw} onClick={resetScan}>
-                  Buscar otro DNI
+                  Buscar otro documento
                 </Button>
               </Card>
             ) : (

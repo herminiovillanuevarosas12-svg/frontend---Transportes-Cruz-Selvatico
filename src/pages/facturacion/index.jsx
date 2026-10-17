@@ -14,6 +14,7 @@ import Select from '../../components/common/Select'
 import facturacionService from '../../services/facturacionService'
 import { formatDateOnly } from '../../utils/dateUtils'
 import useDocLookup from '../../hooks/useDocLookup'
+import { CODIGO_DNI, CODIGO_RUC, normalizarDocumento, ajustarTipoPorNumero, obtenerTipoDocumento } from '../../utils/documentoIdentidad'
 import {
   FileText,
   Receipt,
@@ -46,6 +47,7 @@ const TIPOS_COMPROBANTE = {
 const TIPOS_DOCUMENTO = {
   '6': 'RUC',
   '1': 'DNI',
+  '4': 'CE',
   '-': 'Sin Documento'
 }
 
@@ -80,8 +82,10 @@ const TIPOS_TRANSPORTE = [
   { value: '02', label: 'Transporte Privado' }
 ]
 
+// Catálogo SUNAT (utils/documentoIdentidad): DNI, carnet de extranjería y RUC
 const TIPOS_DOC_IDENTIDAD = [
   { value: '1', label: 'DNI' },
+  { value: '4', label: 'CE' },
   { value: '6', label: 'RUC' }
 ]
 
@@ -1114,16 +1118,16 @@ const FacturacionPage = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Doc.</label>
                 <Select
                   value={emitirForm.cliente.tipoDoc}
-                  onChange={(e) => setEmitirForm(prev => ({
-                    ...prev,
-                    cliente: { ...prev.cliente, tipoDoc: e.target.value }
-                  }))}
+                  onChange={(e) => {
+                    setErrorBusquedaDoc('')
+                    setEmitirForm(prev => ({
+                      ...prev,
+                      cliente: { tipoDoc: e.target.value, numDoc: normalizarDocumento(e.target.value, prev.cliente.numDoc), razonSocial: '', direccion: '' }
+                    }))
+                  }}
                   options={emitirForm.tipoComprobante === '01'
-                    ? [{ value: '6', label: 'RUC' }]
-                    : [
-                        { value: '1', label: 'DNI' },
-                        { value: '6', label: 'RUC' }
-                      ]
+                    ? [{ value: CODIGO_RUC, label: 'RUC' }]
+                    : TIPOS_DOC_IDENTIDAD
                   }
                 />
               </div>
@@ -1133,14 +1137,16 @@ const FacturacionPage = () => {
                   <Input
                     value={emitirForm.cliente.numDoc}
                     onChange={async (e) => {
-                      const value = e.target.value.replace(/\D/g, '')
+                      const esFactura = emitirForm.tipoComprobante === '01'
+                      const value = normalizarDocumento(emitirForm.cliente.tipoDoc, e.target.value)
+                      const tipoDoc = esFactura ? CODIGO_RUC : ajustarTipoPorNumero(emitirForm.cliente.tipoDoc, value)
                       setErrorBusquedaDoc('')
                       setEmitirForm(prev => ({
                         ...prev,
-                        cliente: { ...prev.cliente, numDoc: value, razonSocial: '', direccion: '' }
+                        cliente: { ...prev.cliente, tipoDoc, numDoc: value, razonSocial: '', direccion: '' }
                       }))
-                      // Auto-busqueda cuando se completa el documento
-                      if (emitirForm.cliente.tipoDoc === '6' && value.length === 11) {
+                      // Auto-busqueda cuando se completa el documento (el carnet de extranjería no tiene API)
+                      if (tipoDoc === CODIGO_RUC && value.length === 11) {
                         const result = await consultarRuc(value)
                         if (result) {
                           setErrorBusquedaDoc('')
@@ -1155,7 +1161,7 @@ const FacturacionPage = () => {
                         } else {
                           setErrorBusquedaDoc('RUC no encontrado. Verifique que el número sea correcto.')
                         }
-                      } else if (emitirForm.cliente.tipoDoc === '1' && value.length === 8) {
+                      } else if (tipoDoc === CODIGO_DNI && value.length === 8) {
                         const result = await consultarDni(value)
                         if (result) {
                           setErrorBusquedaDoc('')
@@ -1171,8 +1177,10 @@ const FacturacionPage = () => {
                         }
                       }
                     }}
-                    placeholder={emitirForm.cliente.tipoDoc === '6' ? '20XXXXXXXXX' : '12345678'}
-                    maxLength={emitirForm.cliente.tipoDoc === '6' ? 11 : 8}
+                    placeholder={obtenerTipoDocumento(emitirForm.cliente.tipoDoc).placeholder}
+                    maxLength={obtenerTipoDocumento(emitirForm.cliente.tipoDoc).alfanumerico ? 12 : 11}
+                    inputMode={obtenerTipoDocumento(emitirForm.cliente.tipoDoc).alfanumerico ? 'text' : 'numeric'}
+                    autoCapitalize="characters"
                   />
                   {buscandoDoc && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1574,7 +1582,7 @@ const FacturacionPage = () => {
                   value={guiaForm.destinatario.tipoDoc}
                   onChange={(e) => setGuiaForm(prev => ({
                     ...prev,
-                    destinatario: { ...prev.destinatario, tipoDoc: e.target.value }
+                    destinatario: { ...prev.destinatario, tipoDoc: e.target.value, numDoc: normalizarDocumento(e.target.value, prev.destinatario.numDoc) }
                   }))}
                   options={TIPOS_DOC_IDENTIDAD}
                 />
@@ -1585,13 +1593,14 @@ const FacturacionPage = () => {
                   <Input
                     value={guiaForm.destinatario.numDoc}
                     onChange={async (e) => {
-                      const value = e.target.value.replace(/\D/g, '')
+                      const value = normalizarDocumento(guiaForm.destinatario.tipoDoc, e.target.value)
+                      const tipoDoc = ajustarTipoPorNumero(guiaForm.destinatario.tipoDoc, value)
                       setGuiaForm(prev => ({
                         ...prev,
-                        destinatario: { ...prev.destinatario, numDoc: value }
+                        destinatario: { ...prev.destinatario, tipoDoc, numDoc: value }
                       }))
-                      // Auto-busqueda cuando se completa el documento
-                      if (guiaForm.destinatario.tipoDoc === '6' && value.length === 11) {
+                      // Auto-busqueda cuando se completa el documento (el carnet de extranjería no tiene API)
+                      if (tipoDoc === CODIGO_RUC && value.length === 11) {
                         const result = await consultarRuc(value)
                         if (result) {
                           setGuiaForm(prev => ({
@@ -1602,7 +1611,7 @@ const FacturacionPage = () => {
                             }
                           }))
                         }
-                      } else if (guiaForm.destinatario.tipoDoc === '1' && value.length === 8) {
+                      } else if (tipoDoc === CODIGO_DNI && value.length === 8) {
                         const result = await consultarDni(value)
                         if (result) {
                           setGuiaForm(prev => ({
@@ -1615,8 +1624,10 @@ const FacturacionPage = () => {
                         }
                       }
                     }}
-                    placeholder={guiaForm.destinatario.tipoDoc === '6' ? '20XXXXXXXXX' : '12345678'}
-                    maxLength={guiaForm.destinatario.tipoDoc === '6' ? 11 : 8}
+                    placeholder={obtenerTipoDocumento(guiaForm.destinatario.tipoDoc).placeholder}
+                    maxLength={obtenerTipoDocumento(guiaForm.destinatario.tipoDoc).alfanumerico ? 12 : 11}
+                    inputMode={obtenerTipoDocumento(guiaForm.destinatario.tipoDoc).alfanumerico ? 'text' : 'numeric'}
+                    autoCapitalize="characters"
                   />
                   {buscandoDoc && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -1702,7 +1713,7 @@ const FacturacionPage = () => {
                   value={guiaForm.conductor.tipoDoc}
                   onChange={(e) => setGuiaForm(prev => ({
                     ...prev,
-                    conductor: { ...prev.conductor, tipoDoc: e.target.value }
+                    conductor: { ...prev.conductor, tipoDoc: e.target.value, numDoc: normalizarDocumento(e.target.value, prev.conductor.numDoc) }
                   }))}
                   options={TIPOS_DOC_IDENTIDAD}
                 />
@@ -1713,13 +1724,14 @@ const FacturacionPage = () => {
                   <Input
                     value={guiaForm.conductor.numDoc}
                     onChange={async (e) => {
-                      const value = e.target.value.replace(/\D/g, '').slice(0, 8)
+                      const value = normalizarDocumento(guiaForm.conductor.tipoDoc, e.target.value)
+                      const tipoDoc = ajustarTipoPorNumero(guiaForm.conductor.tipoDoc, value)
                       setGuiaForm(prev => ({
                         ...prev,
-                        conductor: { ...prev.conductor, numDoc: value }
+                        conductor: { ...prev.conductor, tipoDoc, numDoc: value }
                       }))
-                      // Auto-busqueda cuando se completa el DNI del conductor
-                      if (value.length === 8) {
+                      // Auto-busqueda cuando se completa el DNI del conductor (CE y RUC no tienen datos de persona)
+                      if (tipoDoc === CODIGO_DNI && value.length === 8) {
                         const result = await consultarDni(value, true) // skipLocal=true para ir directo a API
                         if (result) {
                           setGuiaForm(prev => ({
@@ -1733,8 +1745,10 @@ const FacturacionPage = () => {
                         }
                       }
                     }}
-                    placeholder="12345678"
-                    maxLength={8}
+                    placeholder={obtenerTipoDocumento(guiaForm.conductor.tipoDoc).placeholder}
+                    maxLength={obtenerTipoDocumento(guiaForm.conductor.tipoDoc).alfanumerico ? 12 : 11}
+                    inputMode={obtenerTipoDocumento(guiaForm.conductor.tipoDoc).alfanumerico ? 'text' : 'numeric'}
+                    autoCapitalize="characters"
                   />
                   {buscandoDoc && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">

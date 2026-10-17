@@ -4,6 +4,7 @@
  */
 
 import { formatDateOnly, formatTimeOnly, formatDateTimeCivil } from '../../utils/dateUtils'
+import { siglaDocumento } from '../../utils/documentoIdentidad'
 
 const TITULOS = {
   BOLETA: 'BOLETA DE VENTA',
@@ -85,7 +86,7 @@ const ComprobantePrint = ({ comprobante, empresa, encomiendaDetalle }) => {
           </div>
           <div className="flex justify-between">
             <span className="text-sm text-gray-600">
-              {tipo === 'FACTURA' ? 'RUC:' : 'DNI:'}
+              {siglaDocumento(comprobante.clienteDocumento)}:
             </span>
             <span className="text-sm font-medium text-gray-900">{comprobante.clienteDocumento}</span>
           </div>

@@ -13,7 +13,7 @@ const clientesService = {
 
   /**
    * Buscar clientes para combobox/autocomplete
-   * @param {string} search - Termino de busqueda (DNI o nombre)
+   * @param {string} search - Termino de busqueda (documento o nombre)
    * @param {number} limit - Limite de resultados (default 10)
    * @returns {Promise<Object>} Lista de clientes encontrados
    */
@@ -30,8 +30,8 @@ const clientesService = {
   },
 
   /**
-   * Obtener cliente por DNI
-   * @param {string} dni - DNI del cliente (8 digitos)
+   * Obtener cliente por documento exacto (DNI, carnet de extranjeria o RUC)
+   * @param {string} dni - Documento del cliente ya normalizado
    * @returns {Promise<Object>} Cliente con puntos disponibles e historicos
    */
   obtenerPorDni: async (dni) => {

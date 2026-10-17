@@ -15,7 +15,8 @@ import {
 
 const COLORES = {
   blue: { anillo: 'focus:ring-blue-500', spinner: 'border-blue-500' },
-  purple: { anillo: 'focus:ring-purple-500', spinner: 'border-purple-500' }
+  purple: { anillo: 'focus:ring-purple-500', spinner: 'border-purple-500' },
+  orange: { anillo: 'focus:ring-orange-500', spinner: 'border-orange-500' }
 }
 
 const DocumentoIdentidadInput = ({

@@ -13,6 +13,17 @@ import configuracionService from '../../services/configuracionService'
 import facturacionService from '../../services/facturacionService'
 import { formatDateOnly, formatTimeOnly, getTodayInPeru, isBeforeToday } from '../../utils/dateUtils'
 import useDocLookup from '../../hooks/useDocLookup'
+import {
+  TIPOS_DOCUMENTO,
+  CODIGO_DNI,
+  CODIGO_RUC,
+  normalizarDocumento,
+  ajustarTipoPorNumero,
+  esDocumentoValido,
+  detectarTipoDocumento,
+  obtenerTipoDocumento,
+  siglaDocumento
+} from '../../utils/documentoIdentidad'
 import { VentaInstantaneaModal, SelectorRuta } from '../../components/tickets'
 import {
   Ticket,
@@ -78,7 +89,7 @@ const VentaTicketPage = () => {
     pasajero: {
       nombreCompleto: '',
       documentoIdentidad: '',
-      tipoDocumento: '1',  // '1' = DNI, '6' = RUC
+      tipoDocumento: CODIGO_DNI,  // catálogo SUNAT: '1' DNI, '4' CE, '6' RUC
       telefono: '',
       comentario: '',
       direccion: ''  // Dirección fiscal (solo para RUC)
@@ -211,15 +222,39 @@ const VentaTicketPage = () => {
     }
   }
 
-  // Handler para Documento de Identidad - 8 digitos (DNI) o 11 digitos (RUC) con autocompletado
-  const handleDocumentoChange = async (e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 11)
-
-    // Detectar tipo de documento automaticamente
-    let tipoDoc = '1'  // DNI por defecto
-    if (value.length === 11) {
-      tipoDoc = '6'  // RUC
+  // Filtrar clientes registrados cuyo documento contenga lo escrito
+  const filtrarClientesPorDocumento = (value) => {
+    if (value.length >= 2) {
+      const filtrados = clientes.filter(c =>
+        c.documentoIdentidad.includes(value)
+      ).slice(0, 5)
+      setClientesFiltrados(filtrados)
+      setShowClientesDropdown(filtrados.length > 0)
+    } else {
+      setClientesFiltrados([])
+      setShowClientesDropdown(false)
     }
+  }
+
+  // Cambio de tipo de documento del pasajero (DNI, CE o RUC): adapta el número al nuevo tipo
+  const handleTipoDocumentoChange = (e) => {
+    const tipoDoc = e.target.value
+    setClienteSeleccionado(null)
+    setFormData(prev => ({
+      ...prev,
+      pasajero: {
+        ...prev.pasajero,
+        tipoDocumento: tipoDoc,
+        documentoIdentidad: normalizarDocumento(tipoDoc, prev.pasajero.documentoIdentidad)
+      }
+    }))
+  }
+
+  // Handler para Documento de Identidad con autocompletado.
+  // DNI y RUC alternan solos por cantidad de dígitos; el carnet de extranjería se elige en el selector.
+  const handleDocumentoChange = async (e) => {
+    const value = normalizarDocumento(formData.pasajero.tipoDocumento, e.target.value)
+    const tipoDoc = ajustarTipoPorNumero(formData.pasajero.tipoDocumento, value)
 
     setFormData(prev => ({
       ...prev,
@@ -232,49 +267,37 @@ const VentaTicketPage = () => {
 
     // Limpiar cliente seleccionado si el usuario edita manualmente
     setClienteSeleccionado(null)
+    filtrarClientesPorDocumento(value)
 
-    // Filtrar clientes por documento
-    if (value.length >= 2) {
-      const filtrados = clientes.filter(c =>
-        c.documentoIdentidad.includes(value)
-      ).slice(0, 5)
-      setClientesFiltrados(filtrados)
-      setShowClientesDropdown(filtrados.length > 0)
-    } else {
-      setClientesFiltrados([])
-      setShowClientesDropdown(false)
-    }
-
-    // Si completa 8 (DNI) o 11 (RUC) digitos y no hay cliente local encontrado, buscar en API.
+    // Documento completo: cliente registrado primero; si no existe, API (DNI/RUC).
     // La consulta es diferida: si el usuario sigue escribiendo (de 8 a 11 digitos) se cancela,
     // asi no se consulta como DNI el inicio de un RUC (existen DNIs reales que empiezan en 10 y 20).
-    const debeBuscar = value.length === 8 || value.length === 11
+    if (!esDocumentoValido(tipoDoc, value)) return
 
-    if (debeBuscar) {
-      const clienteLocal = clientes.find(c => c.documentoIdentidad === value)
-      if (clienteLocal) {
-        resetDocLookup()
-        handleSeleccionarCliente(clienteLocal)
-      } else {
-        const result = await consultarDocumentoDiferido(value, { skipLocal: true })
-        if (result === undefined) return // cancelada por una escritura posterior
+    const clienteLocal = clientes.find(c => c.documentoIdentidad === value)
+    if (clienteLocal) {
+      resetDocLookup()
+      handleSeleccionarCliente(clienteLocal)
+      return
+    }
 
-        if (result && !formData.pasajero.nombreCompleto) {
-          // Extraer dirección con todas las variantes posibles de la API
-          const direccionFiscal = result.direccion || result.direccion_completa || result.domicilio_fiscal || result.direccion_fiscal || result.domicilio || ''
-          setFormData(prev => ({
-            ...prev,
-            pasajero: {
-              ...prev.pasajero,
-              nombreCompleto: result.nombre_completo || result.razon_social || result.nombre_o_razon_social || '',
-              direccion: direccionFiscal  // Guardar dirección para RUC
-            }
-          }))
-          toast.success(value.length === 8 ? 'Datos obtenidos de RENIEC' : 'Datos obtenidos de SUNAT')
-        } else if (!result) {
-          toast('Documento no encontrado. Ingrese los datos manualmente.')
+    const result = await consultarDocumentoDiferido(value, { skipLocal: true, tipo: tipoDoc })
+    if (result === undefined) return // cancelada por una escritura posterior
+
+    if (result && !formData.pasajero.nombreCompleto) {
+      // Extraer dirección con todas las variantes posibles de la API
+      const direccionFiscal = result.direccion || result.direccion_completa || result.domicilio_fiscal || result.direccion_fiscal || result.domicilio || ''
+      setFormData(prev => ({
+        ...prev,
+        pasajero: {
+          ...prev.pasajero,
+          nombreCompleto: result.nombre_completo || result.razon_social || result.nombre_o_razon_social || '',
+          direccion: direccionFiscal  // Guardar dirección para RUC
         }
-      }
+      }))
+      toast.success(tipoDoc === CODIGO_RUC ? 'Datos obtenidos de SUNAT' : 'Datos obtenidos de RENIEC')
+    } else if (!result && obtenerTipoDocumento(tipoDoc).consultaApi) {
+      toast('Documento no encontrado. Ingrese los datos manualmente.')
     }
   }
 
@@ -284,8 +307,10 @@ const VentaTicketPage = () => {
     setFormData(prev => ({
       ...prev,
       pasajero: {
+        ...prev.pasajero,
         nombreCompleto: cliente.nombreCompleto,
         documentoIdentidad: cliente.documentoIdentidad,
+        tipoDocumento: detectarTipoDocumento(cliente.documentoIdentidad),
         telefono: formatTelefonoDisplay(cliente.telefono)
       }
     }))
@@ -311,8 +336,10 @@ const VentaTicketPage = () => {
     setFormData(prev => ({
       ...prev,
       pasajero: {
+        ...prev.pasajero,
         nombreCompleto: '',
         documentoIdentidad: '',
+        tipoDocumento: CODIGO_DNI,
         telefono: ''
       }
     }))
@@ -412,7 +439,7 @@ const VentaTicketPage = () => {
       pasajero: {
         nombreCompleto: '',
         documentoIdentidad: '',
-        tipoDocumento: '1',
+        tipoDocumento: CODIGO_DNI,
         telefono: '',
         comentario: ''
       },
@@ -702,9 +729,21 @@ const VentaTicketPage = () => {
               {/* Documento - Combobox con clientes registrados */}
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  DNI / RUC *
+                  Documento *
                 </label>
-                <div className="relative">
+                <div className="flex gap-2">
+                <select
+                  name="pasajero.tipoDocumento"
+                  value={formData.pasajero.tipoDocumento}
+                  onChange={handleTipoDocumentoChange}
+                  aria-label="Tipo de documento"
+                  className="w-24 shrink-0 px-3 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                  {TIPOS_DOCUMENTO.map(t => (
+                    <option key={t.codigo} value={t.codigo} title={t.nombre}>{t.sigla}</option>
+                  ))}
+                </select>
+                <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     ref={documentoInputRef}
@@ -725,9 +764,10 @@ const VentaTicketPage = () => {
                       // Delay para permitir click en dropdown
                       setTimeout(() => setShowClientesDropdown(false), 200)
                     }}
-                    placeholder="Buscar por DNI o RUC..."
-                    maxLength={11}
-                    inputMode="numeric"
+                    placeholder="Buscar por documento..."
+                    maxLength={obtenerTipoDocumento(formData.pasajero.tipoDocumento).alfanumerico ? 12 : 11}
+                    inputMode={obtenerTipoDocumento(formData.pasajero.tipoDocumento).alfanumerico ? 'text' : 'numeric'}
+                    autoCapitalize="characters"
                     className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     required
                   />
@@ -746,6 +786,7 @@ const VentaTicketPage = () => {
                   ) : (
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   )}
+                </div>
                 </div>
 
                 {/* Dropdown de clientes */}
@@ -766,7 +807,7 @@ const VentaTicketPage = () => {
                             {cliente.nombreCompleto}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {cliente.documentoIdentidad?.length === 11 ? 'RUC' : 'DNI'}: {cliente.documentoIdentidad} | Tel: {cliente.telefono || 'Sin tel.'}
+                            {siglaDocumento(cliente.documentoIdentidad)}: {cliente.documentoIdentidad} | Tel: {cliente.telefono || 'Sin tel.'}
                           </p>
                         </div>
                         {(cliente.puntosDisponibles > 0) && (
@@ -785,7 +826,7 @@ const VentaTicketPage = () => {
                     Cliente registrado: {clienteSeleccionado.nombreCompleto}
                   </p>
                 ) : (
-                  <p className="text-xs text-gray-500 mt-1">8 digitos (DNI) o 11 digitos (RUC)</p>
+                  <p className="text-xs text-gray-500 mt-1">DNI (8 dígitos), CE (9 a 12 caracteres) o RUC (11 dígitos)</p>
                 )}
               </div>
 
@@ -1143,7 +1184,7 @@ const VentaTicketPage = () => {
                 disabled={
                   loading ||
                   !formData.pasajero.nombreCompleto ||
-                  (formData.pasajero.documentoIdentidad.length !== 8 && formData.pasajero.documentoIdentidad.length !== 11) ||
+                  !esDocumentoValido(formData.pasajero.tipoDocumento, formData.pasajero.documentoIdentidad) ||
                   formData.pasajero.telefono.replace(/\s/g, '').length !== 9 ||
                   !tipoDocumento ||
                   (tipoDocumento === 'FACTURA' && (clienteFactura.ruc.length !== 11 || !clienteFactura.razonSocial))

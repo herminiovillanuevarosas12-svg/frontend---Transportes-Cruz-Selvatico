@@ -53,6 +53,21 @@ const encomiendasService = {
   generarQR: async (id) => {
     const response = await apiClient.get(`/encomiendas/${id}/qr`)
     return response.data
+  },
+
+  generarManifiesto: async (idsEncomiendas) => {
+    const response = await apiClient.post('/encomiendas/manifiestos', { idsEncomiendas })
+    return response.data
+  },
+
+  listarManifiestos: async (params = {}) => {
+    const response = await apiClient.get('/encomiendas/manifiestos', { params })
+    return response.data
+  },
+
+  obtenerManifiesto: async (id) => {
+    const response = await apiClient.get(`/encomiendas/manifiestos/${id}`)
+    return response.data
   }
 }
 

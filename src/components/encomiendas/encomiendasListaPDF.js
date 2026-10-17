@@ -37,7 +37,7 @@ function setColor(doc, color, type = 'text') {
   else if (type === 'draw') doc.setDrawColor(r, g, b)
 }
 
-function loadLogo() {
+export function loadLogo() {
   return new Promise((resolve) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
@@ -71,7 +71,7 @@ function truncar(texto, max) {
 function describirFiltros(filtros = {}) {
   const partes = []
   if (filtros.codigoTracking) partes.push(`Codigo: ${filtros.codigoTracking}`)
-  if (filtros.dni) partes.push(`DNI: ${filtros.dni}`)
+  if (filtros.dni) partes.push(`Documento: ${filtros.dni}`)
   if (filtros.fechaDesde) partes.push(`Desde: ${formatDateOnly(filtros.fechaDesde)}`)
   if (filtros.fechaHasta) partes.push(`Hasta: ${formatDateOnly(filtros.fechaHasta)}`)
   if (filtros.estado) partes.push(`Estado: ${ESTADO_LABELS[filtros.estado] || filtros.estado}`)

@@ -275,14 +275,10 @@ const RegistroEncomiendaPage = () => {
   }))
 
   // Buscar un cliente ya registrado por su documento exacto (BD local, sin API externa)
-  const buscarClienteLocal = async (tipo, numero) => {
+  const buscarClienteLocal = async (numero) => {
     try {
-      if (tipo === CODIGO_DNI) {
-        const response = await clientesService.obtenerPorDni(numero)
-        return response.cliente || null
-      }
-      const response = await clientesService.listar({ search: numero, limit: 5 })
-      return (response.clientes || []).find(c => c.documentoIdentidad === numero) || null
+      const response = await clientesService.obtenerPorDni(numero)
+      return response.cliente || null
     } catch {
       return null
     }
@@ -290,7 +286,7 @@ const RegistroEncomiendaPage = () => {
 
   // Datos de un documento: clientes locales primero; luego API de Perú si el tipo la tiene
   const buscarDatosDocumento = async (tipo, numero) => {
-    const clienteLocal = await buscarClienteLocal(tipo, numero)
+    const clienteLocal = await buscarClienteLocal(numero)
     if (clienteLocal) {
       return {
         cliente: clienteLocal,

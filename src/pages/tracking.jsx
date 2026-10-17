@@ -20,7 +20,8 @@ import {
   User,
   Phone,
   Calendar,
-  Sparkles
+  Sparkles,
+  Hash
 } from 'lucide-react'
 
 // Estados con iconos y colores Cruz Selvatico - Verde y Rojo
@@ -74,23 +75,23 @@ const ESTADOS = {
 
 const ESTADOS_ORDEN = ['REGISTRADO', 'EN_ALMACEN', 'EN_RUTA', 'LLEGO_A_DESTINO', 'RETIRADO']
 
+// Longitud del correlativo en el codigo ENC-NNNNNNNN
+const LONGITUD_NUMERO = 8
+
 const TrackingPage = () => {
   const [codigo, setCodigo] = useState('')
+  const [numero, setNumero] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [encomienda, setEncomienda] = useState(null)
 
-  const buscar = async (e) => {
-    e.preventDefault()
-
-    if (!codigo.trim()) return
-
+  const consultar = async (codigoBuscado) => {
     try {
       setLoading(true)
       setError(null)
       setEncomienda(null)
 
-      const response = await trackingService.consultar(codigo.trim())
+      const response = await trackingService.consultar(codigoBuscado)
       setEncomienda(response.encomienda)
     } catch (err) {
       console.error('Error buscando encomienda:', err)
@@ -100,6 +101,24 @@ const TrackingPage = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Buscador 1: codigo completo (ENC-00000245)
+  const buscarPorCodigo = (e) => {
+    e.preventDefault()
+    if (!codigo.trim()) return
+    consultar(codigo.trim())
+  }
+
+  // Buscador 2: solo el numero (245) -> se arma ENC-00000245
+  const buscarPorNumero = (e) => {
+    e.preventDefault()
+    if (!numero) return
+    consultar(`ENC-${numero.padStart(LONGITUD_NUMERO, '0')}`)
+  }
+
+  const onChangeNumero = (e) => {
+    setNumero(e.target.value.replace(/\D/g, '').slice(0, LONGITUD_NUMERO))
   }
 
   const getEstadoIndex = (estado) => ESTADOS_ORDEN.indexOf(estado)
@@ -130,40 +149,90 @@ const TrackingPage = () => {
               Rastrear Encomienda
             </h1>
             <p className="text-lg text-primary-100 max-w-md mx-auto">
-              Ingrese el codigo de tracking para consultar el estado de su envio
+              Ingrese el codigo de tracking completo o solo el numero de su encomienda
             </p>
           </div>
 
-          {/* Search Form */}
-          <form onSubmit={buscar} className="max-w-2xl mx-auto">
-            <div className="bg-white rounded-2xl shadow-2xl shadow-primary-900/30 p-2">
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
-                  <Package className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    value={codigo}
-                    onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-                    placeholder="Ej: ENC-00000001"
-                    className="w-full pl-12 pr-4 py-4 border-0 bg-gray-50 rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white outline-none text-lg transition-all"
-                    disabled={loading}
-                  />
+          <div className="max-w-2xl mx-auto space-y-4">
+            {/* Buscador 1: codigo completo */}
+            <form onSubmit={buscarPorCodigo}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary-100 mb-2 ml-1">
+                Codigo de tracking completo
+              </p>
+              <div className="bg-white rounded-2xl shadow-2xl shadow-primary-900/30 p-2">
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Package className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={codigo}
+                      onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                      placeholder="Ej: ENC-00000001"
+                      aria-label="Codigo de tracking completo"
+                      className="w-full pl-12 pr-4 py-4 border-0 bg-gray-50 rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white outline-none text-lg transition-all"
+                      disabled={loading}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || !codigo.trim()}
+                    className="px-8 py-4 bg-gradient-to-b from-primary-500 to-primary-600 text-white rounded-xl font-semibold hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Search className="w-5 h-5" />
+                    )}
+                    <span className="hidden sm:inline">Buscar</span>
+                  </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={loading || !codigo.trim()}
-                  className="px-8 py-4 bg-gradient-to-b from-primary-500 to-primary-600 text-white rounded-xl font-semibold hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none flex items-center gap-2"
-                >
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Search className="w-5 h-5" />
-                  )}
-                  <span className="hidden sm:inline">Buscar</span>
-                </button>
               </div>
+            </form>
+
+            {/* Separador */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-white/20" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary-200">o</span>
+              <div className="flex-1 h-px bg-white/20" />
             </div>
-          </form>
+
+            {/* Buscador 2: solo numero */}
+            <form onSubmit={buscarPorNumero}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary-100 mb-2 ml-1">
+                Solo el numero de encomienda
+              </p>
+              <div className="bg-white rounded-2xl shadow-2xl shadow-primary-900/30 p-2">
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={numero}
+                      onChange={onChangeNumero}
+                      placeholder="Ej: 1"
+                      aria-label="Numero de encomienda"
+                      className="w-full pl-12 pr-4 py-4 border-0 bg-gray-50 rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white outline-none text-lg transition-all"
+                      disabled={loading}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || !numero}
+                    className="px-8 py-4 bg-gradient-to-b from-primary-500 to-primary-600 text-white rounded-xl font-semibold hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Search className="w-5 h-5" />
+                    )}
+                    <span className="hidden sm:inline">Buscar</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
 
@@ -398,7 +467,7 @@ const TrackingPage = () => {
               Busque su encomienda
             </h3>
             <p className="text-gray-500 max-w-sm mx-auto">
-              Ingrese el codigo de tracking en el campo de busqueda para ver el estado actual de su envio
+              Ingrese el codigo de tracking completo o solo el numero de su encomienda para ver el estado actual de su envio
             </p>
           </div>
         )}

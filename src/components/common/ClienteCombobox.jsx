@@ -1,19 +1,20 @@
 /**
  * ClienteCombobox Component
- * Combobox con busqueda asincrona para seleccionar clientes por DNI o nombre
+ * Combobox con busqueda asincrona para seleccionar clientes por documento (DNI, CE o RUC) o nombre
  * Muestra puntos disponibles del cliente
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Search, X, User, Star, Loader2, UserPlus } from 'lucide-react'
 import clientesService from '../../services/clientesService'
+import { siglaDocumento } from '../../utils/documentoIdentidad'
 
 const ClienteCombobox = ({
   label,
   value, // El cliente seleccionado (objeto completo)
   onChange, // Callback cuando se selecciona un cliente
   onClear, // Callback cuando se limpia la seleccion
-  placeholder = 'Buscar por DNI o nombre...',
+  placeholder = 'Buscar por documento o nombre...',
   required = false,
   disabled = false,
   error,
@@ -132,7 +133,7 @@ const ClienteCombobox = ({
                 {value.nombreCompleto}
               </p>
               <p className="text-xs text-gray-500">
-                DNI: {value.documentoIdentidad}
+                {siglaDocumento(value.documentoIdentidad)}: {value.documentoIdentidad}
                 {(value.puntosDisponibles > 0) && (
                   <span className="ml-2 text-yellow-600 font-medium">
                     • {value.puntosDisponibles} pts disponibles
@@ -171,7 +172,7 @@ const ClienteCombobox = ({
                 type="text"
                 value={searchTerm}
                 onChange={handleSearchChange}
-                placeholder="Escribe DNI o nombre..."
+                placeholder="Escribe documento o nombre..."
                 className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
                 autoComplete="off"
               />
@@ -187,7 +188,7 @@ const ClienteCombobox = ({
               <div className="px-4 py-6 text-center text-sm text-gray-500">
                 <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
                 <p>Escribe al menos 2 caracteres</p>
-                <p className="text-xs text-gray-400 mt-1">Busca por DNI o nombre</p>
+                <p className="text-xs text-gray-400 mt-1">Busca por DNI, CE, RUC o nombre</p>
               </div>
             ) : loading ? (
               <div className="px-4 py-6 text-center text-sm text-gray-500">
@@ -210,7 +211,7 @@ const ClienteCombobox = ({
                         {cliente.nombreCompleto}
                       </p>
                       <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <span>DNI: {cliente.documentoIdentidad}</span>
+                        <span>{siglaDocumento(cliente.documentoIdentidad)}: {cliente.documentoIdentidad}</span>
                         {cliente.telefono && (
                           <>
                             <span className="text-gray-300">|</span>

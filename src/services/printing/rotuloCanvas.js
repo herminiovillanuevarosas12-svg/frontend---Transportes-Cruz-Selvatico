@@ -17,6 +17,7 @@
 
 import debugLog from '../../utils/debugLog'
 import { dotsPerMm } from './profiles'
+import { siglaDocumento } from '../../utils/documentoIdentidad'
 
 const stripDiacritics = (s) =>
   String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -130,7 +131,7 @@ async function drawRotuloCompact(encomienda, profile) {
   ctx.fillText(`Tel: ${destTel}`, W / 2, y)
   y += 13
   if (destDni) {
-    ctx.fillText(`DNI: ${destDni}`, W / 2, y)
+    ctx.fillText(`${siglaDocumento(destDni)}: ${destDni}`, W / 2, y)
     y += 13
   }
 
@@ -259,7 +260,7 @@ async function drawRotuloResponsive(encomienda, profile) {
     ctx.fillText(`Tel: ${destTel}`, W / 2, y)
     y += fTel + 2
     if (destDni) {
-      ctx.fillText(`DNI: ${destDni}`, W / 2, y)
+      ctx.fillText(`${siglaDocumento(destDni)}: ${destDni}`, W / 2, y)
       y += fTel + 2
     }
   }

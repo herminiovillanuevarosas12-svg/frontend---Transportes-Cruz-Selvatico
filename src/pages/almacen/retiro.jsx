@@ -1,14 +1,18 @@
 /**
  * Retiro de Encomienda Page
- * Registro de retiro con DNI y foto de evidencia
+ * Registro de retiro con documento de identidad (DNI, CE o RUC) y foto de evidencia
  */
 
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Button, ComprobantePrint } from '../../components/common'
+import { Card, Button, ComprobantePrint, DocumentoIdentidadInput, GuiaEntregaPrint } from '../../components/common'
+import { useAuthStore } from '../../features/auth'
 import encomiendasService from '../../services/encomiendasService'
 import facturacionService from '../../services/facturacionService'
 import useDocLookup from '../../hooks/useDocLookup'
+import { CODIGO_DNI, esDocumentoValido, mensajeErrorDocumento } from '../../utils/documentoIdentidad'
+import { setPrintPageSize, clearPrintPageSize } from '../../utils/printPageSize'
+import { generarGuiaEntregaPDF } from '../../components/encomiendas/guiaEntregaPDF'
 import { comprimirImagenADataUrl, mensajeErrorImagen } from '../../utils/imageCompression'
 import {
   Package,
@@ -27,13 +31,15 @@ import {
   Receipt,
   Building2,
   ImagePlus,
-  Printer
+  Printer,
+  FileDown
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const RetiroEncomiendaPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
+  const user = useAuthStore(state => state.user)
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
@@ -43,14 +49,15 @@ const RetiroEncomiendaPage = () => {
   const [loading, setLoading] = useState(true)
   const [procesando, setProcesando] = useState(false)
 
-  // Datos del retiro
+  // Datos del retiro (documento de quien retira: DNI, carnet de extranjería o RUC)
+  const [tipoDocRetira, setTipoDocRetira] = useState(CODIGO_DNI)
   const [dniRetira, setDniRetira] = useState('')
   const [nombreRetira, setNombreRetira] = useState('')
   const [fotoEvidencia, setFotoEvidencia] = useState(null)
   const [showCamera, setShowCamera] = useState(false)
 
   // Hook para auto-busqueda de DNI/RUC
-  const { loading: buscandoDoc, consultarDni, consultarRuc, reset: resetDocLookup } = useDocLookup()
+  const { loading: buscandoDoc, consultarRuc, consultarDocumentoDiferido, reset: resetDocLookup } = useDocLookup()
 
   // Clave de seguridad
   const [claveIngresada, setClaveIngresada] = useState('')
@@ -61,6 +68,11 @@ const RetiroEncomiendaPage = () => {
   const [comprobanteRetiro, setComprobanteRetiro] = useState(null)
   const [retiroCompletado, setRetiroCompletado] = useState(false)
   const [printTarget, setPrintTarget] = useState(null)
+
+  // Guía de entrega con firma de recepción (datos fijados al confirmar el retiro)
+  const [entregaRegistrada, setEntregaRegistrada] = useState(null)
+  const [guiaEntregaData, setGuiaEntregaData] = useState(null)
+  const [preparandoGuiaEntrega, setPreparandoGuiaEntrega] = useState(false)
 
   // Tipo de comprobante para pago al recojo
   const [tipoComprobanteRetiro, setTipoComprobanteRetiro] = useState('')
@@ -196,9 +208,21 @@ const RetiroEncomiendaPage = () => {
     }
   }
 
+  // Documento de quien retira: al completarse, autocompletar el nombre
+  // (cliente registrado o RENIEC/SUNAT; el carnet de extranjería solo busca en clientes)
+  const handleDocumentoRetiraChange = async ({ tipo, numero }) => {
+    setTipoDocRetira(tipo)
+    setDniRetira(numero)
+    if (!esDocumentoValido(tipo, numero)) return
+    const result = await consultarDocumentoDiferido(numero, { tipo })
+    if (result?.nombre_completo) {
+      setNombreRetira(result.nombre_completo)
+    }
+  }
+
   const validarFormulario = () => {
-    if (!dniRetira || dniRetira.length !== 8) {
-      toast.error('Ingrese un DNI valido (8 digitos)')
+    if (!esDocumentoValido(tipoDocRetira, dniRetira)) {
+      toast.error(mensajeErrorDocumento(tipoDocRetira, 'quien retira'))
       return false
     }
     if (!nombreRetira.trim()) {
@@ -244,6 +268,7 @@ const RetiroEncomiendaPage = () => {
       // Preparar payload
       const payload = {
         dniRetiro: dniRetira,
+        tipoDocRetiro: tipoDocRetira,
         nombreRetiro: nombreRetira.trim(),
         fotoBase64: fotoEvidencia,
         nota: `Retiro por: ${nombreRetira}`,
@@ -262,6 +287,15 @@ const RetiroEncomiendaPage = () => {
 
       toast.success('Retiro registrado exitosamente')
       setRetiroCompletado(true)
+      setEntregaRegistrada({
+        nombre: nombreRetira.trim(),
+        tipoDoc: tipoDocRetira,
+        numeroDoc: dniRetira,
+        fecha: response.encomienda?.dateTimeModification || new Date().toISOString(),
+        atendidoPor: user?.nombres || '',
+        nota: '',
+        comprobante: response.comprobante?.numeroCompleto || ''
+      })
 
       // Si hay comprobante generado (pago al recojo), guardarlo para mostrar e imprimir
       if (response.comprobante) {
@@ -276,11 +310,6 @@ const RetiroEncomiendaPage = () => {
             setPrintTarget(null)
           }, 100)
         }, 500)
-      } else {
-        // Si no hay comprobante (VERIFICACION), redirigir despues de un momento
-        setTimeout(() => {
-          navigate('/almacen/escaneo')
-        }, 1500)
       }
     } catch (error) {
       console.error('Error registrando retiro:', error)
@@ -297,6 +326,44 @@ const RetiroEncomiendaPage = () => {
       window.print()
       setPrintTarget(null)
     }, 100)
+  }
+
+  // Guía de entrega (80mm): datos de la encomienda + firma de recepción de quien retira
+  const handleImprimirGuiaEntrega = async () => {
+    if (!entregaRegistrada) return
+    try {
+      setPreparandoGuiaEntrega(true)
+      const response = await encomiendasService.imprimir(encomienda.id)
+      setGuiaEntregaData({ encomienda: response.encomienda, entrega: entregaRegistrada })
+      setPrintTarget('entrega')
+      setPrintPageSize('guia')
+      setTimeout(() => {
+        window.print()
+        setTimeout(() => {
+          setPrintTarget(null)
+          clearPrintPageSize()
+        }, 500)
+      }, 300)
+    } catch (error) {
+      console.error('Error preparando guía de entrega:', error)
+      toast.error('Error al preparar la guía de entrega')
+    } finally {
+      setPreparandoGuiaEntrega(false)
+    }
+  }
+
+  const handleDescargarGuiaEntrega = async () => {
+    if (!entregaRegistrada) return
+    try {
+      setPreparandoGuiaEntrega(true)
+      const response = await encomiendasService.imprimir(encomienda.id)
+      await generarGuiaEntregaPDF(response.encomienda, entregaRegistrada)
+    } catch (error) {
+      console.error('Error generando PDF de guía de entrega:', error)
+      toast.error('Error al generar el PDF de la guía de entrega')
+    } finally {
+      setPreparandoGuiaEntrega(false)
+    }
   }
 
   // Validar clave de seguridad
@@ -615,36 +682,15 @@ const RetiroEncomiendaPage = () => {
             </h3>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                DNI de quien retira *
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={dniRetira}
-                  onChange={async (e) => {
-                    const value = e.target.value.replace(/\D/g, '').slice(0, 8)
-                    setDniRetira(value)
-                    // Auto-busqueda cuando se completa el DNI
-                    if (value.length === 8) {
-                      const result = await consultarDni(value)
-                      if (result) {
-                        setNombreRetira(result.nombre_completo || '')
-                      }
-                    }
-                  }}
-                  placeholder="Ingrese DNI (8 digitos)"
-                  maxLength={8}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                />
-                {buscandoDoc && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-              </div>
-            </div>
+            <DocumentoIdentidadInput
+              name="dniRetira"
+              label="Documento de quien retira *"
+              tipo={tipoDocRetira}
+              numero={dniRetira}
+              onChange={handleDocumentoRetiraChange}
+              buscando={buscandoDoc}
+              color="blue"
+            />
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -783,7 +829,7 @@ const RetiroEncomiendaPage = () => {
               onClick={handleRegistrarRetiro}
               disabled={
                 procesando ||
-                !dniRetira ||
+                !esDocumentoValido(tipoDocRetira, dniRetira) ||
                 !nombreRetira ||
                 !fotoEvidencia ||
                 (encomienda?.tieneClaveSeguridad && !claveValidada) ||
@@ -806,7 +852,33 @@ const RetiroEncomiendaPage = () => {
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Retiro Completado</h2>
               <p className="text-gray-500 mb-4">La encomienda ha sido entregada exitosamente</p>
-              <p className="text-sm text-gray-400">Redirigiendo...</p>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button
+                  variant="outline"
+                  icon={Printer}
+                  onClick={handleImprimirGuiaEntrega}
+                  disabled={preparandoGuiaEntrega}
+                  className="flex-1"
+                >
+                  {preparandoGuiaEntrega ? 'Preparando...' : 'Imprimir Guía de Entrega'}
+                </Button>
+                <Button
+                  variant="outline"
+                  icon={FileDown}
+                  onClick={handleDescargarGuiaEntrega}
+                  disabled={preparandoGuiaEntrega}
+                  className="flex-1"
+                >
+                  Descargar PDF
+                </Button>
+                <Button
+                  onClick={() => navigate('/almacen/escaneo')}
+                  className="flex-1"
+                >
+                  Volver al Escaneo
+                </Button>
+              </div>
             </div>
           </Card>
         )}
@@ -836,7 +908,7 @@ const RetiroEncomiendaPage = () => {
                 </p>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   variant="outline"
                   icon={Printer}
@@ -844,6 +916,24 @@ const RetiroEncomiendaPage = () => {
                   className="flex-1"
                 >
                   Reimprimir
+                </Button>
+                <Button
+                  variant="outline"
+                  icon={Printer}
+                  onClick={handleImprimirGuiaEntrega}
+                  disabled={preparandoGuiaEntrega}
+                  className="flex-1"
+                >
+                  {preparandoGuiaEntrega ? 'Preparando...' : 'Guía de Entrega'}
+                </Button>
+                <Button
+                  variant="outline"
+                  icon={FileDown}
+                  onClick={handleDescargarGuiaEntrega}
+                  disabled={preparandoGuiaEntrega}
+                  className="flex-1"
+                >
+                  Guía PDF
                 </Button>
                 <Button
                   onClick={() => navigate('/almacen/escaneo')}
@@ -890,6 +980,13 @@ const RetiroEncomiendaPage = () => {
               largo: encomienda.largo
             } : null}
           />
+        </div>
+      )}
+
+      {/* Area de impresion de la guia de entrega (con firma de recepcion) */}
+      {guiaEntregaData && printTarget === 'entrega' && (
+        <div className="print-area" id="guia-entrega-print">
+          <GuiaEntregaPrint encomienda={guiaEntregaData.encomienda} entrega={guiaEntregaData.entrega} />
         </div>
       )}
     </>

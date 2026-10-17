@@ -32,6 +32,17 @@ import clientesService from '../../services/clientesService'
 import configuracionService from '../../services/configuracionService'
 import facturacionService from '../../services/facturacionService'
 import useDocLookup from '../../hooks/useDocLookup'
+import {
+  TIPOS_DOCUMENTO,
+  CODIGO_DNI,
+  CODIGO_RUC,
+  normalizarDocumento,
+  ajustarTipoPorNumero,
+  esDocumentoValido,
+  detectarTipoDocumento,
+  obtenerTipoDocumento,
+  siglaDocumento
+} from '../../utils/documentoIdentidad'
 import { getTodayInPeru } from '../../utils/dateUtils'
 
 /**
@@ -69,7 +80,8 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
   const [idRuta, setIdRuta] = useState('')
   const [rutaSeleccionada, setRutaSeleccionada] = useState(null)
 
-  // Datos del pasajero
+  // Datos del pasajero (documento: DNI, carnet de extranjeria o RUC)
+  const [tipoDocPasajero, setTipoDocPasajero] = useState(CODIGO_DNI)
   const [documento, setDocumento] = useState('')
   const [nombreCompleto, setNombreCompleto] = useState('')
   const [telefono, setTelefono] = useState('')
@@ -178,13 +190,8 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
     }
   }
 
-  // Handler para documento con autocompletado (DNI 8 digitos o RUC 11 digitos)
-  const handleDocumentoChange = async (e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 11)
-    setDocumento(value)
-    setClienteSeleccionado(null)
-
-    // Filtrar clientes locales
+  // Filtrar clientes registrados cuyo documento contenga lo escrito
+  const filtrarClientesPorDocumento = (value) => {
     if (value.length >= 2) {
       const filtrados = clientes.filter(c =>
         c.documentoIdentidad.includes(value)
@@ -195,35 +202,52 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
       setClientesFiltrados([])
       setShowDropdown(false)
     }
+  }
 
-    // Si completa 8 (DNI) o 11 (RUC) digitos, buscar en BD local y luego API.
+  // Cambio de tipo de documento (DNI, CE o RUC): adapta el numero al nuevo tipo
+  const handleTipoDocPasajeroChange = (e) => {
+    const tipoDoc = e.target.value
+    setTipoDocPasajero(tipoDoc)
+    setDocumento(prev => normalizarDocumento(tipoDoc, prev))
+    setClienteSeleccionado(null)
+  }
+
+  // Handler para documento con autocompletado.
+  // DNI y RUC alternan solos por cantidad de digitos; el carnet de extranjeria se elige en el selector.
+  const handleDocumentoChange = async (e) => {
+    const value = normalizarDocumento(tipoDocPasajero, e.target.value)
+    const tipoDoc = ajustarTipoPorNumero(tipoDocPasajero, value)
+    setTipoDocPasajero(tipoDoc)
+    setDocumento(value)
+    setClienteSeleccionado(null)
+    filtrarClientesPorDocumento(value)
+
+    // Documento completo: cliente registrado primero; si no existe, API (DNI/RUC).
     // La consulta es diferida: si el usuario sigue escribiendo (de 8 a 11 digitos) se cancela,
     // asi no se consulta como DNI el inicio de un RUC (existen DNIs reales que empiezan en 10 y 20).
-    const debeBuscar = value.length === 8 || value.length === 11
+    if (!esDocumentoValido(tipoDoc, value)) return
 
-    if (debeBuscar) {
-      const clienteLocal = clientes.find(c => c.documentoIdentidad === value)
-
-      if (clienteLocal) {
-        resetDocLookup()
-        handleSeleccionarCliente(clienteLocal)
-      } else {
-        const result = await consultarDocumentoDiferido(value, { skipLocal: true })
-        if (result === undefined) return // cancelada por una escritura posterior
-        if (result) {
-          setNombreCompleto(result.nombre_completo || result.razon_social || result.nombre_o_razon_social || '')
-          toast.success(value.length === 8 ? 'Datos obtenidos de RENIEC' : 'Datos obtenidos de SUNAT')
-        } else {
-          // react-hot-toast no tiene toast.info: usar toast() neutro
-          toast('Documento no encontrado. Ingrese los datos manualmente.')
-        }
+    const clienteLocal = clientes.find(c => c.documentoIdentidad === value)
+    if (clienteLocal) {
+      resetDocLookup()
+      handleSeleccionarCliente(clienteLocal)
+    } else {
+      const result = await consultarDocumentoDiferido(value, { skipLocal: true, tipo: tipoDoc })
+      if (result === undefined) return // cancelada por una escritura posterior
+      if (result) {
+        setNombreCompleto(result.nombre_completo || result.razon_social || result.nombre_o_razon_social || '')
+        toast.success(tipoDoc === CODIGO_RUC ? 'Datos obtenidos de SUNAT' : 'Datos obtenidos de RENIEC')
+      } else if (obtenerTipoDocumento(tipoDoc).consultaApi) {
+        // react-hot-toast no tiene toast.info: usar toast() neutro
+        toast('Documento no encontrado. Ingrese los datos manualmente.')
       }
-      setShowDropdown(false)
     }
+    setShowDropdown(false)
   }
 
   const handleSeleccionarCliente = (cliente) => {
     setClienteSeleccionado(cliente)
+    setTipoDocPasajero(detectarTipoDocumento(cliente.documentoIdentidad))
     setDocumento(cliente.documentoIdentidad)
     setNombreCompleto(cliente.nombreCompleto)
     setTelefono(formatTelefonoDisplay(cliente.telefono))
@@ -233,6 +257,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
 
   const handleLimpiarCliente = () => {
     setClienteSeleccionado(null)
+    setTipoDocPasajero(CODIGO_DNI)
     setDocumento('')
     setNombreCompleto('')
     setTelefono('')
@@ -305,7 +330,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
   // Validacion del formulario
   const formValido =
     idRuta &&
-    (documento.length === 8 || documento.length === 11) &&
+    esDocumentoValido(tipoDocPasajero, documento) &&
     nombreCompleto.trim() &&
     telefono.replace(/\s/g, '').length === 9 &&
     tipoDocumento &&
@@ -323,7 +348,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
         pasajero: {
           nombreCompleto: nombreCompleto.trim(),
           documentoIdentidad: documento,
-          tipoDocumento: documento.length === 11 ? '6' : '1',
+          tipoDocumento: tipoDocPasajero,
           telefono: telefono.replace(/\s/g, ''),
           comentario: comentario.trim() || null
         },
@@ -361,6 +386,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
   const handleReset = () => {
     setIdRuta('')
     setRutaSeleccionada(null)
+    setTipoDocPasajero(CODIGO_DNI)
     setDocumento('')
     setNombreCompleto('')
     setTelefono('')
@@ -441,12 +467,23 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
               </h4>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* DNI/RUC con autocompletado */}
+                {/* Documento (DNI, CE o RUC) con autocompletado */}
                 <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    DNI / RUC *
+                    Documento *
                   </label>
-                  <div className="relative">
+                  <div className="flex gap-2">
+                  <select
+                    value={tipoDocPasajero}
+                    onChange={handleTipoDocPasajeroChange}
+                    aria-label="Tipo de documento"
+                    className="w-24 shrink-0 px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
+                  >
+                    {TIPOS_DOCUMENTO.map(t => (
+                      <option key={t.codigo} value={t.codigo} title={t.nombre}>{t.sigla}</option>
+                    ))}
+                  </select>
+                  <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       ref={documentoInputRef}
@@ -463,9 +500,10 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
                         }
                       }}
                       onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-                      placeholder="Ingrese DNI o RUC..."
-                      maxLength={11}
-                      inputMode="numeric"
+                      placeholder="Ingrese el documento..."
+                      maxLength={obtenerTipoDocumento(tipoDocPasajero).alfanumerico ? 12 : 11}
+                      inputMode={obtenerTipoDocumento(tipoDocPasajero).alfanumerico ? 'text' : 'numeric'}
+                      autoCapitalize="characters"
                       className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
                     />
                     {buscandoDoc ? (
@@ -484,6 +522,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     )}
                   </div>
+                  </div>
 
                   {/* Dropdown de clientes */}
                   {showDropdown && clientesFiltrados.length > 0 && (
@@ -501,7 +540,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
                               {cliente.nombreCompleto}
                             </p>
                             <p className="text-xs text-gray-500">
-                              DNI: {cliente.documentoIdentidad}
+                              {siglaDocumento(cliente.documentoIdentidad)}: {cliente.documentoIdentidad}
                             </p>
                           </div>
                           {cliente.puntosDisponibles > 0 && (

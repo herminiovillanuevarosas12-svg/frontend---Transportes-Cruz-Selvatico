@@ -139,7 +139,7 @@ const ClientesIndexPage = () => {
     },
     {
       key: 'documentoIdentidad',
-      header: 'DNI',
+      header: 'Documento',
       render: (value) => (
         <span className="font-mono text-sm text-gray-700">{value}</span>
       )
@@ -283,7 +283,7 @@ const ClientesIndexPage = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Buscar por nombre o DNI..."
+                  placeholder="Buscar por nombre o documento..."
                   value={searchTerm}
                   onChange={handleSearch}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-200 focus:border-primary-500 outline-none"

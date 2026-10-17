@@ -11,11 +11,26 @@
  * consultarDocumentoDiferido(): espera a que el usuario deje de escribir antes de
  * consultar. Evita consultar como DNI los 8 primeros digitos de un RUC sin depender
  * de prefijos (existen DNIs reales que empiezan en 10 y 20).
+ *
+ * Con `tipo` explicito (selector DNI/CE/RUC) se respeta ese tipo: el carnet de
+ * extranjeria no tiene API externa, solo se busca entre los clientes registrados.
  */
+
+/**
+ * Normaliza la respuesta de RUC al mismo formato que la de DNI
+ */
+const mapearResultadoRuc = (result) => result ? {
+  nombre_completo: result.razon_social || result.nombre_o_razon_social,
+  razon_social: result.razon_social || result.nombre_o_razon_social,
+  direccion: result.direccion || result.direccion_completa || result.domicilio_fiscal,
+  tipoDoc: CODIGO_RUC,
+  source: result.source
+} : null
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import consultaDocService from '../services/consultaDocService'
 import clientesService from '../services/clientesService'
+import { CODIGO_DNI, CODIGO_RUC, esDocumentoValido } from '../utils/documentoIdentidad'
 
 export const DELAY_CONSULTA_DIFERIDA_MS = 600
 
@@ -42,6 +57,27 @@ const useDocLookup = () => {
   useEffect(() => cancelarDiferida, [cancelarDiferida])
 
   /**
+   * Cliente ya registrado con ese documento exacto (BD local, sin API externa)
+   * @param {string} numero - Documento ya normalizado (DNI, CE o RUC)
+   * @returns {Object|null} { nombre_completo, telefono, source: 'local' } o null
+   */
+  const buscarClienteLocal = useCallback(async (numero) => {
+    try {
+      const localResult = await clientesService.obtenerPorDni(numero)
+      if (localResult?.cliente) {
+        return {
+          nombre_completo: localResult.cliente.nombreCompleto,
+          telefono: localResult.cliente.telefono,
+          source: 'local'
+        }
+      }
+    } catch {
+      // No encontrado en local
+    }
+    return null
+  }, [])
+
+  /**
    * Consultar DNI con logica mixta (BD local primero, API despues)
    * @param {string} dni - DNI de 8 digitos
    * @param {boolean} skipLocal - Si es true, salta la busqueda local y va directo a API
@@ -58,18 +94,8 @@ const useDocLookup = () => {
     try {
       // 1. Buscar en BD local (tbl_pasajeros) primero
       if (!skipLocal) {
-        try {
-          const localResult = await clientesService.obtenerPorDni(dni)
-          if (localResult?.cliente) {
-            return {
-              nombre_completo: localResult.cliente.nombreCompleto,
-              telefono: localResult.cliente.telefono,
-              source: 'local'
-            }
-          }
-        } catch {
-          // No encontrado en local, continuar con API
-        }
+        const local = await buscarClienteLocal(dni)
+        if (local) return local
       }
 
       // 2. Buscar en API Peru
@@ -88,7 +114,7 @@ const useDocLookup = () => {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [buscarClienteLocal])
 
   /**
    * Consultar RUC (directo a API, no hay BD local de empresas)
@@ -122,51 +148,62 @@ const useDocLookup = () => {
   }, [])
 
   /**
-   * Consultar documento generico (detecta automaticamente si es DNI o RUC)
-   * @param {string} numero - Numero de documento (8 o 11 digitos)
-   * @param {boolean} skipLocal - Si es true, salta la busqueda local para DNI
-   * @returns {Object|null} { nombre_completo, razon_social, tipoDoc, source } o null si error
+   * Consultar documento generico.
+   * Sin `tipo`, detecta por longitud (8 = DNI, 11 = RUC).
+   * Con `tipo` (codigo del catalogo) respeta el selector: DNI y RUC consultan la API;
+   * el carnet de extranjeria solo se busca entre los clientes registrados.
+   * @param {string} numero - Numero de documento
+   * @param {boolean} skipLocal - Si es true, salta la busqueda local
+   * @param {string|null} tipo - Codigo del tipo de documento ('1', '4', '6') o null
+   * @returns {Object|null} { nombre_completo, razon_social, telefono, tipoDoc, source } o null si error
    */
-  const consultarDocumento = useCallback(async (numero, skipLocal = false) => {
+  const consultarDocumento = useCallback(async (numero, skipLocal = false, tipo = null) => {
     if (!numero) return null
+
+    if (tipo) {
+      if (!esDocumentoValido(tipo, numero)) return null
+      if (tipo === CODIGO_DNI) {
+        const result = await consultarDni(numero, skipLocal)
+        return result ? { ...result, tipoDoc: CODIGO_DNI } : null
+      }
+      if (tipo === CODIGO_RUC) {
+        return mapearResultadoRuc(await consultarRuc(numero))
+      }
+      if (skipLocal) return null
+      const local = await buscarClienteLocal(numero)
+      return local ? { ...local, tipoDoc: tipo } : null
+    }
 
     const soloNumeros = numero.replace(/\D/g, '')
 
     if (soloNumeros.length === 8) {
       // Es DNI
       const result = await consultarDni(soloNumeros, skipLocal)
-      return result ? { ...result, tipoDoc: '1' } : null
+      return result ? { ...result, tipoDoc: CODIGO_DNI } : null
     } else if (soloNumeros.length === 11) {
       // Es RUC
-      const result = await consultarRuc(soloNumeros)
-      return result ? {
-        nombre_completo: result.razon_social || result.nombre_o_razon_social,
-        razon_social: result.razon_social || result.nombre_o_razon_social,
-        direccion: result.direccion || result.direccion_completa || result.domicilio_fiscal,
-        tipoDoc: '6',
-        source: result.source
-      } : null
+      return mapearResultadoRuc(await consultarRuc(soloNumeros))
     }
 
     return null
-  }, [consultarDni, consultarRuc])
+  }, [buscarClienteLocal, consultarDni, consultarRuc])
 
   /**
    * Consultar documento cuando el usuario deja de escribir.
    * Cada llamada cancela la anterior: si el usuario sigue tecleando de 8 a 11 digitos,
    * la consulta como DNI nunca se dispara.
-   * @param {string} numero - Numero de documento (8 o 11 digitos)
-   * @param {Object} opciones - { skipLocal, delayMs }
+   * @param {string} numero - Numero de documento
+   * @param {Object} opciones - { skipLocal, delayMs, tipo } (tipo: codigo del catalogo, opcional)
    * @returns {Promise<Object|null|undefined>} resultado, null si no se encontro, undefined si fue cancelada
    */
-  const consultarDocumentoDiferido = useCallback((numero, { skipLocal = false, delayMs = DELAY_CONSULTA_DIFERIDA_MS } = {}) => {
+  const consultarDocumentoDiferido = useCallback((numero, { skipLocal = false, delayMs = DELAY_CONSULTA_DIFERIDA_MS, tipo = null } = {}) => {
     cancelarDiferida()
     return new Promise((resolve) => {
       resolverPendienteRef.current = resolve
       timerRef.current = setTimeout(async () => {
         timerRef.current = null
         resolverPendienteRef.current = null
-        resolve(await consultarDocumento(numero, skipLocal))
+        resolve(await consultarDocumento(numero, skipLocal, tipo))
       }, delayMs)
     })
   }, [cancelarDiferida, consultarDocumento])

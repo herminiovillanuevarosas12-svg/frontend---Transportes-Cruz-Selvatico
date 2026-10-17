@@ -10,6 +10,7 @@
  */
 
 import { dotsPerMm } from './profiles'
+import { siglaDocumento } from '../../utils/documentoIdentidad'
 
 const enc = new TextEncoder()
 const ascii = (s) => enc.encode(s)
@@ -136,7 +137,7 @@ export function buildESCPOSRotulo({ profile, encomienda }) {
     cmd.textLine(destNombre),
     cmd.size(1, 1),
     cmd.textLine(`Tel: ${destTel}`),
-    destDni ? cmd.textLine(`DNI: ${destDni}`) : new Uint8Array(0),
+    destDni ? cmd.textLine(`${siglaDocumento(destDni)}: ${destDni}`) : new Uint8Array(0),
     finalFeed,
     cutBytes,
   )
