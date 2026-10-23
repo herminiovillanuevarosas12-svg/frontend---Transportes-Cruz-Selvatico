@@ -55,8 +55,9 @@ const encomiendasService = {
     return response.data
   },
 
-  generarManifiesto: async (idsEncomiendas) => {
-    const response = await apiClient.post('/encomiendas/manifiestos', { idsEncomiendas })
+  // datos: { idsEncomiendas, idPuntoDestino, fechaSalida, horaSalida, idConductor, idBus }
+  generarManifiesto: async (datos) => {
+    const response = await apiClient.post('/encomiendas/manifiestos', datos)
     return response.data
   },
 

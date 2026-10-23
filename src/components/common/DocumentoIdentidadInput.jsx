@@ -4,6 +4,7 @@
  * Normaliza lo escrito según el tipo y alterna DNI/RUC por cantidad de dígitos.
  *
  * Emite onChange({ tipo, numero }) con el número ya normalizado.
+ * `tipos` limita los documentos que se ofrecen (por defecto, todos).
  */
 
 import {
@@ -26,7 +27,8 @@ const DocumentoIdentidadInput = ({
   onChange,
   buscando = false,
   color = 'blue',
-  label = 'Documento *'
+  label = 'Documento *',
+  tipos = TIPOS_DOCUMENTO
 }) => {
   const colores = COLORES[color] || COLORES.blue
   const definicion = obtenerTipoDocumento(tipo)
@@ -39,7 +41,10 @@ const DocumentoIdentidadInput = ({
 
   const handleNumero = (e) => {
     const numeroLimpio = normalizarDocumento(tipo, e.target.value)
-    onChange({ tipo: ajustarTipoPorNumero(tipo, numeroLimpio), numero: numeroLimpio })
+    const tipoAjustado = ajustarTipoPorNumero(tipo, numeroLimpio)
+    // Solo se alterna a un tipo que este campo ofrece
+    const tipoFinal = tipos.some(t => t.codigo === tipoAjustado) ? tipoAjustado : tipo
+    onChange({ tipo: tipoFinal, numero: numeroLimpio })
   }
 
   return (
@@ -55,7 +60,7 @@ const DocumentoIdentidadInput = ({
           aria-label="Tipo de documento"
           className={`${claseCampo} w-24 shrink-0 bg-white`}
         >
-          {TIPOS_DOCUMENTO.map(t => (
+          {tipos.map(t => (
             <option key={t.codigo} value={t.codigo} title={t.nombre}>
               {t.sigla}
             </option>

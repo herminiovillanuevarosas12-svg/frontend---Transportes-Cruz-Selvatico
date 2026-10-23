@@ -1,11 +1,11 @@
 /**
  * manifiestoEncomiendasPDF - Manifiesto de encomiendas en PDF A4 horizontal
- * Cabecera con datos de la empresa y del manifiesto, resumen de pagos,
- * una fila por encomienda y firmas al pie. Mismo estilo que encomiendasListaPDF.
+ * Cabecera con empresa, número y datos del viaje (oficina, destino, salida, conductor y bus),
+ * resumen de pagos, una fila por encomienda y firmas al pie. Mismo estilo que encomiendasListaPDF.
  */
 
 import { jsPDF } from 'jspdf'
-import { formatTimestamp } from '../../utils/dateUtils'
+import { formatDateOnly, formatTimeOnly, formatTimestamp } from '../../utils/dateUtils'
 import { siglaDocumento } from '../../utils/documentoIdentidad'
 import { loadLogo } from './encomiendasListaPDF'
 
@@ -49,69 +49,118 @@ const documento = (numero) => (numero ? `${siglaDocumento(numero)} ${numero}` : 
 
 const soles = (monto) => `S/ ${Number(monto || 0).toFixed(2)}`
 
-function dibujarCabecera(doc, W, logo, manifiesto) {
-  const headerH = 30
-  const { empresa } = manifiesto
+// Etiqueta en negrita y su valor a continuación, recortado al ancho del campo
+function campo(doc, etiqueta, valor, x, y, ancho) {
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(7.5)
+  setColor(doc, COLORS.grayDark, 'text')
+  const rotulo = `${etiqueta}:`
+  doc.text(rotulo, x, y)
 
-  setColor(doc, COLORS.greenDark, 'fill')
-  doc.rect(0, 0, W, headerH, 'F')
-  setColor(doc, COLORS.red, 'fill')
-  doc.rect(0, headerH, W, 2, 'F')
+  const valorX = x + doc.getTextWidth(rotulo) + 2
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8)
+  setColor(doc, COLORS.black, 'text')
+  doc.text(ajustar(doc, valor, x + ancho - valorX - 3), valorX, y)
+}
+
+const mayusculas = (valor) => (valor ? texto(valor).toUpperCase() : null)
+
+// Cabecera en el formato del manifiesto de encomienda: empresa, número y datos del viaje
+function dibujarCabecera(doc, W, logo, manifiesto) {
+  const { empresa, viaje } = manifiesto
+  const derechaX = W - M
 
   // Logo - preservar aspect ratio
   let textX = M
   if (logo) {
-    const maxLogoH = 20
-    const maxLogoW = 38
+    const maxLogoH = 18
+    const maxLogoW = 34
     const ratio = logo.width / logo.height
     const logoW = ratio >= 1 ? Math.min(maxLogoW, maxLogoH * ratio) : maxLogoH * ratio
     const logoH = ratio >= 1 ? logoW / ratio : maxLogoH
-    const logoY = (headerH - logoH) / 2
-    setColor(doc, COLORS.white, 'fill')
-    doc.roundedRect(M - 2, logoY - 2, logoW + 4, logoH + 4, 3, 3, 'F')
-    doc.addImage(logo.data, 'PNG', M, logoY, logoW, logoH)
-    textX = M + logoW + 6
+    doc.addImage(logo.data, 'PNG', M, 8 + (maxLogoH - logoH) / 2, logoW, logoH)
+    textX = M + logoW + 5
   }
 
-  // Bloque derecho: datos del manifiesto
-  const derechaX = W - M
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  setColor(doc, COLORS.white, 'text')
-  doc.text('MANIFIESTO DE ENCOMIENDAS', derechaX, 11, { align: 'right' })
-  doc.setFontSize(12)
-  doc.text(`N° ${manifiesto.numeroCompleto}`, derechaX, 18, { align: 'right' })
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
-  doc.setTextColor(200, 230, 201)
-  doc.text(
-    texto(`${formatTimestamp(manifiesto.fechaEmision)}  ·  Generado por: ${manifiesto.usuarioEmision}`),
-    derechaX, 25, { align: 'right' }
-  )
-
-  // Bloque izquierdo: empresa (la razón social larga baja de tamaño antes de recortarse)
-  const anchoEmpresa = derechaX - 92 - textX
+  // Empresa (la razón social larga baja de tamaño antes de recortarse)
+  const anchoEmpresa = derechaX - 80 - textX
   const razonSocial = empresa?.razonSocial || 'Transporte'
   doc.setFont('helvetica', 'bold')
-  setColor(doc, COLORS.white, 'text')
-  const tamano = [13, 11, 9.5].find((size) => {
+  setColor(doc, COLORS.black, 'text')
+  const tamano = [12, 10.5, 9].find((size) => {
     doc.setFontSize(size)
     return doc.getTextWidth(texto(razonSocial)) <= anchoEmpresa
-  }) || 9.5
+  }) || 9
   doc.setFontSize(tamano)
-  doc.text(ajustar(doc, razonSocial, anchoEmpresa), textX, 13)
+  doc.text(ajustar(doc, razonSocial, anchoEmpresa), textX, 14)
+  if (empresa?.domicilioFiscal) {
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    setColor(doc, COLORS.grayDark, 'text')
+    doc.text(ajustar(doc, `Dom. Fiscal: ${empresa.domicilioFiscal}`, anchoEmpresa), textX, 20)
+  }
 
-  const datos = [
-    empresa?.ruc ? `RUC ${empresa.ruc}` : null,
-    empresa?.direccion,
-    empresa?.telefono ? `Tel. ${empresa.telefono}` : null
-  ].filter(Boolean).join('  ·  ')
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(200, 230, 201)
-  if (datos) doc.text(ajustar(doc, datos, anchoEmpresa), textX, 20)
+  // Bloque derecho: RUC, tipo de documento y número
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  setColor(doc, COLORS.grayDark, 'text')
+  if (empresa?.ruc) doc.text(`R.U.C. ${empresa.ruc}`, derechaX, 11, { align: 'right' })
+  doc.setFontSize(11)
+  setColor(doc, COLORS.black, 'text')
+  doc.text('MANIFIESTO DE ENCOMIENDA', derechaX, 18, { align: 'right' })
+  doc.setFontSize(13)
+  setColor(doc, COLORS.greenDark, 'text')
+  doc.text(manifiesto.numeroCompleto, derechaX, 25.5, { align: 'right' })
 
-  return headerH + 2
+  setColor(doc, COLORS.greenDark, 'draw')
+  doc.setLineWidth(0.8)
+  doc.line(M, 30, derechaX, 30)
+
+  // Datos del viaje: tres columnas; direcciones a media página; bus en cuatro
+  const ancho = W - M * 2
+  const tercio = ancho / 3
+  const mitad = ancho / 2
+  const cuarto = ancho / 4
+  const oficina = viaje?.oficina
+  const filas = [
+    [
+      ['OFICINA', oficina && mayusculas(`${oficina.ciudad}: ${oficina.nombre}`), 0, tercio],
+      ['DESTINO', mayusculas(viaje?.destino?.ciudad), tercio, tercio],
+      ['IMPRESIÓN', formatTimestamp(new Date()), tercio * 2, tercio]
+    ],
+    [
+      ['DIR ORIGEN', mayusculas(oficina?.direccion), 0, mitad],
+      ['DIR DESTINO', mayusculas(viaje?.destino?.direccion), mitad, mitad]
+    ],
+    [
+      ['FECHA', viaje?.fechaSalida && formatDateOnly(viaje.fechaSalida), 0, tercio],
+      ['HORA', viaje?.horaSalida && formatTimeOnly(viaje.horaSalida), tercio, tercio]
+    ],
+    [
+      ['CONDUCTOR', mayusculas(viaje?.conductor?.nombre), 0, tercio * 2],
+      ['LICENCIA', viaje?.conductor?.licencia, tercio * 2, tercio]
+    ],
+    [
+      ['BUS', viaje?.bus?.numeroInterno, 0, cuarto],
+      ['PLACA', viaje?.bus?.placa, cuarto, cuarto],
+      ['MARCA', mayusculas(viaje?.bus?.marca), cuarto * 2, cuarto],
+      ['CERT. INSC.', viaje?.bus?.certificadoInscripcion, cuarto * 3, cuarto]
+    ]
+  ]
+
+  const filaH = 6.5
+  let y = 37
+  filas.forEach((fila) => {
+    fila.forEach(([etiqueta, valor, desde, anchoCampo]) => campo(doc, etiqueta, valor, M + desde, y, anchoCampo))
+    y += filaH
+  })
+
+  setColor(doc, COLORS.grayLight, 'draw')
+  doc.setLineWidth(0.3)
+  doc.line(M, y - 3, derechaX, y - 3)
+
+  return y - 3
 }
 
 function dibujarResumen(doc, y, contentW, resumen) {
@@ -161,7 +210,7 @@ function dibujarFooter(doc, W, H, manifiesto) {
   doc.setFontSize(7)
   doc.setTextColor(200, 230, 201)
   doc.text(
-    texto(`${manifiesto.empresa?.razonSocial || 'Transporte'} · Manifiesto ${manifiesto.numeroCompleto} · Documento generado automaticamente`),
+    texto(`${manifiesto.empresa?.razonSocial || 'Transporte'} · Manifiesto ${manifiesto.numeroCompleto} · Emitido el ${formatTimestamp(manifiesto.fechaEmision)} por ${manifiesto.usuarioEmision}`),
     W / 2,
     footerY + 6.5,
     { align: 'center' }

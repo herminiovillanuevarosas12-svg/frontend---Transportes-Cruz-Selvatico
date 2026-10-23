@@ -5,8 +5,7 @@
 
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Button, StatusBadge, QRScanner } from '../../components/common'
-import { useAuthStore } from '../../features/auth/authStore'
+import { Card, Button, QRScanner } from '../../components/common'
 import encomiendasService from '../../services/encomiendasService'
 import {
   QrCode,
@@ -15,7 +14,6 @@ import {
   User,
   Phone,
   ArrowRight,
-  Check,
   AlertCircle,
   RefreshCw,
   Keyboard,
@@ -23,8 +21,7 @@ import {
   ShieldAlert,
   X,
   Contact,
-  ChevronRight,
-  Clock
+  ChevronRight
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -38,7 +35,6 @@ const ESTADO_LABELS = {
 
 const EscaneoAlmacenPage = () => {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
   const [scanning, setScanning] = useState(true)
   const [loading, setLoading] = useState(false)
   const [encomienda, setEncomienda] = useState(null)
@@ -46,7 +42,8 @@ const EscaneoAlmacenPage = () => {
   // Modos: 'qr' | 'manual' | 'dni'
   const [modo, setModo] = useState('qr')
   const [codigoManual, setCodigoManual] = useState('')
-  const [alertaRetiro, setAlertaRetiro] = useState(null)
+  // Motivo por el que el backend no permite avanzar el estado (null = sin alerta)
+  const [motivoNoPermitido, setMotivoNoPermitido] = useState(null)
   // Estado para busqueda por documento del remitente o destinatario
   const [dniBusqueda, setDniBusqueda] = useState('')
   const [listaEncomiendas, setListaEncomiendas] = useState(null)
@@ -162,39 +159,19 @@ const EscaneoAlmacenPage = () => {
     return colores[estado] || 'bg-gray-100 text-gray-800 border-gray-200'
   }
 
-  const getSiguienteEstado = (estadoActual) => {
-    const flujo = {
-      REGISTRADO: 'EN_ALMACEN',
-      EN_ALMACEN: 'EN_RUTA',
-      EN_RUTA: 'LLEGO_A_DESTINO',
-      LLEGO_A_DESTINO: 'RETIRADO'
-    }
-    return flujo[estadoActual]
-  }
-
+  // El backend calcula el siguiente estado y si este usuario puede aplicarlo
   const handleCambiarEstado = () => {
-    if (!encomienda) return
+    if (!encomienda?.transicion) return
 
-    const siguienteEstado = getSiguienteEstado(encomienda.estado)
-
-    if (siguienteEstado === 'RETIRADO') {
-      const idPuntoUsuario = user?.id_punto
-      const idPuntoDestino = encomienda.ruta?.puntoDestino?.id
-      const nombrePuntoDestino = encomienda.ruta?.puntoDestino?.nombre
-
-      if (idPuntoUsuario && idPuntoDestino && idPuntoUsuario !== idPuntoDestino) {
-        setAlertaRetiro({
-          mensaje: 'No puede registrar la entrega de esta encomienda',
-          razon: `Solo el punto de destino "${nombrePuntoDestino}" puede registrar la entrega.`,
-          detalle: 'La encomienda debe ser entregada en su punto de destino.'
-        })
-        return
-      }
-
-      navigate(`/almacen/retiro/${encomienda.id}`)
-    } else {
-      navigate(`/almacen/cambio-estado/${encomienda.id}`)
+    const { siguienteEstado, permitida, motivo } = encomienda.transicion
+    if (!permitida) {
+      setMotivoNoPermitido(motivo)
+      return
     }
+
+    navigate(siguienteEstado === 'RETIRADO'
+      ? `/almacen/retiro/${encomienda.id}`
+      : `/almacen/cambio-estado/${encomienda.id}`)
   }
 
   return (
@@ -546,13 +523,13 @@ const EscaneoAlmacenPage = () => {
                   Escanear otra
                 </Button>
               )}
-              {encomienda.estado !== 'RETIRADO' && (
+              {encomienda.transicion?.siguienteEstado && (
                 <Button
                   icon={ArrowRight}
                   onClick={handleCambiarEstado}
                   className="flex-1"
                 >
-                  {getSiguienteEstado(encomienda.estado) === 'RETIRADO'
+                  {encomienda.transicion.siguienteEstado === 'RETIRADO'
                     ? 'Registrar Retiro'
                     : 'Cambiar Estado'
                   }
@@ -562,8 +539,8 @@ const EscaneoAlmacenPage = () => {
           </div>
         )}
 
-        {/* Modal de Alerta - No puede registrar retiro */}
-        {alertaRetiro && (
+        {/* Modal de Alerta - El usuario no puede avanzar el estado */}
+        {motivoNoPermitido && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in duration-200">
               {/* Header */}
@@ -583,22 +560,17 @@ const EscaneoAlmacenPage = () => {
               {/* Contenido */}
               <div className="px-6 py-5">
                 <p className="text-gray-900 font-medium mb-2">
-                  {alertaRetiro.mensaje}
+                  No puede cambiar el estado de esta encomienda
                 </p>
-                <p className="text-gray-600 mb-3">
-                  {alertaRetiro.razon}
+                <p className="text-gray-600">
+                  {motivoNoPermitido}
                 </p>
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                  <p className="text-sm text-blue-700">
-                    <strong>Nota:</strong> {alertaRetiro.detalle}
-                  </p>
-                </div>
               </div>
 
               {/* Acciones */}
               <div className="px-6 py-4 bg-gray-50 border-t">
                 <Button
-                  onClick={() => setAlertaRetiro(null)}
+                  onClick={() => setMotivoNoPermitido(null)}
                   className="w-full"
                   icon={X}
                 >

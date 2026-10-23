@@ -15,7 +15,6 @@ import { setPrintPageSize, clearPrintPageSize } from '../../utils/printPageSize'
 import { generarGuiaEntregaPDF } from '../../components/encomiendas/guiaEntregaPDF'
 import { comprimirImagenADataUrl, mensajeErrorImagen } from '../../utils/imageCompression'
 import {
-  Package,
   ArrowLeft,
   User,
   Camera,
@@ -117,8 +116,10 @@ const RetiroEncomiendaPage = () => {
       const response = await encomiendasService.obtener(id)
       const enc = response.encomienda || response
 
-      if (enc.estadoActual !== 'LLEGO_A_DESTINO') {
-        toast.error('La encomienda no esta lista para retiro')
+      // El backend indica si el siguiente paso es el retiro y si este usuario puede registrarlo
+      const { siguienteEstado, permitida, motivo } = enc.transicion
+      if (siguienteEstado !== 'RETIRADO' || !permitida) {
+        toast.error(siguienteEstado === 'RETIRADO' ? motivo : 'La encomienda no esta lista para retiro')
         navigate('/almacen/escaneo')
         return
       }

@@ -72,6 +72,11 @@ const EditarPuntoPage = () => {
       newErrors.ciudad = 'La ciudad es requerida'
     }
 
+    // La dirección sale en el manifiesto de encomiendas
+    if (!formData.direccion.trim()) {
+      newErrors.direccion = 'La dirección del punto es requerida'
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -156,7 +161,8 @@ const EditarPuntoPage = () => {
               placeholder="Ej: Av. Principal 123"
               value={formData.direccion}
               onChange={(e) => handleChange('direccion', e.target.value)}
-              helperText="Opcional"
+              error={errors.direccion}
+              required
             />
 
             <Select

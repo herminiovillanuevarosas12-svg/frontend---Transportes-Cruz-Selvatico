@@ -20,6 +20,42 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+// Presentación de cada estado, en el orden del flujo
+const ESTADOS_INFO = {
+  REGISTRADO: {
+    label: 'Registrado',
+    icon: Package,
+    color: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    bgColor: 'bg-yellow-50'
+  },
+  EN_ALMACEN: {
+    label: 'En Almacen',
+    icon: Warehouse,
+    color: 'bg-blue-100 text-blue-800 border-blue-300',
+    bgColor: 'bg-blue-50'
+  },
+  EN_RUTA: {
+    label: 'En Ruta',
+    icon: Truck,
+    color: 'bg-purple-100 text-purple-800 border-purple-300',
+    bgColor: 'bg-purple-50'
+  },
+  LLEGO_A_DESTINO: {
+    label: 'Llego a Destino',
+    icon: MapPin,
+    color: 'bg-green-100 text-green-800 border-green-300',
+    bgColor: 'bg-green-50'
+  },
+  RETIRADO: {
+    label: 'Retirado',
+    icon: Check,
+    color: 'bg-gray-100 text-gray-800 border-gray-300',
+    bgColor: 'bg-gray-50'
+  }
+}
+
+const getEstadoInfo = (estado) => ESTADOS_INFO[estado] || ESTADOS_INFO.REGISTRADO
+
 const CambioEstadoPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -46,59 +82,13 @@ const CambioEstadoPage = () => {
     }
   }
 
-  const getEstadoInfo = (estado) => {
-    const info = {
-      REGISTRADO: {
-        label: 'Registrado',
-        icon: Package,
-        color: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-        bgColor: 'bg-yellow-50'
-      },
-      EN_ALMACEN: {
-        label: 'En Almacen',
-        icon: Warehouse,
-        color: 'bg-blue-100 text-blue-800 border-blue-300',
-        bgColor: 'bg-blue-50'
-      },
-      EN_RUTA: {
-        label: 'En Ruta',
-        icon: Truck,
-        color: 'bg-purple-100 text-purple-800 border-purple-300',
-        bgColor: 'bg-purple-50'
-      },
-      LLEGO_A_DESTINO: {
-        label: 'Llego a Destino',
-        icon: MapPin,
-        color: 'bg-green-100 text-green-800 border-green-300',
-        bgColor: 'bg-green-50'
-      },
-      RETIRADO: {
-        label: 'Retirado',
-        icon: Check,
-        color: 'bg-gray-100 text-gray-800 border-gray-300',
-        bgColor: 'bg-gray-50'
-      }
-    }
-    return info[estado] || info.REGISTRADO
-  }
-
-  const getSiguienteEstado = (estadoActual) => {
-    const flujo = {
-      REGISTRADO: 'EN_ALMACEN',
-      EN_ALMACEN: 'EN_RUTA',
-      EN_RUTA: 'LLEGO_A_DESTINO',
-      LLEGO_A_DESTINO: 'RETIRADO'
-    }
-    return flujo[estadoActual]
-  }
-
   const handleCambiarEstado = async () => {
     if (!encomienda) return
 
-    const siguienteEstado = getSiguienteEstado(encomienda.estadoActual)
-
-    if (!siguienteEstado) {
-      toast.error('No se puede cambiar el estado')
+    // El backend calcula el siguiente estado y si este usuario puede aplicarlo
+    const { siguienteEstado, permitida, motivo } = encomienda.transicion
+    if (!permitida) {
+      toast.error(motivo || 'No se puede cambiar el estado')
       return
     }
 
@@ -156,7 +146,7 @@ const CambioEstadoPage = () => {
   }
 
   const estadoActual = getEstadoInfo(encomienda.estadoActual)
-  const siguienteEstado = getSiguienteEstado(encomienda.estadoActual)
+  const { siguienteEstado, permitida, motivo } = encomienda.transicion
   const estadoSiguiente = siguienteEstado ? getEstadoInfo(siguienteEstado) : null
 
   return (
@@ -249,7 +239,7 @@ const CambioEstadoPage = () => {
           >
             Cancelar
           </Button>
-          {estadoSiguiente && (
+          {estadoSiguiente && permitida && (
             <Button
               icon={Check}
               onClick={handleCambiarEstado}
@@ -261,11 +251,18 @@ const CambioEstadoPage = () => {
           )}
         </div>
 
+        {estadoSiguiente && !permitida && (
+          <div className="mt-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>{motivo}</span>
+          </div>
+        )}
+
         {/* Timeline de Estados */}
         <Card className="mt-6">
           <h4 className="text-sm font-medium text-gray-700 mb-4">Flujo de Estados</h4>
           <div className="flex items-center justify-between">
-            {['REGISTRADO', 'EN_ALMACEN', 'EN_RUTA', 'LLEGO_A_DESTINO', 'RETIRADO'].map((estado, index, arr) => {
+            {Object.keys(ESTADOS_INFO).map((estado, index, arr) => {
               const info = getEstadoInfo(estado)
               const esActual = estado === encomienda.estadoActual
               const esPasado = arr.indexOf(encomienda.estadoActual) > index

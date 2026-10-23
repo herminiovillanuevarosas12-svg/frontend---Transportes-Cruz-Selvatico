@@ -6,13 +6,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { Table, Button, Card, StatusBadge, Modal, ComprobantePrint, QRGenerator, RotuloEncomiendaPrint, RotuloPreviewModal, DocumentoIdentidadInput, GuiaEntregaPrint } from '../../components/common'
+import { Table, Button, Card, Modal, Input, Select, ComprobantePrint, QRGenerator, RotuloEncomiendaPrint, RotuloPreviewModal, DocumentoIdentidadInput, GuiaEntregaPrint } from '../../components/common'
 import { PermissionGate, useAuthStore } from '../../features/auth'
 import encomiendasService from '../../services/encomiendasService'
 import { getUploadUrl } from '../../services/apiClient'
 import facturacionService from '../../services/facturacionService'
 import configuracionService from '../../services/configuracionService'
-import { formatDateOnly, formatTimestamp } from '../../utils/dateUtils'
+import puntosService from '../../services/puntosService'
+import { conductoresService, busesService } from '../../services/flotaService'
+import { formatDateOnly, formatTimeOnly, formatTimestamp, getTodayInPeru } from '../../utils/dateUtils'
 import debugLog from '../../utils/debugLog'
 import bluetoothPrinter from '../../services/bluetoothPrinter'
 import { PRINTER_PROFILES } from '../../services/printing/profiles'
@@ -33,7 +35,13 @@ import {
 import { generarListaEncomiendasPDF } from '../../components/encomiendas/encomiendasListaPDF'
 import { generarGuiaEntregaPDF } from '../../components/encomiendas/guiaEntregaPDF'
 import { generarManifiestoPDF } from '../../components/encomiendas/manifiestoEncomiendasPDF'
-import { esSeleccionableParaManifiesto, resumirSeleccionManifiesto } from '../../utils/manifiestoEncomiendas'
+import {
+  esSeleccionableParaManifiesto,
+  resumirSeleccionManifiesto,
+  origenDeSeleccion,
+  destinoComun
+} from '../../utils/manifiestoEncomiendas'
+import { textoSelector } from '../../utils/selector'
 import { comprimirImagenADataUrl, mensajeErrorImagen } from '../../utils/imageCompression'
 import {
   Package,
@@ -97,6 +105,11 @@ const EncomiendasIndexPage = () => {
   const [manifiestos, setManifiestos] = useState([])
   const [manifiestosPagination, setManifiestosPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 })
   const [cargandoManifiestos, setCargandoManifiestos] = useState(false)
+  // Datos del viaje del manifiesto: modal abierto, opciones de las listas y valores elegidos
+  const [datosViajeModal, setDatosViajeModal] = useState(false)
+  const [opcionesViaje, setOpcionesViaje] = useState({ puntos: [], conductores: [], buses: [] })
+  const [cargandoOpcionesViaje, setCargandoOpcionesViaje] = useState(false)
+  const [datosViaje, setDatosViaje] = useState({})
 
   // Modal de detalle
   const [detalleModal, setDetalleModal] = useState({ open: false, encomienda: null })
@@ -362,7 +375,12 @@ const EncomiendasIndexPage = () => {
     })
   }
 
-  const seleccionablesPagina = encomiendas.filter(esSeleccionableParaManifiesto)
+  // Un manifiesto tiene un solo origen: lo fija la primera encomienda elegida.
+  // Sin selección, "seleccionar página" toma el origen de la primera seleccionable.
+  const encomiendasSeleccionadas = Object.values(seleccionManifiesto)
+  const idOrigenFijado = origenDeSeleccion(encomiendasSeleccionadas)
+  const idOrigenPagina = idOrigenFijado ?? origenDeSeleccion(encomiendas.filter((e) => esSeleccionableParaManifiesto(e)))
+  const seleccionablesPagina = encomiendas.filter((e) => esSeleccionableParaManifiesto(e, idOrigenPagina))
   const paginaSeleccionada = seleccionablesPagina.length > 0 &&
     seleccionablesPagina.every(e => seleccionManifiesto[e.id])
 
@@ -377,19 +395,66 @@ const EncomiendasIndexPage = () => {
     })
   }
 
-  const resumenSeleccion = resumirSeleccionManifiesto(Object.values(seleccionManifiesto))
+  const resumenSeleccion = resumirSeleccionManifiesto(encomiendasSeleccionadas)
+
+  // Abrir el modal de datos del viaje con las listas actualizadas
+  const handleAbrirDatosViaje = async () => {
+    if (encomiendasSeleccionadas.length === 0) {
+      toast.error('Seleccione al menos una encomienda En ruta')
+      return
+    }
+
+    setDatosViaje({
+      idPuntoDestino: destinoComun(encomiendasSeleccionadas) ?? '',
+      fechaSalida: getTodayInPeru(),
+      horaSalida: '',
+      idConductor: '',
+      idBus: ''
+    })
+    setDatosViajeModal(true)
+
+    try {
+      setCargandoOpcionesViaje(true)
+      const [respuestaPuntos, respuestaConductores, respuestaBuses] = await Promise.all([
+        puntosService.listar(),
+        conductoresService.listar(),
+        busesService.listar()
+      ])
+      setOpcionesViaje({
+        puntos: respuestaPuntos.puntos || [],
+        conductores: respuestaConductores.conductores || [],
+        buses: respuestaBuses.buses || []
+      })
+    } catch (error) {
+      console.error('Error cargando datos del viaje:', error)
+      toast.error(error.response?.data?.error || 'Error al cargar destinos, conductores y buses')
+    } finally {
+      setCargandoOpcionesViaje(false)
+    }
+  }
+
+  const setCampoViaje = (campo, valor) => setDatosViaje(prev => ({ ...prev, [campo]: valor }))
+
+  // Destino final: cualquier punto activo distinto del origen
+  const opcionesDestino = opcionesViaje.puntos
+    .filter(punto => punto.id !== idOrigenFijado)
+    .map(punto => ({ value: punto.id, label: `${punto.nombre} (${punto.ciudad})` }))
 
   const handleGenerarManifiesto = async () => {
-    const ids = Object.keys(seleccionManifiesto).map(Number)
-    if (ids.length === 0) {
-      toast.error('Seleccione al menos una encomienda En ruta')
+    const faltante = Object.values(datosViaje).some(valor => valor === '' || valor === null)
+    if (faltante) {
+      toast.error('Complete todos los datos del viaje')
       return
     }
 
     try {
       setGenerandoManifiesto(true)
-      const { mensaje, manifiesto } = await encomiendasService.generarManifiesto(ids)
+      const { mensaje, manifiesto } = await encomiendasService.generarManifiesto({
+        idsEncomiendas: encomiendasSeleccionadas.map(e => e.id),
+        ...datosViaje
+      })
       toast.success(mensaje)
+      setDatosViajeModal(false)
       setModoManifiesto(false)
       setSeleccionManifiesto({})
       cargarEncomiendas()
@@ -403,7 +468,10 @@ const EncomiendasIndexPage = () => {
       console.error('Error generando manifiesto:', error)
       toast.error(error.response?.data?.error || 'Error al generar el manifiesto')
       // Otra persona pudo incluir alguna encomienda: refrescar para mostrar los bloqueos
-      if (error.response?.status === 409) cargarEncomiendas()
+      if (error.response?.status === 409) {
+        setDatosViajeModal(false)
+        cargarEncomiendas()
+      }
     } finally {
       setGenerandoManifiesto(false)
     }
@@ -1033,7 +1101,7 @@ const EncomiendasIndexPage = () => {
             {value?.replace(/_/g, ' ') || 'N/A'}
           </span>
           {row.manifiesto && (
-            hasPermission('ENCOMIENDAS_MANIFIESTO') ? (
+            hasPermission('ENCOMIENDAS_MANIFIESTO') && row.manifiesto.descargable ? (
               <button
                 type="button"
                 onClick={() => handleDescargarManifiesto(row.manifiesto.id)}
@@ -1183,7 +1251,12 @@ const EncomiendasIndexPage = () => {
           </span>
         )
       }
-      const seleccionable = esSeleccionableParaManifiesto(row)
+      const seleccionable = esSeleccionableParaManifiesto(row, idOrigenFijado)
+      const titulo = seleccionable
+        ? 'Incluir en el manifiesto'
+        : esSeleccionableParaManifiesto(row)
+          ? `El manifiesto ya tiene encomiendas de ${encomiendasSeleccionadas[0]?.puntoOrigen?.nombre}: solo admite un origen`
+          : 'Solo se pueden incluir encomiendas En ruta'
       return (
         <input
           type="checkbox"
@@ -1191,7 +1264,7 @@ const EncomiendasIndexPage = () => {
           checked={Boolean(seleccionManifiesto[row.id])}
           onChange={() => toggleSeleccionManifiesto(row)}
           disabled={!seleccionable}
-          title={seleccionable ? 'Incluir en el manifiesto' : 'Solo se pueden incluir encomiendas En ruta'}
+          title={titulo}
         />
       )
     }
@@ -1405,7 +1478,9 @@ const EncomiendasIndexPage = () => {
                   {' · '}S/ {resumenSeleccion.fleteTotal.toFixed(2)}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  Las que ya pertenecen a un manifiesto aparecen bloqueadas. El flujo de cada encomienda no cambia.
+                  {idOrigenFijado
+                    ? `Origen: ${encomiendasSeleccionadas[0]?.puntoOrigen?.nombre}. Solo se pueden agregar encomiendas de este origen.`
+                    : 'Todas deben tener el mismo origen. Las que ya pertenecen a un manifiesto aparecen bloqueadas.'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1418,8 +1493,7 @@ const EncomiendasIndexPage = () => {
                 </Button>
                 <Button
                   icon={ClipboardList}
-                  onClick={handleGenerarManifiesto}
-                  loading={generandoManifiesto}
+                  onClick={handleAbrirDatosViaje}
                   disabled={resumenSeleccion.cantidad === 0}
                 >
                   Generar manifiesto ({resumenSeleccion.cantidad})
@@ -1447,6 +1521,92 @@ const EncomiendasIndexPage = () => {
         </Card>
       </div>
 
+      {/* Modal Datos del viaje del manifiesto */}
+      <Modal
+        isOpen={datosViajeModal}
+        onClose={() => setDatosViajeModal(false)}
+        title="Datos del viaje"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDatosViajeModal(false)} disabled={generandoManifiesto}>
+              Cancelar
+            </Button>
+            <Button
+              icon={ClipboardList}
+              onClick={handleGenerarManifiesto}
+              loading={generandoManifiesto}
+              disabled={cargandoOpcionesViaje}
+            >
+              Generar manifiesto ({resumenSeleccion.cantidad})
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-gray-50 rounded-lg text-sm">
+            <span className="text-gray-500">Oficina (origen): </span>
+            <span className="font-medium text-gray-900">
+              {encomiendasSeleccionadas[0]?.puntoOrigen?.nombre} ({encomiendasSeleccionadas[0]?.puntoOrigen?.ciudad})
+            </span>
+          </div>
+          <Select
+            label="Destino final"
+            required
+            value={datosViaje.idPuntoDestino ?? ''}
+            onChange={(e) => setCampoViaje('idPuntoDestino', e.target.value)}
+            options={opcionesDestino}
+            placeholder={textoSelector({
+              cargando: cargandoOpcionesViaje,
+              cantidad: opcionesDestino.length,
+              seleccionar: 'Seleccione el destino final',
+              vacio: 'No hay otros puntos registrados'
+            })}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Fecha de salida"
+              type="date"
+              required
+              value={datosViaje.fechaSalida ?? ''}
+              onChange={(e) => setCampoViaje('fechaSalida', e.target.value)}
+            />
+            <Input
+              label="Hora de salida"
+              type="time"
+              required
+              value={datosViaje.horaSalida ?? ''}
+              onChange={(e) => setCampoViaje('horaSalida', e.target.value)}
+            />
+          </div>
+          <Select
+            label="Conductor"
+            required
+            value={datosViaje.idConductor ?? ''}
+            onChange={(e) => setCampoViaje('idConductor', e.target.value)}
+            options={opcionesViaje.conductores.map(c => ({ value: c.id, label: `${c.nombreCompleto} · Lic. ${c.licencia}` }))}
+            placeholder={textoSelector({
+              cargando: cargandoOpcionesViaje,
+              cantidad: opcionesViaje.conductores.length,
+              seleccionar: 'Seleccione el conductor',
+              vacio: 'No hay conductores registrados (Administración > Flota > Conductores)'
+            })}
+          />
+          <Select
+            label="Bus"
+            required
+            value={datosViaje.idBus ?? ''}
+            onChange={(e) => setCampoViaje('idBus', e.target.value)}
+            options={opcionesViaje.buses.map(b => ({ value: b.id, label: `${b.numeroInterno} · ${b.placa} · ${b.marca}` }))}
+            placeholder={textoSelector({
+              cargando: cargandoOpcionesViaje,
+              cantidad: opcionesViaje.buses.length,
+              seleccionar: 'Seleccione el bus',
+              vacio: 'No hay buses registrados (Administración > Flota > Buses)'
+            })}
+          />
+        </div>
+      </Modal>
+
       {/* Modal Manifiestos generados */}
       <Modal
         isOpen={manifiestosModal}
@@ -1465,6 +1625,22 @@ const EncomiendasIndexPage = () => {
               key: 'fechaEmision',
               header: 'Fecha',
               render: (value) => <span className="text-sm text-gray-600">{formatTimestamp(value)}</span>
+            },
+            {
+              key: 'origen',
+              header: 'Ruta',
+              render: (value, row) => (
+                <span className="text-sm text-gray-700">{value || '-'} → {row.destino || '-'}</span>
+              )
+            },
+            {
+              key: 'fechaSalida',
+              header: 'Salida',
+              render: (value, row) => (
+                <span className="whitespace-nowrap text-sm text-gray-600">
+                  {value ? `${formatDateOnly(value)} ${formatTimeOnly(row.horaSalida)}` : '-'}
+                </span>
+              )
             },
             {
               key: 'cantidad',

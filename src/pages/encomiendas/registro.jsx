@@ -5,8 +5,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Card, QRGenerator, ClienteCombobox, ComprobantePrint, Combobox, DocumentoIdentidadInput } from '../../components/common'
+import { Button, QRGenerator, ClienteCombobox, ComprobantePrint, Combobox, DocumentoIdentidadInput } from '../../components/common'
 import { formatTimestamp } from '../../utils/dateUtils'
+import { useAuthStore } from '../../features/auth'
 import puntosService from '../../services/puntosService'
 import encomiendasService from '../../services/encomiendasService'
 import configuracionService from '../../services/configuracionService'
@@ -44,6 +45,9 @@ import {
 import toast from 'react-hot-toast'
 
 const RegistroEncomiendaPage = () => {
+  // Un usuario con punto registra desde su agencia: el origen queda fijo
+  const idPuntoUsuario = useAuthStore(state => state.user?.id_punto)
+  const origenInicial = idPuntoUsuario ? String(idPuntoUsuario) : ''
   const navigate = useNavigate()
   const [step, setStep] = useState(1) // 1: Datos, 2: Confirmacion
   const [loading, setLoading] = useState(false)
@@ -67,7 +71,7 @@ const RegistroEncomiendaPage = () => {
 
   // Datos del formulario
   const [formData, setFormData] = useState({
-    idPuntoOrigen: '',
+    idPuntoOrigen: origenInicial,
     idPuntoDestino: '',
     // Remitente
     remitenteNombre: '',
@@ -608,7 +612,7 @@ const RegistroEncomiendaPage = () => {
 
   const nuevaEncomienda = () => {
     setFormData({
-      idPuntoOrigen: '',
+      idPuntoOrigen: origenInicial,
       idPuntoDestino: '',
       remitenteNombre: '',
       remitenteTipoDoc: CODIGO_DNI,
@@ -680,7 +684,9 @@ const RegistroEncomiendaPage = () => {
                     name="idPuntoOrigen"
                     value={formData.idPuntoOrigen}
                     onChange={handleChange}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    disabled={Boolean(idPuntoUsuario)}
+                    title={idPuntoUsuario ? 'Las encomiendas se registran desde su agencia' : undefined}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-700"
                   >
                     <option value="">Seleccione origen</option>
                     {puntos.map(punto => (

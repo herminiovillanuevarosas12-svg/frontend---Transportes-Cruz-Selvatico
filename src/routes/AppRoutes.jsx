@@ -24,8 +24,9 @@ import RutasListPage from '../pages/rutas/index'
 import NuevaRutaPage from '../pages/rutas/nuevo'
 import EditarRutaPage from '../pages/rutas/editar'
 
-// Tipos de Carro
-import TiposCarroPage from '../pages/tipos-carro/index'
+// Flota (tipos de carro, conductores y buses)
+import FlotaPage from '../pages/flota/index'
+import { PERMISOS_FLOTA } from '../utils/flota'
 
 // Tipos de Paquete
 import TiposPaquetePage from '../pages/tipos-paquete/index'
@@ -86,6 +87,7 @@ import BlogDetallePage from '../pages/blog-detalle'
 import BlogAdminPage from '../pages/administracion/blog'
 
 // Definicion de rutas con sus permisos (en orden de prioridad para redirección)
+// permission: un código o una lista de códigos (basta con tener uno)
 const RUTAS_POR_PERMISO = [
   { path: '/dashboard', permission: 'DASHBOARD_VER' },
   { path: '/ingresos', permission: 'DASHBOARD_VER' },
@@ -97,7 +99,7 @@ const RUTAS_POR_PERMISO = [
   { path: '/facturacion', permission: 'FACTURACION_VER' },
   { path: '/puntos', permission: 'PUNTOS_LISTAR' },
   { path: '/rutas', permission: 'RUTAS_LISTAR' },
-  { path: '/tipos-carro', permission: 'RUTAS_LISTAR' },
+  { path: '/flota', permission: PERMISOS_FLOTA },
   { path: '/tipos-paquete', permission: 'DASHBOARD_VER' },
   { path: '/horarios', permission: 'HORARIOS_LISTAR' },
   { path: '/usuarios', permission: 'USUARIOS_LISTAR' },
@@ -110,9 +112,9 @@ const RUTAS_POR_PERMISO = [
 /**
  * Obtiene la primera ruta disponible segun los permisos del usuario
  */
-const getDefaultRoute = (hasPermission) => {
+const getDefaultRoute = (hasAnyPermission) => {
   for (const ruta of RUTAS_POR_PERMISO) {
-    if (hasPermission(ruta.permission)) {
+    if (hasAnyPermission([].concat(ruta.permission))) {
       return ruta.path
     }
   }
@@ -124,15 +126,15 @@ const getDefaultRoute = (hasPermission) => {
  * Ruta protegida que requiere autenticacion
  */
 const ProtectedRoute = ({ children, requiredPermission }) => {
-  const { isAuthenticated, hasPermission } = useAuthStore()
+  const { isAuthenticated, hasAnyPermission } = useAuthStore()
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
 
-  if (requiredPermission && !hasPermission(requiredPermission)) {
+  if (requiredPermission && !hasAnyPermission([].concat(requiredPermission))) {
     // Redirigir a la primera ruta disponible, no siempre al dashboard
-    const defaultRoute = getDefaultRoute(hasPermission)
+    const defaultRoute = getDefaultRoute(hasAnyPermission)
     return <Navigate to={defaultRoute} replace />
   }
 
@@ -144,11 +146,11 @@ const ProtectedRoute = ({ children, requiredPermission }) => {
  * Ruta publica que redirige si esta autenticado
  */
 const PublicRoute = ({ children }) => {
-  const { isAuthenticated, hasPermission } = useAuthStore()
+  const { isAuthenticated, hasAnyPermission } = useAuthStore()
 
   if (isAuthenticated) {
     // Redirigir a la primera ruta disponible segun permisos
-    const defaultRoute = getDefaultRoute(hasPermission)
+    const defaultRoute = getDefaultRoute(hasAnyPermission)
     return <Navigate to={defaultRoute} replace />
   }
 
@@ -160,13 +162,13 @@ const PublicRoute = ({ children }) => {
  * Componente para redirigir al modulo por defecto del usuario
  */
 const DefaultRedirect = () => {
-  const { isAuthenticated, hasPermission } = useAuthStore()
+  const { isAuthenticated, hasAnyPermission } = useAuthStore()
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
 
-  const defaultRoute = getDefaultRoute(hasPermission)
+  const defaultRoute = getDefaultRoute(hasAnyPermission)
   return <Navigate to={defaultRoute} replace />
 }
 
@@ -176,10 +178,10 @@ const DefaultRedirect = () => {
  * Muestra landing a usuarios no autenticados
  */
 const SmartLandingRoute = ({ children }) => {
-  const { isAuthenticated, hasPermission } = useAuthStore()
+  const { isAuthenticated, hasAnyPermission } = useAuthStore()
 
   if (isAuthenticated) {
-    const defaultRoute = getDefaultRoute(hasPermission)
+    const defaultRoute = getDefaultRoute(hasAnyPermission)
     return <Navigate to={defaultRoute} replace />
   }
 
@@ -236,8 +238,8 @@ const AppRoutes = () => {
         <Route path="/rutas/nuevo" element={<ProtectedRoute requiredPermission="RUTAS_CREAR"><NuevaRutaPage /></ProtectedRoute>} />
         <Route path="/rutas/:id/editar" element={<ProtectedRoute requiredPermission="RUTAS_EDITAR"><EditarRutaPage /></ProtectedRoute>} />
 
-        {/* Tipos de Carro */}
-        <Route path="/tipos-carro" element={<ProtectedRoute requiredPermission="RUTAS_LISTAR"><TiposCarroPage /></ProtectedRoute>} />
+        {/* Flota: tipos de carro, conductores y buses en pestañas */}
+        <Route path="/flota" element={<ProtectedRoute requiredPermission={PERMISOS_FLOTA}><FlotaPage /></ProtectedRoute>} />
 
         {/* Tipos de Paquete */}
         <Route path="/tipos-paquete" element={<ProtectedRoute requiredPermission="DASHBOARD_VER"><TiposPaquetePage /></ProtectedRoute>} />

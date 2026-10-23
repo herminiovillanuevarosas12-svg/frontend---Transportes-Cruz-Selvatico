@@ -5,7 +5,12 @@
 
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { esSeleccionableParaManifiesto, resumirSeleccionManifiesto } from './manifiestoEncomiendas.js'
+import {
+  esSeleccionableParaManifiesto,
+  resumirSeleccionManifiesto,
+  origenDeSeleccion,
+  destinoComun
+} from './manifiestoEncomiendas.js'
 
 // Fila tal como llega de GET /api/encomiendas (decimales serializados como texto)
 const encomienda = (datos = {}) => ({
@@ -16,6 +21,8 @@ const encomienda = (datos = {}) => ({
   precioCalculado: '10',
   precio_final: null,
   manifiesto: null,
+  idPuntoOrigen: 10,
+  idPuntoDestino: 20,
   ...datos
 })
 
@@ -35,6 +42,36 @@ describe('esSeleccionableParaManifiesto', () => {
     for (const estado of ['REGISTRADO', 'EN_ALMACEN', 'LLEGO_A_DESTINO', 'RETIRADO']) {
       assert.equal(esSeleccionableParaManifiesto(encomienda({ estadoActual: estado })), false, estado)
     }
+  })
+
+  test('con un origen ya fijado por la selección, solo permite ese origen', () => {
+    assert.equal(esSeleccionableParaManifiesto(encomienda({ idPuntoOrigen: 10 }), 10), true)
+    assert.equal(esSeleccionableParaManifiesto(encomienda({ idPuntoOrigen: 30 }), 10), false)
+  })
+
+  test('sin origen fijado permite cualquier origen', () => {
+    assert.equal(esSeleccionableParaManifiesto(encomienda({ idPuntoOrigen: 30 }), null), true)
+  })
+})
+
+describe('origenDeSeleccion', () => {
+  test('toma el origen de la primera encomienda seleccionada', () => {
+    assert.equal(origenDeSeleccion([encomienda({ idPuntoOrigen: 7 }), encomienda({ idPuntoOrigen: 7 })]), 7)
+  })
+
+  test('sin selección no hay origen fijado', () => {
+    assert.equal(origenDeSeleccion([]), null)
+  })
+})
+
+describe('destinoComun', () => {
+  test('devuelve el destino cuando todas van al mismo', () => {
+    assert.equal(destinoComun([encomienda({ idPuntoDestino: 20 }), encomienda({ idPuntoDestino: 20 })]), 20)
+  })
+
+  test('devuelve null si hay destinos mezclados o no hay selección', () => {
+    assert.equal(destinoComun([encomienda({ idPuntoDestino: 20 }), encomienda({ idPuntoDestino: 40 })]), null)
+    assert.equal(destinoComun([]), null)
   })
 })
 

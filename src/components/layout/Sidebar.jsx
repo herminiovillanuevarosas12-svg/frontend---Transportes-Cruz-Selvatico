@@ -5,6 +5,7 @@
 
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../features/auth/authStore'
+import { PERMISOS_FLOTA } from '../../utils/flota'
 import {
   LayoutDashboard,
   MapPin,
@@ -19,17 +20,14 @@ import {
   ClipboardList,
   X,
   Bus,
-  Sparkles,
   FileText,
   DollarSign,
-  Car,
   Image,
-  Globe,
   Box,
   Newspaper
 } from 'lucide-react'
 
-// Definicion de menu con permisos
+// Definicion de menu con permisos (permission: un código o una lista; basta con tener uno)
 const menuItems = [
   {
     title: 'General',
@@ -64,10 +62,10 @@ const menuItems = [
         permission: 'RUTAS_LISTAR'
       },
       {
-        name: 'Tipos de Carro',
-        path: '/tipos-carro',
-        icon: Car,
-        permission: 'RUTAS_LISTAR'
+        name: 'Flota',
+        path: '/flota',
+        icon: Bus,
+        permission: PERMISOS_FLOTA
       },
       {
         name: 'Usuarios',
@@ -183,14 +181,14 @@ const menuItems = [
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation()
-  const { hasPermission } = useAuthStore()
+  const { hasAnyPermission } = useAuthStore()
 
   // Filtrar items del menu segun permisos
   const getVisibleMenuItems = () => {
     return menuItems
       .map((section) => ({
         ...section,
-        items: section.items.filter((item) => hasPermission(item.permission))
+        items: section.items.filter((item) => hasAnyPermission([].concat(item.permission)))
       }))
       .filter((section) => section.items.length > 0)
   }

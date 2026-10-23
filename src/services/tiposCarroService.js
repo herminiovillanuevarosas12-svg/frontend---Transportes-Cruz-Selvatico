@@ -10,11 +10,6 @@ const tiposCarroService = {
     return response.data
   },
 
-  obtener: async (id) => {
-    const response = await apiClient.get(`/tipos-carro/${id}`)
-    return response.data
-  },
-
   crear: async (data) => {
     const response = await apiClient.post('/tipos-carro', data)
     return response.data
