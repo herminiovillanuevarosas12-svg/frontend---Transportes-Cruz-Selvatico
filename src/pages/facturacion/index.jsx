@@ -14,7 +14,8 @@ import Select from '../../components/common/Select'
 import facturacionService from '../../services/facturacionService'
 import { formatDateOnly } from '../../utils/dateUtils'
 import useDocLookup from '../../hooks/useDocLookup'
-import { CODIGO_DNI, CODIGO_RUC, normalizarDocumento, ajustarTipoPorNumero, obtenerTipoDocumento } from '../../utils/documentoIdentidad'
+import DocumentoIdentidadInput from '../../components/common/DocumentoIdentidadInput'
+import { CODIGO_DNI, CODIGO_RUC, TIPOS_DOCUMENTO as CATALOGO_DOCUMENTOS, esDocumentoValido, normalizarDocumento, ajustarTipoPorNumero, obtenerTipoDocumento } from '../../utils/documentoIdentidad'
 import {
   FileText,
   Receipt,
@@ -89,6 +90,13 @@ const TIPOS_DOC_IDENTIDAD = [
   { value: '6', label: 'RUC' }
 ]
 
+// El pasajero es una persona: DNI o carnet de extranjería
+const TIPOS_DOC_PASAJERO = CATALOGO_DOCUMENTOS.filter(t => t.codigo !== CODIGO_RUC)
+
+const PASAJERO_VACIO = { tipoDocumento: CODIGO_DNI, documentoIdentidad: '', nombreCompleto: '', telefono: '' }
+
+const pasajeroEstaVacio = (p) => !p.documentoIdentidad.trim() && !p.nombreCompleto.trim() && !p.telefono.trim()
+
 const FacturacionPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -159,15 +167,24 @@ const FacturacionPage = () => {
       razonSocial: '',
       direccion: ''
     },
+    pasajero: PASAJERO_VACIO,
     items: [{ descripcion: '', cantidad: 1, precioUnitario: 0 }]
   })
 
   const [motivoAnulacion, setMotivoAnulacion] = useState('')
   const [procesando, setProcesando] = useState(false)
   const [errorBusquedaDoc, setErrorBusquedaDoc] = useState('')
+  // Pide confirmar antes de emitir sin datos del pasajero
+  const [confirmandoSinPasajero, setConfirmandoSinPasajero] = useState(false)
 
   // Hook para auto-busqueda de DNI/RUC
   const { loading: buscandoDoc, consultarDni, consultarRuc, reset: resetDocLookup } = useDocLookup()
+  // Búsqueda del pasajero (clientes registrados primero; el DNI también en API)
+  const {
+    loading: buscandoPasajero,
+    consultarDocumentoDiferido: consultarPasajeroDiferido,
+    reset: resetPasajeroLookup
+  } = useDocLookup()
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -392,9 +409,39 @@ const FacturacionPage = () => {
         razonSocial: '',
         direccion: ''
       },
+      pasajero: PASAJERO_VACIO,
       items: [{ descripcion: '', cantidad: 1, precioUnitario: 0 }]
     })
+    setConfirmandoSinPasajero(false)
+    resetPasajeroLookup()
     setShowEmitirModal(true)
+  }
+
+  const actualizarPasajero = (cambios) => {
+    setConfirmandoSinPasajero(false)
+    setEmitirForm(prev => ({ ...prev, pasajero: { ...prev.pasajero, ...cambios } }))
+  }
+
+  // Al completar el documento se autocompletan nombre y teléfono si el pasajero ya está registrado
+  const handleDocumentoPasajero = async ({ tipo, numero }) => {
+    actualizarPasajero({ tipoDocumento: tipo, documentoIdentidad: numero })
+    if (!esDocumentoValido(tipo, numero)) {
+      resetPasajeroLookup()
+      return
+    }
+    const result = await consultarPasajeroDiferido(numero, { tipo })
+    if (!result) return // no encontrado o cancelada por una escritura posterior
+    setEmitirForm(prev => {
+      if (prev.pasajero.documentoIdentidad !== numero) return prev
+      return {
+        ...prev,
+        pasajero: {
+          ...prev.pasajero,
+          nombreCompleto: result.nombre_completo || prev.pasajero.nombreCompleto,
+          telefono: result.telefono || prev.pasajero.telefono
+        }
+      }
+    })
   }
 
   const agregarItem = () => {
@@ -447,7 +494,10 @@ const FacturacionPage = () => {
     }
   }
 
-  const confirmarEmision = async () => {
+  /**
+   * @param {boolean} sinPasajeroConfirmado - true cuando el usuario ya confirmó emitir sin pasajero
+   */
+  const confirmarEmision = async (sinPasajeroConfirmado = false) => {
     // Validaciones
     if (!emitirForm.cliente.numDoc || !emitirForm.cliente.razonSocial) {
       alert('Complete los datos del cliente')
@@ -459,6 +509,28 @@ const FacturacionPage = () => {
       return
     }
 
+    // Pasajero opcional: los tres datos o ninguno (sin pasajero se pide confirmación)
+    const { pasajero } = emitirForm
+    const sinPasajero = pasajeroEstaVacio(pasajero)
+    if (sinPasajero && !sinPasajeroConfirmado) {
+      setConfirmandoSinPasajero(true)
+      return
+    }
+    if (!sinPasajero) {
+      if (!pasajero.documentoIdentidad || !pasajero.nombreCompleto.trim() || !pasajero.telefono) {
+        alert('Complete nombre, documento y teléfono del pasajero, o deje los tres vacíos para emitir sin pasajero')
+        return
+      }
+      if (!esDocumentoValido(pasajero.tipoDocumento, pasajero.documentoIdentidad)) {
+        alert(`El ${obtenerTipoDocumento(pasajero.tipoDocumento).nombre} del pasajero no es válido`)
+        return
+      }
+      if (pasajero.telefono.length !== 9) {
+        alert('El teléfono del pasajero debe tener 9 dígitos')
+        return
+      }
+    }
+
     try {
       setProcesando(true)
 
@@ -467,6 +539,9 @@ const FacturacionPage = () => {
         serie: emitirForm.serie,
         incluyeIgv: emitirForm.incluyeIgv,
         cliente: emitirForm.cliente,
+        ...(!sinPasajero && {
+          pasajero: { ...pasajero, nombreCompleto: pasajero.nombreCompleto.trim() }
+        }),
         items: emitirForm.items.map(item => ({
           descripcion: item.descripcion,
           cantidad: parseFloat(item.cantidad),
@@ -480,6 +555,7 @@ const FacturacionPage = () => {
       console.error('Error emitiendo:', error)
       alert(error.response?.data?.error || 'Error al emitir comprobante')
     } finally {
+      setConfirmandoSinPasajero(false)
       setProcesando(false)
     }
   }
@@ -1230,6 +1306,45 @@ const FacturacionPage = () => {
             </div>
           </div>
 
+          {/* Datos del Pasajero (opcional) */}
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-medium text-gray-900">
+              Datos del Pasajero <span className="font-normal text-gray-500">(opcional)</span>
+            </h4>
+            <p className="text-xs text-gray-500 mt-1 mb-4">
+              Su nombre aparece en el ticket del comprobante. Si ya viajó con nosotros, se autocompleta al ingresar el documento.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <DocumentoIdentidadInput
+                name="pasajeroDocumento"
+                label="Documento"
+                tipo={emitirForm.pasajero.tipoDocumento}
+                numero={emitirForm.pasajero.documentoIdentidad}
+                onChange={handleDocumentoPasajero}
+                buscando={buscandoPasajero}
+                tipos={TIPOS_DOC_PASAJERO}
+              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                <Input
+                  value={emitirForm.pasajero.telefono}
+                  onChange={(e) => actualizarPasajero({ telefono: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                  placeholder="987654321"
+                  inputMode="numeric"
+                  maxLength={9}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre completo</label>
+                <Input
+                  value={emitirForm.pasajero.nombreCompleto}
+                  onChange={(e) => actualizarPasajero({ nombreCompleto: e.target.value })}
+                  placeholder="Nombre y apellidos del pasajero"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Items */}
           <div className="border-t border-gray-200 pt-4">
             <div className="flex items-center justify-between mb-4">
@@ -1304,14 +1419,38 @@ const FacturacionPage = () => {
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
-          <Button variant="secondary" onClick={() => setShowEmitirModal(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={confirmarEmision} loading={procesando}>
-            Emitir Comprobante
-          </Button>
-        </div>
+        {confirmandoSinPasajero ? (
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <div className="flex items-start gap-3 p-4 rounded-lg border border-amber-300 bg-amber-50">
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-900">
+                  Se emitirá la {emitirForm.tipoComprobante === '01' ? 'factura' : 'boleta'} sin datos del pasajero
+                </p>
+                <p className="text-xs text-amber-800 mt-1">
+                  El comprobante no llevará el nombre de ningún pasajero. ¿Desea continuar?
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-4">
+              <Button variant="secondary" onClick={() => setConfirmandoSinPasajero(false)} disabled={procesando}>
+                Volver y registrar pasajero
+              </Button>
+              <Button onClick={() => confirmarEmision(true)} loading={procesando}>
+                Sí, emitir sin pasajero
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+            <Button variant="secondary" onClick={() => setShowEmitirModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => confirmarEmision()} loading={procesando}>
+              Emitir Comprobante
+            </Button>
+          </div>
+        )}
       </Modal>
 
       {/* Modal Detalle */}
