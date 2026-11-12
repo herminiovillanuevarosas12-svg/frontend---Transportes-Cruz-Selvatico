@@ -17,6 +17,14 @@ import useDocLookup from '../../hooks/useDocLookup'
 import DocumentoIdentidadInput from '../../components/common/DocumentoIdentidadInput'
 import { CODIGO_DNI, CODIGO_RUC, TIPOS_DOCUMENTO as CATALOGO_DOCUMENTOS, esDocumentoValido, normalizarDocumento, ajustarTipoPorNumero, obtenerTipoDocumento } from '../../utils/documentoIdentidad'
 import {
+  TIPOS_CLIENTE_BOLETA,
+  NOMBRE_SIN_DOCUMENTO,
+  MONTO_MAXIMO_SIN_DOCUMENTO,
+  esSinDocumento,
+  sinDocumentoPermitido,
+  clienteBoletaParaEnvio
+} from '../../utils/clienteBoleta'
+import {
   FileText,
   Receipt,
   Truck,
@@ -89,6 +97,9 @@ const TIPOS_DOC_IDENTIDAD = [
   { value: '4', label: 'CE' },
   { value: '6', label: 'RUC' }
 ]
+
+// Cliente de boleta: además puede ir sin documento (solo hasta S/ 700)
+const OPCIONES_CLIENTE_BOLETA = TIPOS_CLIENTE_BOLETA.map(t => ({ value: t.codigo, label: t.sigla }))
 
 // El pasajero es una persona: DNI o carnet de extranjería
 const TIPOS_DOC_PASAJERO = CATALOGO_DOCUMENTOS.filter(t => t.codigo !== CODIGO_RUC)
@@ -499,7 +510,13 @@ const FacturacionPage = () => {
    */
   const confirmarEmision = async (sinPasajeroConfirmado = false) => {
     // Validaciones
-    if (!emitirForm.cliente.numDoc || !emitirForm.cliente.razonSocial) {
+    const clienteSinDocumento = esSinDocumento(emitirForm.cliente.tipoDoc)
+    if (clienteSinDocumento) {
+      if (!sinDocumentoPermitido(totales.total)) {
+        alert(`Las boletas mayores a S/ ${MONTO_MAXIMO_SIN_DOCUMENTO} deben identificar al cliente con DNI, CE o RUC`)
+        return
+      }
+    } else if (!emitirForm.cliente.numDoc || !emitirForm.cliente.razonSocial) {
       alert('Complete los datos del cliente')
       return
     }
@@ -538,7 +555,7 @@ const FacturacionPage = () => {
         tipoComprobante: emitirForm.tipoComprobante,
         serie: emitirForm.serie,
         incluyeIgv: emitirForm.incluyeIgv,
-        cliente: emitirForm.cliente,
+        cliente: clienteSinDocumento ? clienteBoletaParaEnvio(emitirForm.cliente) : emitirForm.cliente,
         ...(!sinPasajero && {
           pasajero: { ...pasajero, nombreCompleto: pasajero.nombreCompleto.trim() }
         }),
@@ -1198,15 +1215,34 @@ const FacturacionPage = () => {
                     setErrorBusquedaDoc('')
                     setEmitirForm(prev => ({
                       ...prev,
-                      cliente: { tipoDoc: e.target.value, numDoc: normalizarDocumento(e.target.value, prev.cliente.numDoc), razonSocial: '', direccion: '' }
+                      cliente: {
+                        tipoDoc: e.target.value,
+                        numDoc: esSinDocumento(e.target.value) ? '' : normalizarDocumento(e.target.value, prev.cliente.numDoc),
+                        razonSocial: '',
+                        direccion: ''
+                      }
                     }))
                   }}
                   options={emitirForm.tipoComprobante === '01'
                     ? [{ value: CODIGO_RUC, label: 'RUC' }]
-                    : TIPOS_DOC_IDENTIDAD
+                    : OPCIONES_CLIENTE_BOLETA
                   }
                 />
               </div>
+              {esSinDocumento(emitirForm.cliente.tipoDoc) ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Número Doc.</label>
+                  <p className={`px-3 py-2 rounded-lg border text-sm ${
+                    sinDocumentoPermitido(totales.total)
+                      ? 'border-gray-200 bg-gray-50 text-gray-500'
+                      : 'border-red-200 bg-red-50 text-red-600'
+                  }`}>
+                    {sinDocumentoPermitido(totales.total)
+                      ? `No aplica (solo hasta S/ ${MONTO_MAXIMO_SIN_DOCUMENTO})`
+                      : `El total supera S/ ${MONTO_MAXIMO_SIN_DOCUMENTO}: identifique al cliente`}
+                  </p>
+                </div>
+              ) : (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Número Doc.</label>
                 <div className="relative">
@@ -1271,20 +1307,26 @@ const FacturacionPage = () => {
                   </p>
                 )}
               </div>
+              )}
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Razón Social / Nombre</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Razón Social / Nombre {esSinDocumento(emitirForm.cliente.tipoDoc) ? '(opcional)' : ''}
+                </label>
                 <Input
                   value={emitirForm.cliente.razonSocial}
                   onChange={(e) => setEmitirForm(prev => ({
                     ...prev,
                     cliente: { ...prev.cliente, razonSocial: e.target.value }
                   }))}
-                  placeholder="Nombre completo o razón social"
+                  placeholder={esSinDocumento(emitirForm.cliente.tipoDoc) ? NOMBRE_SIN_DOCUMENTO : 'Nombre completo o razón social'}
                   readOnly={emitirForm.cliente.tipoDoc === '6'}
                   className={emitirForm.cliente.tipoDoc === '6' ? 'bg-gray-100 cursor-not-allowed' : ''}
                 />
                 {emitirForm.cliente.tipoDoc === '6' && (
                   <p className="text-xs text-gray-500 mt-1">Se autocompleta con los datos del RUC</p>
+                )}
+                {esSinDocumento(emitirForm.cliente.tipoDoc) && (
+                  <p className="text-xs text-gray-500 mt-1">Si lo deja vacío, la boleta sale a nombre de {NOMBRE_SIN_DOCUMENTO}</p>
                 )}
               </div>
               <div className="col-span-2">

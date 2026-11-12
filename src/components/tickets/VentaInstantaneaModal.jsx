@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { Modal } from '../common'
+import { Modal, ClienteBoletaFields } from '../common'
 import SelectorRuta from './SelectorRuta'
 import {
   Zap,
@@ -44,6 +44,12 @@ import {
   siglaDocumento
 } from '../../utils/documentoIdentidad'
 import { getTodayInPeru } from '../../utils/dateUtils'
+import {
+  clienteBoletaVacio,
+  clienteBoletaDesdePersona,
+  esClienteBoletaValido,
+  clienteBoletaParaEnvio
+} from '../../utils/clienteBoleta'
 
 /**
  * Obtiene la hora actual en Peru formateada
@@ -105,6 +111,8 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
     direccion: ''
   })
   const [errorBusquedaRuc, setErrorBusquedaRuc] = useState('')
+  // Cliente de la boleta (DNI, CE, RUC o sin documento); parte de los datos del pasajero
+  const [clienteBoleta, setClienteBoleta] = useState(clienteBoletaVacio)
   const [configSunat, setConfigSunat] = useState(null)
   const [incluyeIgv, setIncluyeIgv] = useState(true)
 
@@ -334,7 +342,8 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
     nombreCompleto.trim() &&
     telefono.replace(/\s/g, '').length === 9 &&
     tipoDocumento &&
-    (tipoDocumento !== 'FACTURA' || (clienteFactura.ruc.length === 11 && clienteFactura.razonSocial))
+    (tipoDocumento !== 'FACTURA' || (clienteFactura.ruc.length === 11 && clienteFactura.razonSocial)) &&
+    (tipoDocumento !== 'BOLETA' || esClienteBoletaValido(clienteBoleta, precioFinal))
 
   // Handler de venta instantanea
   const handleVender = async () => {
@@ -359,9 +368,11 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
         ...(precioManual !== null && { precioManual })
       }
 
-      // Agregar datos de factura si corresponde
+      // Agregar datos del cliente del comprobante si corresponde
       if (tipoDocumento === 'FACTURA') {
         payload.clienteFactura = clienteFactura
+      } else if (tipoDocumento === 'BOLETA') {
+        payload.clienteBoleta = clienteBoletaParaEnvio(clienteBoleta)
       }
 
       // Llamar al endpoint de venta instantanea
@@ -398,6 +409,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
     setComentario('')
     setTipoDocumento('')
     setClienteFactura({ ruc: '', razonSocial: '', direccion: '' })
+    setClienteBoleta(clienteBoletaVacio())
     setErrorBusquedaRuc('')
     setPrecioManual(null)
     setIncluyeIgv(configSunat?.exoneradoIgv ? false : true)
@@ -695,6 +707,17 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
                   />
                 </button>
               </div>
+            )}
+
+            {/* Datos del cliente para Boleta: DNI/RUC con búsqueda, CE o sin documento */}
+            {tipoDocumento === 'BOLETA' && (
+              <ClienteBoletaFields
+                value={clienteBoleta}
+                onChange={setClienteBoleta}
+                total={precioFinal}
+                sugerido={clienteBoletaDesdePersona({ tipoDoc: tipoDocPasajero, numDoc: documento, nombre: nombreCompleto })}
+                etiquetaSugerido="pasajero"
+              />
             )}
 
             {/* Datos adicionales para Factura */}

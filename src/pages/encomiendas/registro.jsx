@@ -5,7 +5,15 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, QRGenerator, ClienteCombobox, ComprobantePrint, Combobox, DocumentoIdentidadInput } from '../../components/common'
+import { Button, QRGenerator, ClienteCombobox, ComprobantePrint, Combobox, DocumentoIdentidadInput, ClienteBoletaFields } from '../../components/common'
+import {
+  clienteBoletaVacio,
+  clienteBoletaDesdePersona,
+  esClienteBoletaValido,
+  clienteBoletaParaEnvio,
+  esSinDocumento,
+  MONTO_MAXIMO_SIN_DOCUMENTO
+} from '../../utils/clienteBoleta'
 import { formatTimestamp } from '../../utils/dateUtils'
 import { useAuthStore } from '../../features/auth'
 import puntosService from '../../services/puntosService'
@@ -101,6 +109,8 @@ const RegistroEncomiendaPage = () => {
     razonSocial: '',
     direccion: ''
   })
+  // Cliente de la boleta (DNI, CE, RUC o sin documento); parte de los datos del remitente
+  const [clienteBoleta, setClienteBoleta] = useState(clienteBoletaVacio)
 
   // Encomienda registrada y comprobante
   const [encomiendaRegistrada, setEncomiendaRegistrada] = useState(null)
@@ -522,6 +532,14 @@ const RegistroEncomiendaPage = () => {
       }
     }
 
+    // Validar cliente de la boleta (solo si se selecciono boleta y NO es pago al recojo)
+    if (!pagoAlRecojo && tipoDocumento === 'BOLETA' && !esClienteBoletaValido(clienteBoleta, precioFinalConDescuento)) {
+      toast.error(esSinDocumento(clienteBoleta.tipoDoc)
+        ? `Las boletas mayores a S/ ${MONTO_MAXIMO_SIN_DOCUMENTO} deben identificar al cliente`
+        : 'Complete el documento y el nombre del cliente de la boleta')
+      return false
+    }
+
     // Validar clave de seguridad (debe ser 4 digitos y coincidir)
     if (claveSeguridad) {
       if (!/^\d{4}$/.test(claveSeguridad)) {
@@ -579,6 +597,8 @@ const RegistroEncomiendaPage = () => {
       // Datos de factura: solo si NO es pago al recojo y se selecciono factura
       if (!pagoAlRecojo && tipoDocumento === 'FACTURA') {
         payload.clienteFactura = clienteFactura
+      } else if (!pagoAlRecojo && tipoDocumento === 'BOLETA') {
+        payload.clienteBoleta = clienteBoletaParaEnvio(clienteBoleta)
       }
 
       const response = await encomiendasService.registrar(payload)
@@ -638,6 +658,7 @@ const RegistroEncomiendaPage = () => {
     setPuntosACanjear(0)
     setTipoDocumento('')
     setClienteFactura({ ruc: '', razonSocial: '', direccion: '' })
+    setClienteBoleta(clienteBoletaVacio())
     setErrorBusquedaRuc('')
     setErrorBusquedaDestinatario('')
     setIncluyeIgv(configSunat?.exoneradoIgv ? false : true)
@@ -1200,6 +1221,23 @@ const RegistroEncomiendaPage = () => {
                 </div>
               )}
 
+              {/* Datos del cliente para Boleta: DNI/RUC con búsqueda, CE o sin documento */}
+              {tipoDocumento === 'BOLETA' && (
+                <div className="mt-4">
+                  <ClienteBoletaFields
+                    value={clienteBoleta}
+                    onChange={setClienteBoleta}
+                    total={precioFinalConDescuento}
+                    sugerido={clienteBoletaDesdePersona({
+                      tipoDoc: formData.remitenteTipoDoc,
+                      numDoc: formData.remitenteDni,
+                      nombre: formData.remitenteNombre
+                    })}
+                    etiquetaSugerido="remitente"
+                  />
+                </div>
+              )}
+
               {/* Datos adicionales para Factura */}
               {tipoDocumento === 'FACTURA' && (
                 <div className="mt-4 bg-orange-50 rounded-lg p-4 border border-orange-200 space-y-3">
@@ -1464,8 +1502,13 @@ const RegistroEncomiendaPage = () => {
                 <p className="text-gray-500 mb-2">
                   Codigo de Tracking: <span className="font-mono font-bold text-gray-900">{encomiendaRegistrada.codigoTracking}</span>
                 </p>
+                {encomiendaRegistrada.codigo_rastreo && (
+                  <p className="text-gray-500 mb-2">
+                    Codigo de Rastreo: <span className="font-mono font-bold text-gray-900 tracking-widest">{encomiendaRegistrada.codigo_rastreo}</span>
+                  </p>
+                )}
                 <p className="text-sm text-gray-500">
-                  El destinatario puede rastrear la encomienda con este codigo
+                  El cliente puede rastrear la encomienda en la web con el codigo de rastreo impreso en su ticket
                 </p>
               </div>
 
@@ -1691,6 +1734,15 @@ const RegistroEncomiendaPage = () => {
                   <span className="guia-cs-label">CODIGO</span>
                   <span className="guia-cs-tracking">{encomiendaRegistrada.codigoTracking}</span>
                 </div>
+
+                {/* ═══════ CODIGO DE RASTREO (web) ═══════ */}
+                {encomiendaRegistrada.codigo_rastreo && (
+                  <div className="guia-cs-rastreo">
+                    <span className="guia-cs-label">CODIGO DE RASTREO</span>
+                    <span className="guia-cs-rastreo-codigo">{encomiendaRegistrada.codigo_rastreo}</span>
+                    <span className="guia-cs-rastreo-ayuda">Rastree su envio en nuestra web con este codigo</span>
+                  </div>
+                )}
 
                 {/* ═══════ RUTA ═══════ */}
                 <div className="guia-cs-ruta">

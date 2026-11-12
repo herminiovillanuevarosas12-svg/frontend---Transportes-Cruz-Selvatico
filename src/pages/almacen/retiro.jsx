@@ -5,7 +5,15 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Button, ComprobantePrint, DocumentoIdentidadInput, GuiaEntregaPrint } from '../../components/common'
+import { Card, Button, ComprobantePrint, DocumentoIdentidadInput, GuiaEntregaPrint, ClienteBoletaFields } from '../../components/common'
+import {
+  clienteBoletaVacio,
+  clienteBoletaDesdePersona,
+  esClienteBoletaValido,
+  clienteBoletaParaEnvio,
+  esSinDocumento,
+  MONTO_MAXIMO_SIN_DOCUMENTO
+} from '../../utils/clienteBoleta'
 import { useAuthStore } from '../../features/auth'
 import encomiendasService from '../../services/encomiendasService'
 import facturacionService from '../../services/facturacionService'
@@ -81,6 +89,10 @@ const RetiroEncomiendaPage = () => {
     direccion: ''
   })
   const [errorBusquedaRuc, setErrorBusquedaRuc] = useState('')
+  // Cliente de la boleta (DNI, CE, RUC o sin documento); parte de los datos de quien retira
+  const [clienteBoletaRetiro, setClienteBoletaRetiro] = useState(clienteBoletaVacio)
+  // Total a cobrar al retirar (decide si se permite boleta sin documento)
+  const totalRetiro = parseFloat(encomienda?.precioFinal ?? encomienda?.precioCalculado ?? 0)
 
   // Datos de empresa para impresion
   const [datosEmpresa, setDatosEmpresa] = useState(null)
@@ -256,6 +268,13 @@ const RetiroEncomiendaPage = () => {
           return false
         }
       }
+      // Validar cliente de la boleta
+      if (tipoComprobanteRetiro === 'BOLETA' && !esClienteBoletaValido(clienteBoletaRetiro, totalRetiro)) {
+        toast.error(esSinDocumento(clienteBoletaRetiro.tipoDoc)
+          ? `Las boletas mayores a S/ ${MONTO_MAXIMO_SIN_DOCUMENTO} deben identificar al cliente`
+          : 'Complete el documento y el nombre del cliente de la boleta')
+        return false
+      }
     }
     return true
   }
@@ -281,6 +300,8 @@ const RetiroEncomiendaPage = () => {
         payload.tipoComprobante = tipoComprobanteRetiro
         if (tipoComprobanteRetiro === 'FACTURA') {
           payload.clienteFactura = clienteFacturaRetiro
+        } else if (tipoComprobanteRetiro === 'BOLETA') {
+          payload.clienteBoleta = clienteBoletaParaEnvio(clienteBoletaRetiro)
         }
       }
 
@@ -524,6 +545,17 @@ const RetiroEncomiendaPage = () => {
                 </button>
               ))}
             </div>
+
+            {/* Datos del cliente para Boleta: DNI/RUC con búsqueda, CE o sin documento */}
+            {tipoComprobanteRetiro === 'BOLETA' && (
+              <ClienteBoletaFields
+                value={clienteBoletaRetiro}
+                onChange={setClienteBoletaRetiro}
+                total={totalRetiro}
+                sugerido={clienteBoletaDesdePersona({ tipoDoc: tipoDocRetira, numDoc: dniRetira, nombre: nombreRetira })}
+                etiquetaSugerido="que retira"
+              />
+            )}
 
             {/* Datos adicionales para Factura */}
             {tipoComprobanteRetiro === 'FACTURA' && (
@@ -835,7 +867,8 @@ const RetiroEncomiendaPage = () => {
                 !fotoEvidencia ||
                 (encomienda?.tieneClaveSeguridad && !claveValidada) ||
                 (encomienda?.pagoAlRecojo && !tipoComprobanteRetiro) ||
-                (encomienda?.pagoAlRecojo && tipoComprobanteRetiro === 'FACTURA' && (!clienteFacturaRetiro.ruc || clienteFacturaRetiro.ruc.length !== 11 || !clienteFacturaRetiro.razonSocial))
+                (encomienda?.pagoAlRecojo && tipoComprobanteRetiro === 'FACTURA' && (!clienteFacturaRetiro.ruc || clienteFacturaRetiro.ruc.length !== 11 || !clienteFacturaRetiro.razonSocial)) ||
+                (encomienda?.pagoAlRecojo && tipoComprobanteRetiro === 'BOLETA' && !esClienteBoletaValido(clienteBoletaRetiro, totalRetiro))
               }
               className="flex-1"
             >
@@ -959,9 +992,8 @@ const RetiroEncomiendaPage = () => {
                 || (tipoComprobanteRetiro === 'FACTURA' ? clienteFacturaRetiro.razonSocial : nombreRetira),
               clienteDocumento: comprobanteRetiro.clienteNumDoc
                 || (tipoComprobanteRetiro === 'FACTURA' ? clienteFacturaRetiro.ruc : dniRetira),
-              clienteDireccion: tipoComprobanteRetiro === 'FACTURA'
-                ? clienteFacturaRetiro.direccion
-                : '',
+              clienteDireccion: comprobanteRetiro.clienteDireccion
+                || (tipoComprobanteRetiro === 'FACTURA' ? clienteFacturaRetiro.direccion : ''),
               total: comprobanteRetiro.total,
               fechaEmision: new Date().toISOString(),
               ruta: {

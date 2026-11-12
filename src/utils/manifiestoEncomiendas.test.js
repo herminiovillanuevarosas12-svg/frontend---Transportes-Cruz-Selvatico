@@ -9,7 +9,9 @@ import {
   esSeleccionableParaManifiesto,
   resumirSeleccionManifiesto,
   origenDeSeleccion,
-  destinoComun
+  destinoComun,
+  clasificarParaManifiesto,
+  describirOmitidas
 } from './manifiestoEncomiendas.js'
 
 // Fila tal como llega de GET /api/encomiendas (decimales serializados como texto)
@@ -72,6 +74,70 @@ describe('destinoComun', () => {
   test('devuelve null si hay destinos mezclados o no hay selección', () => {
     assert.equal(destinoComun([encomienda({ idPuntoDestino: 20 }), encomienda({ idPuntoDestino: 40 })]), null)
     assert.equal(destinoComun([]), null)
+  })
+})
+
+describe('clasificarParaManifiesto', () => {
+  const ids = (lista) => lista.map((e) => e.id)
+
+  test('sin selección, toma el origen de la primera seleccionable y deja fuera las de otro origen', () => {
+    const resultado = clasificarParaManifiesto([
+      encomienda({ id: 1, estadoActual: 'EN_ALMACEN', idPuntoOrigen: 30 }),
+      encomienda({ id: 2, idPuntoOrigen: 10 }),
+      encomienda({ id: 3, idPuntoOrigen: 30 }),
+      encomienda({ id: 4, idPuntoOrigen: 10 })
+    ])
+    assert.deepEqual(ids(resultado.seleccionables), [2, 4])
+    assert.equal(resultado.otroOrigen, 1)
+    assert.equal(resultado.otroEstado, 1)
+    assert.equal(resultado.conManifiesto, 0)
+  })
+
+  test('con origen fijado por la selección, solo admite ese origen', () => {
+    const resultado = clasificarParaManifiesto([
+      encomienda({ id: 1, idPuntoOrigen: 10 }),
+      encomienda({ id: 2, idPuntoOrigen: 30 })
+    ], 30)
+    assert.deepEqual(ids(resultado.seleccionables), [2])
+    assert.equal(resultado.otroOrigen, 1)
+  })
+
+  test('cuenta aparte las que ya pertenecen a un manifiesto, aunque estén En ruta', () => {
+    const resultado = clasificarParaManifiesto([
+      encomienda({ id: 1, manifiesto: { id: 5, numeroCompleto: 'MAN-000005' } }),
+      encomienda({ id: 2, estadoActual: 'LLEGO_A_DESTINO', manifiesto: { id: 5, numeroCompleto: 'MAN-000005' } }),
+      encomienda({ id: 3 })
+    ])
+    assert.deepEqual(ids(resultado.seleccionables), [3])
+    assert.equal(resultado.conManifiesto, 2)
+    assert.equal(resultado.otroEstado, 0)
+  })
+
+  test('sin encomiendas seleccionables devuelve la lista vacía', () => {
+    assert.deepEqual(clasificarParaManifiesto([]), {
+      seleccionables: [], conManifiesto: 0, otroOrigen: 0, otroEstado: 0
+    })
+    const resultado = clasificarParaManifiesto([encomienda({ estadoActual: 'RETIRADO' })])
+    assert.deepEqual(resultado.seleccionables, [])
+    assert.equal(resultado.otroEstado, 1)
+  })
+})
+
+describe('describirOmitidas', () => {
+  test('enumera solo los motivos que tienen encomiendas', () => {
+    assert.equal(
+      describirOmitidas({ conManifiesto: 2, otroOrigen: 0, otroEstado: 1 }),
+      '2 ya están en un manifiesto, 1 no está En ruta'
+    )
+    assert.equal(
+      describirOmitidas({ conManifiesto: 1, otroOrigen: 3, otroEstado: 0 }),
+      '1 ya está en un manifiesto, 3 son de otro origen'
+    )
+    assert.equal(describirOmitidas({ conManifiesto: 0, otroOrigen: 1, otroEstado: 0 }), '1 es de otro origen')
+  })
+
+  test('sin omitidas devuelve texto vacío', () => {
+    assert.equal(describirOmitidas({ conManifiesto: 0, otroOrigen: 0, otroEstado: 0 }), '')
   })
 })
 

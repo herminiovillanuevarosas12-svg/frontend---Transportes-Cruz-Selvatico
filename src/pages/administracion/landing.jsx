@@ -8,6 +8,11 @@ import { toast } from 'react-hot-toast'
 import landingService from '../../services/landingService'
 import publicService from '../../services/publicService'
 import { getUploadUrl } from '../../services/apiClient'
+import { useAuthStore } from '../../features/auth/authStore'
+import { puedeEditarPagina, URL_EDITAR_SECCIONES_CARDS } from '../../utils/seccionesCards'
+
+/** Debe coincidir con MAX_HERO_IMAGENES en encomiendasInfoController (backend) */
+const MAX_HERO_ENCOMIENDAS = 10
 
 /** Extrae mensaje de error del backend o devuelve fallback */
 const getErrorMsg = (error, fallback = 'Error inesperado') =>
@@ -34,6 +39,8 @@ import {
   MessageCircle,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   PartyPopper,
   MapPin,
   Package,
@@ -43,7 +50,6 @@ import {
   Zap,
   Heart,
   Star,
-  Search,
   Bus,
   Armchair,
   Thermometer,
@@ -76,9 +82,9 @@ import {
   Lightbulb,
   HandHeart,
   HelpCircle,
-  MessageSquare,
   Info,
-  Briefcase
+  Briefcase,
+  ExternalLink
 } from 'lucide-react'
 
 // Iconos disponibles para la sección de experiencia (relacionados al rubro transporte)
@@ -113,20 +119,6 @@ const ICONOS_EXPERIENCIA = [
   { key: 'Clock', icon: Clock, label: 'Puntualidad' },
   { key: 'CheckCircle2', icon: CheckCircle2, label: 'Verificado' },
   { key: 'Megaphone', icon: Megaphone, label: 'Anuncios' },
-]
-
-const ICONOS_VENTAJA = [
-  { key: 'Package', icon: Package, label: 'Paquete' },
-  { key: 'Truck', icon: Truck, label: 'Camion' },
-  { key: 'Globe', icon: Globe, label: 'Global' },
-  { key: 'Shield', icon: Shield, label: 'Seguridad' },
-  { key: 'MapPin', icon: MapPin, label: 'Ubicacion' },
-  { key: 'Clock', icon: Clock, label: 'Reloj' },
-  { key: 'Zap', icon: Zap, label: 'Rapido' },
-  { key: 'Heart', icon: Heart, label: 'Corazon' },
-  { key: 'Star', icon: Star, label: 'Estrella' },
-  { key: 'Eye', icon: Eye, label: 'Ojo' },
-  { key: 'Search', icon: Search, label: 'Buscar' },
 ]
 
 const ICONOS_INFO_VIAJE = [
@@ -256,20 +248,8 @@ const LandingAdminPage = () => {
   const [savingCalFest, setSavingCalFest] = useState(false)
 
   // Encomiendas Info
-  const [encomiendasVentajas, setEncomiendasVentajas] = useState([])
-  const [encomiendasHeroImagen, setEncomiendasHeroImagen] = useState(null)
-  const [encomiendasHeroPreview, setEncomiendasHeroPreview] = useState(null)
-  const [showEncModal, setShowEncModal] = useState(false)
-  const [editingVentaja, setEditingVentaja] = useState(null)
-  const [ventajaForm, setVentajaForm] = useState({
-    titulo: '',
-    descripcion: '',
-    icono: 'Package',
-    orden: 0,
-    imagenPreview: null,
-    imagenFile: null
-  })
-  const [savingVentaja, setSavingVentaja] = useState(false)
+  const usuario = useAuthStore((state) => state.user)
+  const [encomiendasHeroImagenes, setEncomiendasHeroImagenes] = useState([])
   const [savingEncHero, setSavingEncHero] = useState(false)
   const [encLandingImgPreview, setEncLandingImgPreview] = useState(null)
   const [savingEncLandingImg, setSavingEncLandingImg] = useState(false)
@@ -359,7 +339,6 @@ const LandingAdminPage = () => {
   const nosotrosValorImgRef = useRef(null)
   const festImgInputRef = useRef(null)
   const encHeroInputRef = useRef(null)
-  const encVentajaImgRef = useRef(null)
   const encLandingImgRef = useRef(null)
   const encSeccionImgRef = useRef(null)
   const infoViajeHeroInputRef = useRef(null)
@@ -372,13 +351,13 @@ const LandingAdminPage = () => {
   const cargarDatos = async () => {
     try {
       setLoading(true)
-      const [bannersRes, galleryRes, configRes, festRes, puntosRes, encRes, iconosRes, nosotrosRes, faqsRes, destBannerRes, destinosRes, infoViajeRes, seccionesRes] = await Promise.all([
+      const [bannersRes, galleryRes, configRes, festRes, puntosRes, heroRes, iconosRes, nosotrosRes, faqsRes, destBannerRes, destinosRes, infoViajeRes, seccionesRes] = await Promise.all([
         landingService.listarBanners('banner'),
         landingService.listarBanners('gallery'),
         landingService.getConfigLanding(),
         landingService.listarFestividades().catch(() => ({ festividades: [] })),
         publicService.getPuntos().catch(() => ({ puntos: [] })),
-        landingService.listarEncomiendasVentajas().catch(() => ({ ventajas: [], heroImagen: null })),
+        landingService.listarImagenesEncomiendasHero().catch(() => ({ heroImagenes: [] })),
         landingService.listarExperienciaIconos().catch(() => ({ iconos: [] })),
         landingService.listarNosotrosValores().catch(() => ({ valores: [], config: {} })),
         landingService.listarPreguntasFrecuentes().catch(() => ({ preguntas: [] })),
@@ -391,7 +370,6 @@ const LandingAdminPage = () => {
       setGallery(galleryRes.banners || [])
       setFestividades(festRes.festividades || [])
       setPuntos(puntosRes.puntos || [])
-      setEncomiendasVentajas(encRes.ventajas || [])
       setEncomiendasSecciones(seccionesRes.secciones || [])
       setDestinosList(destinosRes.destinos || [])
       if (destBannerRes.banner) {
@@ -399,10 +377,7 @@ const LandingAdminPage = () => {
         setBannerDestinosPreview(getUploadUrl(destBannerRes.banner))
       }
       setExperienciaIconos(iconosRes.iconos || [])
-      if (encRes.heroImagen) {
-        setEncomiendasHeroImagen(encRes.heroImagen)
-        setEncomiendasHeroPreview(getUploadUrl(encRes.heroImagen))
-      }
+      setEncomiendasHeroImagenes(heroRes.heroImagenes || [])
       if (configRes.config) {
         setConfig({
           slogan: configRes.config.slogan || '',
@@ -811,23 +786,61 @@ const LandingAdminPage = () => {
   // ENCOMIENDAS INFO HANDLERS
   // ============================================
 
+  // Sube una o varias imagenes al carrusel, una por una, para que el backend respete el maximo
   const handleEncHeroUpload = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
     setSavingEncHero(true)
+    let agregadas = 0
     try {
-      const formData = new FormData()
-      formData.append('imagen', file)
-      const res = await landingService.subirImagenEncomiendasHero(formData)
-      setEncomiendasHeroImagen(res.heroImagen)
-      setEncomiendasHeroPreview(getUploadUrl(res.heroImagen))
-      toast.success('Imagen hero actualizada')
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('imagen', file)
+        const res = await landingService.agregarImagenEncomiendasHero(formData)
+        setEncomiendasHeroImagenes(prev => [...prev, res.imagen])
+        agregadas++
+      }
+      toast.success(agregadas === 1 ? 'Imagen agregada al carrusel' : `${agregadas} imágenes agregadas al carrusel`)
     } catch (error) {
       console.error(error)
-      toast.error(getErrorMsg(error, 'Error al subir imagen hero'))
+      const msg = getErrorMsg(error, 'Error al subir imagen')
+      toast.error(agregadas > 0 ? `${agregadas} de ${files.length} agregadas. ${msg}` : msg)
     } finally {
       setSavingEncHero(false)
       if (encHeroInputRef.current) encHeroInputRef.current.value = ''
+    }
+  }
+
+  const handleEncHeroDelete = async (id) => {
+    if (!confirm('¿Eliminar esta imagen del carrusel de encomiendas?')) return
+    setSavingEncHero(true)
+    try {
+      await landingService.eliminarImagenEncomiendasHero(id)
+      setEncomiendasHeroImagenes(prev => prev.filter(img => img.id !== id))
+      toast.success('Imagen eliminada del carrusel')
+    } catch (error) {
+      toast.error(getErrorMsg(error, 'Error al eliminar imagen'))
+    } finally {
+      setSavingEncHero(false)
+    }
+  }
+
+  // Mueve una imagen una posicion (direccion -1 = antes, 1 = despues) y guarda el nuevo orden
+  const handleEncHeroMove = async (idx, direccion) => {
+    const destino = idx + direccion
+    if (destino < 0 || destino >= encomiendasHeroImagenes.length) return
+    const anterior = encomiendasHeroImagenes
+    const reordenadas = [...anterior]
+    ;[reordenadas[idx], reordenadas[destino]] = [reordenadas[destino], reordenadas[idx]]
+    setEncomiendasHeroImagenes(reordenadas)
+    setSavingEncHero(true)
+    try {
+      await landingService.reordenarImagenesEncomiendasHero(reordenadas.map(img => img.id))
+    } catch (error) {
+      setEncomiendasHeroImagenes(anterior)
+      toast.error(getErrorMsg(error, 'Error al reordenar el carrusel'))
+    } finally {
+      setSavingEncHero(false)
     }
   }
 
@@ -861,116 +874,6 @@ const LandingAdminPage = () => {
       toast.error(getErrorMsg(error, 'Error al eliminar imagen'))
     } finally {
       setSavingEncLandingImg(false)
-    }
-  }
-
-  const handleEncHeroDelete = async () => {
-    if (!confirm('Eliminar imagen hero de encomiendas?')) return
-    setSavingEncHero(true)
-    try {
-      await landingService.eliminarImagenEncomiendasHero()
-      setEncomiendasHeroImagen(null)
-      setEncomiendasHeroPreview(null)
-      toast.success('Imagen hero eliminada')
-    } catch (error) {
-      toast.error(getErrorMsg(error, 'Error al eliminar imagen hero'))
-    } finally {
-      setSavingEncHero(false)
-    }
-  }
-
-  const abrirEncModal = (ventaja = null) => {
-    if (ventaja) {
-      setEditingVentaja(ventaja)
-      setVentajaForm({
-        titulo: ventaja.titulo || '',
-        descripcion: ventaja.descripcion || '',
-        icono: ventaja.icono || 'Package',
-        orden: ventaja.orden || 0,
-        imagenPreview: ventaja.imagenPath ? getUploadUrl(ventaja.imagenPath) : null,
-        imagenFile: null
-      })
-    } else {
-      setEditingVentaja(null)
-      setVentajaForm({
-        titulo: '',
-        descripcion: '',
-        icono: 'Package',
-        orden: encomiendasVentajas.length,
-        imagenPreview: null,
-        imagenFile: null
-      })
-    }
-    setShowEncModal(true)
-  }
-
-  const cerrarEncModal = () => {
-    setShowEncModal(false)
-    setEditingVentaja(null)
-    setVentajaForm({ titulo: '', descripcion: '', icono: 'Package', orden: 0, imagenPreview: null, imagenFile: null })
-  }
-
-  const handleVentajaImgChange = (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => setVentajaForm(prev => ({ ...prev, imagenPreview: reader.result, imagenFile: file }))
-    reader.readAsDataURL(file)
-  }
-
-  const guardarVentaja = async () => {
-    if (!ventajaForm.titulo.trim()) {
-      toast.error('El titulo es obligatorio')
-      return
-    }
-    setSavingVentaja(true)
-    try {
-      const formData = new FormData()
-      formData.append('titulo', ventajaForm.titulo)
-      formData.append('descripcion', ventajaForm.descripcion)
-      formData.append('icono', ventajaForm.icono)
-      formData.append('orden', ventajaForm.orden)
-      if (ventajaForm.imagenFile) {
-        formData.append('imagen', ventajaForm.imagenFile)
-      }
-
-      if (editingVentaja) {
-        await landingService.actualizarEncomiendasVentaja(editingVentaja.id, formData)
-        toast.success('Ventaja actualizada')
-      } else {
-        await landingService.crearEncomiendasVentaja(formData)
-        toast.success('Ventaja creada')
-      }
-      cerrarEncModal()
-      // Recargar ventajas
-      const encRes = await landingService.listarEncomiendasVentajas().catch(() => ({ ventajas: [] }))
-      setEncomiendasVentajas(encRes.ventajas || [])
-    } catch (error) {
-      console.error(error)
-      toast.error(getErrorMsg(error, 'Error al guardar ventaja'))
-    } finally {
-      setSavingVentaja(false)
-    }
-  }
-
-  const eliminarVentaja = async (id) => {
-    if (!confirm('Eliminar esta ventaja?')) return
-    try {
-      await landingService.eliminarEncomiendasVentaja(id)
-      setEncomiendasVentajas(prev => prev.filter(v => v.id !== id))
-      toast.success('Ventaja eliminada')
-    } catch (error) {
-      toast.error(getErrorMsg(error, 'Error al eliminar ventaja'))
-    }
-  }
-
-  const toggleVentaja = async (id) => {
-    try {
-      const res = await landingService.toggleEncomiendasVentaja(id)
-      setEncomiendasVentajas(prev => prev.map(v => v.id === id ? { ...v, activo: res.activo } : v))
-      toast.success(res.mensaje)
-    } catch (error) {
-      toast.error(getErrorMsg(error, 'Error al cambiar estado'))
     }
   }
 
@@ -2768,51 +2671,93 @@ const LandingAdminPage = () => {
         {/* Tab: Encomiendas Info */}
         {!loading && activeTab === 'encomiendas' && (
           <div className="space-y-8">
-            {/* Imagen Hero */}
+            {/* Carrusel Hero */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
               <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <Image className="w-5 h-5 text-primary-600" />
-                Imagen Hero - Fondo de Encomiendas
+                <Images className="w-5 h-5 text-primary-600" />
+                Carrusel de portada - Encomiendas
               </h3>
               <p className="text-sm text-gray-500 mb-4">
-                Esta imagen se muestra como fondo del banner principal en la pagina de Encomiendas.
+                Estas imágenes rotan automáticamente como fondo del banner principal de la página de Encomiendas,
+                en el orden que se muestra aquí. Usa las flechas para cambiar el orden. Máximo {MAX_HERO_ENCOMIENDAS} imágenes.
               </p>
-              <div className="flex items-start gap-6">
-                <div
-                  onClick={() => !savingEncHero && encHeroInputRef.current?.click()}
-                  className="relative w-64 h-36 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors flex-shrink-0"
-                >
-                  {encomiendasHeroPreview ? (
-                    <>
-                      <img src={encomiendasHeroPreview} alt="Hero Encomiendas" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <span className="text-white font-medium text-sm">Cambiar imagen</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                      <Upload className="w-8 h-8 mb-1" />
-                      <span className="text-xs">Clic para seleccionar</span>
-                    </div>
-                  )}
-                  {savingEncHero && (
-                    <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
-                      <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  )}
-                </div>
-                <input ref={encHeroInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleEncHeroUpload} className="hidden" />
-                {encomiendasHeroPreview && (
-                  <button
-                    onClick={handleEncHeroDelete}
-                    disabled={savingEncHero}
-                    className="px-4 py-2 text-red-600 border border-red-200 rounded-xl text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {encomiendasHeroImagenes.map((img, idx) => (
+                  <div
+                    key={img.id}
+                    className="relative aspect-video rounded-xl overflow-hidden border border-gray-200 bg-gray-100"
                   >
-                    <Trash2 className="w-4 h-4 inline mr-1" />
-                    Eliminar
+                    <img
+                      src={getUploadUrl(img.imagenPath)}
+                      alt={`Imagen ${idx + 1} del carrusel`}
+                      className="w-full h-full object-cover"
+                    />
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/60 text-white text-xs font-semibold">
+                      {idx + 1}
+                    </span>
+                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 p-2 bg-gradient-to-t from-black/70 to-transparent">
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleEncHeroMove(idx, -1)}
+                          disabled={savingEncHero || idx === 0}
+                          className="w-8 h-8 rounded-lg bg-white/90 text-gray-700 flex items-center justify-center hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Mover antes"
+                          aria-label={`Mover imagen ${idx + 1} antes`}
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleEncHeroMove(idx, 1)}
+                          disabled={savingEncHero || idx === encomiendasHeroImagenes.length - 1}
+                          className="w-8 h-8 rounded-lg bg-white/90 text-gray-700 flex items-center justify-center hover:bg-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          title="Mover después"
+                          aria-label={`Mover imagen ${idx + 1} después`}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleEncHeroDelete(img.id)}
+                        disabled={savingEncHero}
+                        className="w-8 h-8 rounded-lg bg-red-600 text-white flex items-center justify-center hover:bg-red-700 transition-colors disabled:opacity-40"
+                        title="Eliminar"
+                        aria-label={`Eliminar imagen ${idx + 1}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {encomiendasHeroImagenes.length < MAX_HERO_ENCOMIENDAS && (
+                  <button
+                    type="button"
+                    onClick={() => encHeroInputRef.current?.click()}
+                    disabled={savingEncHero}
+                    className="aspect-video bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl hover:bg-gray-100 hover:border-primary-300 transition-colors flex flex-col items-center justify-center text-gray-400 disabled:cursor-wait"
+                  >
+                    {savingEncHero ? (
+                      <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Plus className="w-8 h-8 mb-1" />
+                        <span className="text-xs">Agregar imágenes</span>
+                      </>
+                    )}
                   </button>
                 )}
               </div>
+              <input
+                ref={encHeroInputRef}
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={handleEncHeroUpload}
+                className="hidden"
+              />
             </div>
 
             {/* Seccion Encomiendas en Landing */}
@@ -2908,84 +2853,32 @@ const LandingAdminPage = () => {
               </div>
             </div>
 
-            {/* Ventajas/Cards */}
+            {/* Secciones de cards: se editan en la pagina publica (solo superadmin) */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <Package className="w-5 h-5 text-primary-600" />
-                  Ventajas / Cards
-                </h3>
-                <button
-                  onClick={() => abrirEncModal()}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
+              <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <Package className="w-5 h-5 text-primary-600" />
+                Secciones de cards
+              </h3>
+              <p className="text-sm text-gray-500 mb-5">
+                Secciones con título y cards de la página de Encomiendas. Se crean, editan, ordenan y ocultan directamente sobre la página pública.
+              </p>
+              {puedeEditarPagina(usuario) ? (
+                <a
+                  href={URL_EDITAR_SECCIONES_CARDS}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 transition-colors"
                 >
-                  <Plus className="w-4 h-4" />
-                  Nueva Ventaja
-                </button>
-              </div>
-
-              {encomiendasVentajas.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>No hay ventajas configuradas</p>
-                  <p className="text-sm">La seccion no se mostrara en la pagina publica si no hay ventajas</p>
-                </div>
+                  <ExternalLink className="w-4 h-4" />
+                  Editar secciones en la página
+                </a>
               ) : (
-                <div className="space-y-3">
-                  {encomiendasVentajas.map((v) => (
-                    <div
-                      key={v.id}
-                      className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${
-                        v.activo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'
-                      }`}
-                    >
-                      {/* Imagen o icono */}
-                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 flex items-center justify-center">
-                        {v.imagenPath ? (
-                          <img src={getUploadUrl(v.imagenPath)} alt={v.titulo} className="w-full h-full object-cover" />
-                        ) : (
-                          <Package className="w-6 h-6 text-gray-400" />
-                        )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-gray-900 truncate">{v.titulo}</h4>
-                        <p className="text-sm text-gray-500 truncate">{v.descripcion}</p>
-                        <span className="text-xs text-gray-400">Orden: {v.orden} | Icono: {v.icono}</span>
-                      </div>
-
-                      {/* Acciones */}
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <button
-                          onClick={() => toggleVentaja(v.id)}
-                          className={`p-2 rounded-lg transition-colors ${
-                            v.activo ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'
-                          }`}
-                          title={v.activo ? 'Desactivar' : 'Activar'}
-                        >
-                          {v.activo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={() => abrirEncModal(v)}
-                          className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
-                          title="Editar"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => eliminarVentaja(v.id)}
-                          className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm text-gray-500 italic">
+                  Solo el superadministrador edita estas secciones desde la página pública.
+                </p>
               )}
             </div>
+
             {/* Secciones Servicios/Flota */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
@@ -4158,129 +4051,6 @@ const LandingAdminPage = () => {
         </div>
       )}
 
-      {/* Modal Ventaja Encomienda */}
-      {showEncModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
-              <h2 className="text-xl font-bold text-gray-900">
-                {editingVentaja ? 'Editar Ventaja' : 'Nueva Ventaja'}
-              </h2>
-              <button onClick={cerrarEncModal} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-5">
-              {/* Imagen */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Imagen del Card</label>
-                <div
-                  onClick={() => encVentajaImgRef.current?.click()}
-                  className="relative w-full h-40 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl overflow-hidden cursor-pointer hover:bg-gray-50 hover:border-primary-300 transition-colors"
-                >
-                  {ventajaForm.imagenPreview ? (
-                    <>
-                      <img src={ventajaForm.imagenPreview} alt="Preview" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <span className="text-white font-medium text-sm">Cambiar imagen</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-                      <Upload className="w-8 h-8 mb-1" />
-                      <span className="text-xs">Clic para seleccionar imagen</span>
-                      <span className="text-xs mt-0.5">Si no se sube imagen, se mostrara un icono</span>
-                    </div>
-                  )}
-                </div>
-                <input ref={encVentajaImgRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleVentajaImgChange} className="hidden" />
-              </div>
-
-              {/* Titulo */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Titulo *</label>
-                <input
-                  type="text"
-                  value={ventajaForm.titulo}
-                  onChange={(e) => setVentajaForm(prev => ({ ...prev, titulo: e.target.value }))}
-                  placeholder="Ej: Cobertura a nivel nacional"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
-
-              {/* Descripcion */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Descripcion</label>
-                <textarea
-                  value={ventajaForm.descripcion}
-                  onChange={(e) => setVentajaForm(prev => ({ ...prev, descripcion: e.target.value }))}
-                  placeholder="Descripcion de la ventaja..."
-                  rows={3}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                />
-              </div>
-
-              {/* Icono */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Icono (se usa si no hay imagen)</label>
-                <div className="grid grid-cols-6 gap-2">
-                  {ICONOS_VENTAJA.map(({ key, icon: Icon, label }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setVentajaForm(prev => ({ ...prev, icono: key }))}
-                      className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border-2 transition-all ${
-                        ventajaForm.icono === key
-                          ? 'border-primary-500 bg-primary-50 text-primary-700'
-                          : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300 hover:bg-gray-100'
-                      }`}
-                      title={label}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span className="text-[10px] leading-tight">{label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Orden */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Orden</label>
-                <input
-                  type="number"
-                  value={ventajaForm.orden}
-                  onChange={(e) => setVentajaForm(prev => ({ ...prev, orden: parseInt(e.target.value) || 0 }))}
-                  min={0}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-100">
-              <button
-                onClick={cerrarEncModal}
-                className="px-5 py-2.5 text-gray-600 bg-gray-100 rounded-xl font-medium hover:bg-gray-200 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={guardarVentaja}
-                disabled={savingVentaja}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
-              >
-                {savingVentaja ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Save className="w-5 h-5" />
-                )}
-                {editingVentaja ? 'Actualizar' : 'Guardar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Modal Seccion Servicios/Flota */}
       {showSeccionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">

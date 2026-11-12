@@ -37,6 +37,38 @@ export const destinoComun = (encomiendas) => {
 }
 
 /**
+ * Separa las encomiendas que se pueden agregar de una vez al manifiesto y cuenta por qué quedan fuera las demás.
+ * El origen lo fija la selección actual o, si no hay selección, la primera encomienda seleccionable.
+ * @param {Object[]} encomiendas - Filas del listado (una página o todas las del filtro)
+ * @param {number|null} idOrigenFijado - Origen de la selección actual (null = sin selección)
+ * @returns {{seleccionables: Object[], conManifiesto: number, otroOrigen: number, otroEstado: number}}
+ */
+export const clasificarParaManifiesto = (encomiendas, idOrigenFijado = null) => {
+  const idOrigen = idOrigenFijado ?? origenDeSeleccion(encomiendas.filter((e) => esSeleccionableParaManifiesto(e)))
+  const resultado = { seleccionables: [], conManifiesto: 0, otroOrigen: 0, otroEstado: 0 }
+
+  for (const encomienda of encomiendas) {
+    if (esSeleccionableParaManifiesto(encomienda, idOrigen)) resultado.seleccionables.push(encomienda)
+    else if (encomienda.manifiesto) resultado.conManifiesto++
+    else if (esSeleccionableParaManifiesto(encomienda)) resultado.otroOrigen++
+    else resultado.otroEstado++
+  }
+
+  return resultado
+}
+
+/**
+ * Texto con los motivos por los que algunas encomiendas no entraron a la selección
+ * @param {{conManifiesto: number, otroOrigen: number, otroEstado: number}} clasificacion
+ * @returns {string} Vacío si no se omitió ninguna
+ */
+export const describirOmitidas = ({ conManifiesto, otroOrigen, otroEstado }) => [
+  conManifiesto && `${conManifiesto} ${conManifiesto === 1 ? 'ya está' : 'ya están'} en un manifiesto`,
+  otroOrigen && `${otroOrigen} ${otroOrigen === 1 ? 'es' : 'son'} de otro origen`,
+  otroEstado && `${otroEstado} ${otroEstado === 1 ? 'no está' : 'no están'} En ruta`
+].filter(Boolean).join(', ')
+
+/**
  * Totales de la selección actual para la barra de generación
  * @param {Object[]} encomiendas - Encomiendas seleccionadas
  * @returns {{cantidad: number, pesoTotal: number, fleteTotal: number}}

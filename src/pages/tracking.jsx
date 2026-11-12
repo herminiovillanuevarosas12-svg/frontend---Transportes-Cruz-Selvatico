@@ -21,7 +21,8 @@ import {
   Phone,
   Calendar,
   Sparkles,
-  Hash
+  Hash,
+  Ticket
 } from 'lucide-react'
 
 // Estados con iconos y colores Cruz Selvatico - Verde y Rojo
@@ -78,20 +79,23 @@ const ESTADOS_ORDEN = ['REGISTRADO', 'EN_ALMACEN', 'EN_RUTA', 'LLEGO_A_DESTINO',
 // Longitud del correlativo en el codigo ENC-NNNNNNNN
 const LONGITUD_NUMERO = 8
 
+// Codigo de rastreo impreso en el ticket: 6 caracteres (letras, numeros y simbolos)
+const LONGITUD_CODIGO_RASTREO = 6
+
 const TrackingPage = () => {
-  const [codigo, setCodigo] = useState('')
   const [numero, setNumero] = useState('')
+  const [codigoRastreo, setCodigoRastreo] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [encomienda, setEncomienda] = useState(null)
 
-  const consultar = async (codigoBuscado) => {
+  const consultar = async (buscar) => {
     try {
       setLoading(true)
       setError(null)
       setEncomienda(null)
 
-      const response = await trackingService.consultar(codigoBuscado)
+      const response = await buscar()
       setEncomienda(response.encomienda)
     } catch (err) {
       console.error('Error buscando encomienda:', err)
@@ -103,22 +107,26 @@ const TrackingPage = () => {
     }
   }
 
-  // Buscador 1: codigo completo (ENC-00000245)
-  const buscarPorCodigo = (e) => {
-    e.preventDefault()
-    if (!codigo.trim()) return
-    consultar(codigo.trim())
-  }
-
-  // Buscador 2: solo el numero (245) -> se arma ENC-00000245
+  // Buscador 1: solo el numero (245) -> se arma ENC-00000245
   const buscarPorNumero = (e) => {
     e.preventDefault()
     if (!numero) return
-    consultar(`ENC-${numero.padStart(LONGITUD_NUMERO, '0')}`)
+    consultar(() => trackingService.consultar(`ENC-${numero.padStart(LONGITUD_NUMERO, '0')}`))
+  }
+
+  // Buscador 2: codigo de rastreo del ticket (ej: H4#K7$)
+  const buscarPorCodigoRastreo = (e) => {
+    e.preventDefault()
+    if (codigoRastreo.length !== LONGITUD_CODIGO_RASTREO) return
+    consultar(() => trackingService.consultarPorCodigoRastreo(codigoRastreo))
   }
 
   const onChangeNumero = (e) => {
     setNumero(e.target.value.replace(/\D/g, '').slice(0, LONGITUD_NUMERO))
+  }
+
+  const onChangeCodigoRastreo = (e) => {
+    setCodigoRastreo(e.target.value.replace(/\s/g, '').toUpperCase().slice(0, LONGITUD_CODIGO_RASTREO))
   }
 
   const getEstadoIndex = (estado) => ESTADOS_ORDEN.indexOf(estado)
@@ -149,61 +157,19 @@ const TrackingPage = () => {
               Rastrear Encomienda
             </h1>
             <p className="text-lg text-primary-100 max-w-md mx-auto">
-              Ingrese el codigo de tracking completo o solo el numero de su encomienda
+              Ingrese el numero de su encomienda o el codigo de rastreo impreso en su ticket
             </p>
           </div>
 
-          <div className="max-w-2xl mx-auto space-y-4">
-            {/* Buscador 1: codigo completo */}
-            <form onSubmit={buscarPorCodigo}>
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary-100 mb-2 ml-1">
-                Codigo de tracking completo
-              </p>
-              <div className="bg-white rounded-2xl shadow-2xl shadow-primary-900/30 p-2">
-                <div className="flex gap-2">
-                  <div className="flex-1 relative">
-                    <Package className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={codigo}
-                      onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-                      placeholder="Ej: ENC-00000001"
-                      aria-label="Codigo de tracking completo"
-                      className="w-full pl-12 pr-4 py-4 border-0 bg-gray-50 rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white outline-none text-lg transition-all"
-                      disabled={loading}
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={loading || !codigo.trim()}
-                    className="px-8 py-4 bg-gradient-to-b from-primary-500 to-primary-600 text-white rounded-xl font-semibold hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none flex items-center gap-2"
-                  >
-                    {loading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Search className="w-5 h-5" />
-                    )}
-                    <span className="hidden sm:inline">Buscar</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-
-            {/* Separador */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-white/20" />
-              <span className="text-xs font-semibold uppercase tracking-wider text-primary-200">o</span>
-              <div className="flex-1 h-px bg-white/20" />
-            </div>
-
-            {/* Buscador 2: solo numero */}
+          <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Buscador 1: solo numero */}
             <form onSubmit={buscarPorNumero}>
               <p className="text-xs font-semibold uppercase tracking-wider text-primary-100 mb-2 ml-1">
                 Solo el numero de encomienda
               </p>
               <div className="bg-white rounded-2xl shadow-2xl shadow-primary-900/30 p-2">
                 <div className="flex gap-2">
-                  <div className="flex-1 relative">
+                  <div className="flex-1 min-w-0 relative">
                     <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
@@ -220,7 +186,47 @@ const TrackingPage = () => {
                   <button
                     type="submit"
                     disabled={loading || !numero}
-                    className="px-8 py-4 bg-gradient-to-b from-primary-500 to-primary-600 text-white rounded-xl font-semibold hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none flex items-center gap-2"
+                    className="px-5 py-4 bg-gradient-to-b from-primary-500 to-primary-600 text-white rounded-xl font-semibold hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none flex items-center gap-2"
+                  >
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Search className="w-5 h-5" />
+                    )}
+                    <span className="hidden sm:inline">Buscar</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            {/* Buscador 2: codigo de rastreo del ticket */}
+            <form onSubmit={buscarPorCodigoRastreo}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary-100 mb-2 ml-1">
+                Codigo de rastreo del ticket
+              </p>
+              <div className="bg-white rounded-2xl shadow-2xl shadow-primary-900/30 p-2">
+                <div className="flex gap-2">
+                  <div className="flex-1 min-w-0 relative">
+                    <Ticket className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={codigoRastreo}
+                      onChange={onChangeCodigoRastreo}
+                      maxLength={LONGITUD_CODIGO_RASTREO}
+                      autoCapitalize="characters"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="Ej: H4#K7$"
+                      aria-label="Codigo de rastreo del ticket"
+                      className="w-full pl-12 pr-4 py-4 border-0 bg-gray-50 rounded-xl focus:ring-2 focus:ring-primary-500 focus:bg-white outline-none text-lg font-mono tracking-[0.2em] placeholder:tracking-normal placeholder:font-sans transition-all"
+                      disabled={loading}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading || codigoRastreo.length !== LONGITUD_CODIGO_RASTREO}
+                    className="px-5 py-4 bg-gradient-to-b from-primary-500 to-primary-600 text-white rounded-xl font-semibold hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none flex items-center gap-2"
                   >
                     {loading ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -467,7 +473,7 @@ const TrackingPage = () => {
               Busque su encomienda
             </h3>
             <p className="text-gray-500 max-w-sm mx-auto">
-              Ingrese el codigo de tracking completo o solo el numero de su encomienda para ver el estado actual de su envio
+              Ingrese el numero de su encomienda o el codigo de rastreo de su ticket para ver el estado actual de su envio
             </p>
           </div>
         )}

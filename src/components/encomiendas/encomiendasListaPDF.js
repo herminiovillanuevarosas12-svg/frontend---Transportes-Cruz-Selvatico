@@ -65,11 +65,13 @@ function truncar(texto, max) {
 
 /**
  * Construye la descripción legible de los filtros activos
- * @param {Object} filtros - { fechaDesde, fechaHasta, estado, codigoTracking, dni }
+ * @param {Object} filtros - { fechaDesde, fechaHasta, estado, codigoTracking, dni, origenNombre, destinoNombre }
  * @returns {string[]} Lista de filtros activos en texto
  */
 function describirFiltros(filtros = {}) {
   const partes = []
+  if (filtros.origenNombre) partes.push(`Origen: ${filtros.origenNombre}`)
+  if (filtros.destinoNombre) partes.push(`Destino: ${filtros.destinoNombre}`)
   if (filtros.codigoTracking) partes.push(`Codigo: ${filtros.codigoTracking}`)
   if (filtros.dni) partes.push(`Documento: ${filtros.dni}`)
   if (filtros.fechaDesde) partes.push(`Desde: ${formatDateOnly(filtros.fechaDesde)}`)

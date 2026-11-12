@@ -106,9 +106,15 @@ const publicService = {
     return response.data
   },
 
-  // Encomiendas ventajas
-  getEncomiendasVentajas: async () => {
-    const response = await apiClient.get('/public/encomiendas-ventajas')
+  // Encomiendas: carrusel de portada
+  getEncomiendasHeroImagenes: async () => {
+    const response = await apiClient.get('/public/encomiendas-hero-imagenes')
+    return response.data
+  },
+
+  // Encomiendas: secciones de cards (ej. "¿Por qué elegirnos?")
+  getEncomiendasSeccionesCards: async () => {
+    const response = await apiClient.get('/public/encomiendas-secciones-cards')
     return response.data
   },
 

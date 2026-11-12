@@ -10,6 +10,26 @@ const encomiendasService = {
     return response.data
   },
 
+  /**
+   * Todas las encomiendas que coinciden con los filtros, recorriendo todas las páginas
+   * @param {Object} params - Filtros del listado (sin page ni limit)
+   * @returns {Promise<Object[]>} Tope de seguridad: 10 000 registros
+   */
+  listarTodas: async (params = {}) => {
+    const limit = 500
+    const maxPaginas = 20
+    let page = 1
+    let totalPages = 1
+    let todas = []
+    do {
+      const data = await encomiendasService.listar({ ...params, page, limit })
+      todas = todas.concat(data.encomiendas || [])
+      totalPages = data.pagination?.totalPages || 1
+      page++
+    } while (page <= totalPages && page <= maxPaginas)
+    return todas
+  },
+
   obtener: async (id) => {
     const response = await apiClient.get(`/encomiendas/${id}`)
     return response.data

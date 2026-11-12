@@ -12,8 +12,11 @@ const Table = ({
   emptyMessage = 'No hay datos para mostrar',
   pagination,
   onPageChange,
-  className = ''
+  className = '',
+  // compact: padding horizontal reducido para tablas con muchas columnas
+  compact = false
 }) => {
+  const cellPadding = compact ? 'px-3' : 'px-6'
   return (
     <div className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden ${className}`}>
       <div className="overflow-x-auto">
@@ -23,7 +26,7 @@ const Table = ({
               {columns.map((column, index) => (
                 <th
                   key={column.key || index}
-                  className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${column.headerClassName || ''}`}
+                  className={`${cellPadding} py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${column.headerClassName || ''}`}
                   style={{ width: column.width }}
                 >
                   {column.header}
@@ -52,7 +55,7 @@ const Table = ({
                   {columns.map((column, colIndex) => (
                     <td
                       key={column.key || colIndex}
-                      className={`px-6 py-4 ${column.cellClassName || ''}`}
+                      className={`${cellPadding} py-4 ${column.cellClassName || ''}`}
                     >
                       {column.render
                         ? column.render(row[column.key], row, rowIndex)

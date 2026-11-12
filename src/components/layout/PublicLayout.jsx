@@ -10,7 +10,7 @@ import publicService from '../../services/publicService'
 import { MobileMenu } from '../public'
 import WhatsAppFloat from '../public/WhatsAppFloat'
 
-const PublicLayout = ({ children }) => {
+const PublicLayout = ({ children, searchBarLabel = 'Compra tu pasaje:', searchBarIcon: SearchBarIcon = Bus }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -125,7 +125,7 @@ const PublicLayout = ({ children }) => {
         </div>
       </header>
 
-      {/* Barra naranja - Compra tu pasaje (sticky debajo del navbar) */}
+      {/* Barra naranja - buscador de pasajes (sticky debajo del navbar); el texto lo puede cambiar cada pagina */}
       <div className="sticky top-16 lg:top-20 z-40">
         <form
           onSubmit={handleBuscarPasajes}
@@ -133,8 +133,8 @@ const PublicLayout = ({ children }) => {
         >
           <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
             <p className="text-white font-bold text-sm whitespace-nowrap flex items-center gap-2">
-              <Bus className="w-4 h-4" />
-              Compra tu pasaje:
+              <SearchBarIcon className="w-4 h-4" />
+              {searchBarLabel}
             </p>
             <div className="flex flex-1 items-center gap-2 md:gap-3">
               {/* Origen */}

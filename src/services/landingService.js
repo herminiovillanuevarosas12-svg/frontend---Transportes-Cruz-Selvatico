@@ -255,44 +255,25 @@ const landingService = {
   // ENCOMIENDAS INFO
   // ============================================
 
-  listarEncomiendasVentajas: async () => {
-    const response = await apiClient.get('/contenido/encomiendas-ventajas')
+  listarImagenesEncomiendasHero: async () => {
+    const response = await apiClient.get('/landing/encomiendas-hero-imagenes')
     return response.data
   },
 
-  crearEncomiendasVentaja: async (formData) => {
-    const response = await apiClient.post('/contenido/encomiendas-ventajas', formData, {
+  agregarImagenEncomiendasHero: async (formData) => {
+    const response = await apiClient.post('/landing/encomiendas-hero-imagenes', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
     return response.data
   },
 
-  actualizarEncomiendasVentaja: async (id, formData) => {
-    const response = await apiClient.put(`/contenido/encomiendas-ventajas/${id}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+  eliminarImagenEncomiendasHero: async (id) => {
+    const response = await apiClient.delete(`/landing/encomiendas-hero-imagenes/${id}`)
     return response.data
   },
 
-  eliminarEncomiendasVentaja: async (id) => {
-    const response = await apiClient.delete(`/contenido/encomiendas-ventajas/${id}`)
-    return response.data
-  },
-
-  toggleEncomiendasVentaja: async (id) => {
-    const response = await apiClient.patch(`/contenido/encomiendas-ventajas/${id}/toggle`)
-    return response.data
-  },
-
-  subirImagenEncomiendasHero: async (formData) => {
-    const response = await apiClient.put('/landing/config/imagen-encomiendas-hero', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-    return response.data
-  },
-
-  eliminarImagenEncomiendasHero: async () => {
-    const response = await apiClient.delete('/landing/config/imagen-encomiendas-hero')
+  reordenarImagenesEncomiendasHero: async (ids) => {
+    const response = await apiClient.put('/landing/encomiendas-hero-imagenes/orden', { ids })
     return response.data
   },
 

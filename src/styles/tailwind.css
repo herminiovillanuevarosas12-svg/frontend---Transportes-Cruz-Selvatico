@@ -966,6 +966,32 @@
   line-height: 1.2;
 }
 
+/* ══════ CODIGO DE RASTREO (consulta en la web) ══════ */
+.guia-cs-rastreo {
+  text-align: center;
+  margin: 2mm 4mm;
+  padding: 1.5mm 2mm;
+  border: 1px solid #1a1a1a;
+  border-radius: 1mm;
+}
+
+.guia-cs-rastreo-codigo {
+  display: block;
+  font-size: 16pt;
+  font-weight: 700;
+  font-family: 'Courier New', Courier, monospace;
+  color: #1a1a1a;
+  letter-spacing: 2px;
+  line-height: 1.2;
+}
+
+.guia-cs-rastreo-ayuda {
+  display: block;
+  font-size: 7pt;
+  color: #555;
+  margin-top: 0.5mm;
+}
+
 /* ══════ RUTA (ORIGEN → DESTINO) ══════ */
 .guia-cs-ruta {
   display: flex;

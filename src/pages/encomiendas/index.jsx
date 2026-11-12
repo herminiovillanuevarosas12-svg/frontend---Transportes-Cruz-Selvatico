@@ -33,19 +33,21 @@ import {
   siglaDocumento
 } from '../../utils/documentoIdentidad'
 import { generarListaEncomiendasPDF } from '../../components/encomiendas/encomiendasListaPDF'
+import FiltrosEncomiendas, { contarFiltrosActivos } from '../../components/encomiendas/FiltrosEncomiendas'
 import { generarGuiaEntregaPDF } from '../../components/encomiendas/guiaEntregaPDF'
 import { generarManifiestoPDF } from '../../components/encomiendas/manifiestoEncomiendasPDF'
 import {
   esSeleccionableParaManifiesto,
   resumirSeleccionManifiesto,
   origenDeSeleccion,
-  destinoComun
+  destinoComun,
+  clasificarParaManifiesto,
+  describirOmitidas
 } from '../../utils/manifiestoEncomiendas'
 import { textoSelector } from '../../utils/selector'
 import { comprimirImagenADataUrl, mensajeErrorImagen } from '../../utils/imageCompression'
 import {
   Package,
-  Search,
   Filter,
   Plus,
   Eye,
@@ -71,9 +73,38 @@ import {
   BluetoothOff,
   FileDown,
   ClipboardList,
-  FileStack
+  FileStack,
+  ListChecks
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+// Botón solo-ícono de la columna Acciones: title (tooltip) y aria-label reemplazan al texto visible
+const AccionIcono = ({ icon: Icon, label, onClick, className = '' }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={label}
+    aria-label={label}
+    className={`p-1.5 rounded-lg transition-colors ${className}`}
+  >
+    <Icon className="w-4 h-4" />
+  </button>
+)
+
+const FILTROS_INICIALES = {
+  fechaDesde: '',
+  fechaHasta: '',
+  estado: '',
+  codigoTracking: '',
+  dni: '',
+  idPuntoOrigen: '',
+  idPuntoDestino: ''
+}
+
+// Quita los filtros vacíos antes de enviarlos al backend
+const sinVacios = (params) => Object.fromEntries(
+  Object.entries(params).filter(([, valor]) => valor !== '')
+)
 
 const EncomiendasIndexPage = () => {
   const navigate = useNavigate()
@@ -84,14 +115,10 @@ const EncomiendasIndexPage = () => {
   const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0 })
 
   // Filtros
-  const [filters, setFilters] = useState({
-    fechaDesde: '',
-    fechaHasta: '',
-    estado: '',
-    codigoTracking: '',
-    dni: ''
-  })
+  const [filters, setFilters] = useState(FILTROS_INICIALES)
   const [showFilters, setShowFilters] = useState(false)
+  // Puntos activos para los filtros de ruta (origen / destino)
+  const [puntosFiltro, setPuntosFiltro] = useState([])
 
   // Exportación PDF
   const [exportandoPdf, setExportandoPdf] = useState(false)
@@ -99,6 +126,7 @@ const EncomiendasIndexPage = () => {
   // Manifiesto de encomiendas: selección de encomiendas En ruta (id -> encomienda, persiste entre páginas)
   const [modoManifiesto, setModoManifiesto] = useState(false)
   const [seleccionManifiesto, setSeleccionManifiesto] = useState({})
+  const [seleccionandoTodas, setSeleccionandoTodas] = useState(false)
   const [generandoManifiesto, setGenerandoManifiesto] = useState(false)
   const [descargandoManifiesto, setDescargandoManifiesto] = useState(null)
   const [manifiestosModal, setManifiestosModal] = useState(false)
@@ -254,17 +282,11 @@ const EncomiendasIndexPage = () => {
   const cargarEncomiendas = useCallback(async () => {
     try {
       setLoading(true)
-      const params = {
+      const response = await encomiendasService.listar({
         page: pagination.page,
         limit: pagination.limit,
-        ...filters
-      }
-      // Limpiar params vacios
-      Object.keys(params).forEach(key => {
-        if (params[key] === '') delete params[key]
+        ...sinVacios(filters)
       })
-
-      const response = await encomiendasService.listar(params)
       setEncomiendas(response.encomiendas || [])
       setPagination(prev => ({
         ...prev,
@@ -298,6 +320,15 @@ const EncomiendasIndexPage = () => {
       .catch(() => {})
   }, [cargarEncomiendas])
 
+  // Opciones de los filtros de ruta (una sola vez)
+  useEffect(() => {
+    puntosService.listar()
+      .then(res => setPuntosFiltro(res.puntos || []))
+      .catch((error) => console.error('Error cargando puntos para los filtros:', error))
+  }, [])
+
+  const nombrePunto = (id) => puntosFiltro.find(punto => String(punto.id) === String(id))?.nombre || ''
+
   const handleFilterChange = (e) => {
     const { name, value } = e.target
     setFilters(prev => ({ ...prev, [name]: value }))
@@ -305,44 +336,36 @@ const EncomiendasIndexPage = () => {
   }
 
   const clearFilters = () => {
-    setFilters({
-      fechaDesde: '',
-      fechaHasta: '',
-      estado: '',
-      codigoTracking: '',
-      dni: ''
-    })
+    setFilters(FILTROS_INICIALES)
     setPagination(prev => ({ ...prev, page: 1 }))
   }
+
+  // Ruta de vuelta: intercambia origen y destino
+  const handleIntercambiarRuta = () => {
+    setFilters(prev => ({ ...prev, idPuntoOrigen: prev.idPuntoDestino, idPuntoDestino: prev.idPuntoOrigen }))
+    setPagination(prev => ({ ...prev, page: 1 }))
+  }
+
+  const filtrosActivos = contarFiltrosActivos(filters)
 
   // Exportar listado a PDF respetando los filtros activos
   const handleExportarPDF = async () => {
     try {
       setExportandoPdf(true)
-      const baseParams = { ...filters }
-      // Limpiar params vacios (igual que cargarEncomiendas)
-      Object.keys(baseParams).forEach(key => {
-        if (baseParams[key] === '') delete baseParams[key]
-      })
-
       // Traer TODOS los registros que coinciden con los filtros (no solo la pagina actual)
-      const limit = 500
-      let page = 1
-      let totalPages = 1
-      let todas = []
-      do {
-        const response = await encomiendasService.listar({ ...baseParams, page, limit })
-        todas = todas.concat(response.encomiendas || [])
-        totalPages = response.pagination?.totalPages || 1
-        page++
-      } while (page <= totalPages && page <= 20) // tope de seguridad: 10,000 registros
+      const todas = await encomiendasService.listarTodas(sinVacios(filters))
 
       if (todas.length === 0) {
         toast.error('No hay encomiendas para exportar')
         return
       }
 
-      await generarListaEncomiendasPDF(todas, filters, datosEmpresa?.razonSocial || 'Cruz Selvatico')
+      const filtrosPdf = {
+        ...filters,
+        origenNombre: nombrePunto(filters.idPuntoOrigen),
+        destinoNombre: nombrePunto(filters.idPuntoDestino)
+      }
+      await generarListaEncomiendasPDF(todas, filtrosPdf, datosEmpresa?.razonSocial || 'Cruz Selvatico')
       toast.success(`PDF generado con ${todas.length} encomienda${todas.length !== 1 ? 's' : ''}`)
     } catch (error) {
       console.error('Error exportando PDF:', error)
@@ -376,11 +399,10 @@ const EncomiendasIndexPage = () => {
   }
 
   // Un manifiesto tiene un solo origen: lo fija la primera encomienda elegida.
-  // Sin selección, "seleccionar página" toma el origen de la primera seleccionable.
+  // Sin selección, "seleccionar página" y "seleccionar todas" toman el origen de la primera seleccionable.
   const encomiendasSeleccionadas = Object.values(seleccionManifiesto)
   const idOrigenFijado = origenDeSeleccion(encomiendasSeleccionadas)
-  const idOrigenPagina = idOrigenFijado ?? origenDeSeleccion(encomiendas.filter((e) => esSeleccionableParaManifiesto(e)))
-  const seleccionablesPagina = encomiendas.filter((e) => esSeleccionableParaManifiesto(e, idOrigenPagina))
+  const { seleccionables: seleccionablesPagina } = clasificarParaManifiesto(encomiendas, idOrigenFijado)
   const paginaSeleccionada = seleccionablesPagina.length > 0 &&
     seleccionablesPagina.every(e => seleccionManifiesto[e.id])
 
@@ -393,6 +415,40 @@ const EncomiendasIndexPage = () => {
       })
       return siguiente
     })
+  }
+
+  // Seleccionar de una vez todas las encomiendas del filtro, en todas las páginas
+  // (por ejemplo, la ruta Pozuzo → Oxapampa)
+  const handleSeleccionarCoincidentes = async () => {
+    try {
+      setSeleccionandoTodas(true)
+      const todas = await encomiendasService.listarTodas(sinVacios(filters))
+      const clasificacion = clasificarParaManifiesto(todas, idOrigenFijado)
+      const { seleccionables } = clasificacion
+      const omitidas = describirOmitidas(clasificacion)
+
+      if (seleccionables.length === 0) {
+        toast.error(omitidas
+          ? `Ninguna encomienda del filtro se puede incluir: ${omitidas}`
+          : 'No hay encomiendas que coincidan con los filtros')
+        return
+      }
+
+      setSeleccionManifiesto(prev => {
+        const siguiente = { ...prev }
+        seleccionables.forEach(e => { siguiente[e.id] = e })
+        return siguiente
+      })
+      const plural = seleccionables.length !== 1 ? 's' : ''
+      const texto = `${seleccionables.length} encomienda${plural} seleccionada${plural}`
+      if (omitidas) toast.success(`${texto}. Quedaron fuera: ${omitidas}`, { duration: 6000 })
+      else toast.success(texto)
+    } catch (error) {
+      console.error('Error seleccionando las encomiendas del filtro:', error)
+      toast.error(error.response?.data?.error || 'Error al seleccionar las encomiendas del filtro')
+    } finally {
+      setSeleccionandoTodas(false)
+    }
   }
 
   const resumenSeleccion = resumirSeleccionManifiesto(encomiendasSeleccionadas)
@@ -1087,7 +1143,7 @@ const EncomiendasIndexPage = () => {
       key: 'precioCalculado',
       header: 'Flete',
       render: (value) => (
-        <span className="font-medium text-gray-900">
+        <span className="font-medium text-gray-900 whitespace-nowrap">
           S/ {parseFloat(value || 0).toFixed(2)}
         </span>
       )
@@ -1134,99 +1190,80 @@ const EncomiendasIndexPage = () => {
     {
       key: 'acciones',
       header: 'Acciones',
-      render: (_, row) => (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Eye}
-            onClick={() => cargarDetalleEncomienda(row)}
-          >
-            Ver
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Printer}
-            className="text-indigo-600 hover:bg-indigo-50"
-            onClick={() => handleReimprimir(row)}
-            title="Reimprimir Guia"
-          >
-            Guia
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Tag}
-            className="text-pink-600 hover:bg-pink-50"
-            onClick={() => handleImprimirRotulo(row)}
-            title="Imprimir Rotulo Adhesivo 100x150mm"
-          >
-            Rotulo
-          </Button>
-          {!row.idComprobante && !row.id_comprobante && (
-            <PermissionGate permission="FACTURACION_EMITIR">
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={Receipt}
-                className="text-green-600 hover:bg-green-50"
-                onClick={() => handleFacturar(row)}
-              >
-                Facturar
-              </Button>
-            </PermissionGate>
-          )}
-          {row.estadoActual === 'LLEGO_A_DESTINO' && (
-            <PermissionGate permission="ENCOMIENDAS_RETIRAR">
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={PackageCheck}
-                className="text-orange-600 hover:bg-orange-50"
-                onClick={() => handleAbrirEntregarModal(row)}
-              >
-                Entregar
-              </Button>
-            </PermissionGate>
-          )}
-          {!row.idGuiaRemision && !row.id_guia_remision && (
-            <PermissionGate permission="FACTURACION_EMITIR">
-              <button
-                onClick={() => handleAbrirGuiaModal(row)}
-                className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                title="Generar Guía de Remisión"
+      // Íconos en lugar de botones con texto para que la tabla quepa sin scroll lateral.
+      // flex-wrap + min-w (3 íconos de 28px + gaps) deja que pasen a 2 filas en pantallas angostas.
+      // Los íconos con fondo de color (Facturado, GRE) indican estado; los transparentes son acciones.
+      render: (_, row) => {
+        const facturada = row.idComprobante || row.id_comprobante
+        const conGuiaRemision = row.idGuiaRemision || row.id_guia_remision
+        return (
+          <div className="flex flex-wrap items-center gap-1 min-w-[92px]">
+            <AccionIcono
+              icon={Eye}
+              label="Ver detalle"
+              className="text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              onClick={() => cargarDetalleEncomienda(row)}
+            />
+            <AccionIcono
+              icon={Printer}
+              label="Reimprimir guía"
+              className="text-indigo-600 hover:bg-indigo-50"
+              onClick={() => handleReimprimir(row)}
+            />
+            <AccionIcono
+              icon={Tag}
+              label="Imprimir rótulo adhesivo"
+              className="text-pink-600 hover:bg-pink-50"
+              onClick={() => handleImprimirRotulo(row)}
+            />
+            {facturada ? (
+              <AccionIcono
+                icon={FileText}
+                label="Facturado: ver comprobante"
+                className="bg-green-100 text-green-700 hover:bg-green-200"
+                onClick={() => handleVerComprobante(row)}
+              />
+            ) : (
+              <PermissionGate permission="FACTURACION_EMITIR">
+                <AccionIcono
+                  icon={Receipt}
+                  label="Facturar"
+                  className="text-green-600 hover:bg-green-50"
+                  onClick={() => handleFacturar(row)}
+                />
+              </PermissionGate>
+            )}
+            {row.estadoActual === 'LLEGO_A_DESTINO' && (
+              <PermissionGate permission="ENCOMIENDAS_RETIRAR">
+                <AccionIcono
+                  icon={PackageCheck}
+                  label="Entregar"
+                  className="text-orange-600 hover:bg-orange-50"
+                  onClick={() => handleAbrirEntregarModal(row)}
+                />
+              </PermissionGate>
+            )}
+            {conGuiaRemision ? (
+              <span
+                className="inline-flex p-1.5 rounded-lg bg-blue-100 text-blue-700"
+                title="Guía de remisión emitida"
+                aria-label="Guía de remisión emitida"
               >
                 <Truck className="w-4 h-4" />
-              </button>
-            </PermissionGate>
-          )}
-          {(row.idGuiaRemision || row.id_guia_remision) && (
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-              <Truck className="w-3 h-3 mr-1" />
-              GRE
-            </span>
-          )}
-          {(row.idComprobante || row.id_comprobante) && (
-            <>
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                <FileText className="w-3 h-3 mr-1" />
-                Facturado
               </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={Eye}
-                className="text-blue-600 hover:bg-blue-50"
-                onClick={() => handleVerComprobante(row)}
-                title="Ver comprobante"
-              >
-                Ver
-              </Button>
-            </>
-          )}
-        </div>
-      )
+            ) : (
+              <PermissionGate permission="FACTURACION_EMITIR">
+                <AccionIcono
+                  icon={Truck}
+                  label="Generar guía de remisión"
+                  className="text-gray-500 hover:text-green-600 hover:bg-green-50"
+                  onClick={() => handleAbrirGuiaModal(row)}
+                />
+              </PermissionGate>
+            )}
+          </div>
+        )
+      }
     }
   ]
 
@@ -1333,8 +1370,10 @@ const EncomiendasIndexPage = () => {
               variant="outline"
               icon={Filter}
               onClick={() => setShowFilters(!showFilters)}
+              className={filtrosActivos > 0 ? 'border-primary-500 text-primary-700' : ''}
+              title={filtrosActivos > 0 ? `${filtrosActivos} filtro${filtrosActivos !== 1 ? 's' : ''} activo${filtrosActivos !== 1 ? 's' : ''}` : 'Mostrar u ocultar los filtros'}
             >
-              Filtros
+              {filtrosActivos > 0 ? `Filtros (${filtrosActivos})` : 'Filtros'}
             </Button>
             <Button
               variant="outline"
@@ -1378,96 +1417,21 @@ const EncomiendasIndexPage = () => {
 
         {/* Filtros */}
         {showFilters && (
-          <Card>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Codigo de Rastreo
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    name="codigoTracking"
-                    value={filters.codigoTracking}
-                    onChange={handleFilterChange}
-                    placeholder="Buscar por codigo..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Documento (Remitente/Destinatario)
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    name="dni"
-                    value={filters.dni}
-                    onChange={handleFilterChange}
-                    placeholder="Buscar por documento..."
-                    maxLength={12}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fecha Desde
-                </label>
-                <input
-                  type="date"
-                  name="fechaDesde"
-                  value={filters.fechaDesde}
-                  onChange={handleFilterChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fecha Hasta
-                </label>
-                <input
-                  type="date"
-                  name="fechaHasta"
-                  value={filters.fechaHasta}
-                  onChange={handleFilterChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Estado
-                </label>
-                <select
-                  name="estado"
-                  value={filters.estado}
-                  onChange={handleFilterChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none"
-                >
-                  <option value="">Todos</option>
-                  <option value="REGISTRADO">Registrado</option>
-                  <option value="EN_ALMACEN">En Almacen</option>
-                  <option value="EN_RUTA">En Ruta</option>
-                  <option value="LLEGO_A_DESTINO">Llego a Destino</option>
-                  <option value="RETIRADO">Retirado</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end mt-4 pt-4 border-t">
-              <Button variant="ghost" onClick={clearFilters}>
-                Limpiar Filtros
-              </Button>
-            </div>
+          <Card padding={false} bodyClassName="p-3 sm:p-4">
+            <FiltrosEncomiendas
+              filtros={filters}
+              puntos={puntosFiltro}
+              onChange={handleFilterChange}
+              onIntercambiarRuta={handleIntercambiarRuta}
+              onLimpiar={clearFilters}
+            />
           </Card>
         )}
 
         {/* Barra de selección del manifiesto */}
         {modoManifiesto && (
           <Card className="border-2 border-green-600">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div className="flex flex-col 2xl:flex-row 2xl:items-center 2xl:justify-between gap-3">
               <div>
                 <p className="font-semibold text-gray-900">
                   Generar manifiesto: seleccione las encomiendas En ruta
@@ -1480,10 +1444,29 @@ const EncomiendasIndexPage = () => {
                 <p className="text-xs text-gray-500 mt-1">
                   {idOrigenFijado
                     ? `Origen: ${encomiendasSeleccionadas[0]?.puntoOrigen?.nombre}. Solo se pueden agregar encomiendas de este origen.`
-                    : 'Todas deben tener el mismo origen. Las que ya pertenecen a un manifiesto aparecen bloqueadas.'}
+                    : 'Todas deben tener el mismo origen. Filtre por origen y destino y use "Seleccionar todas" para tomar la ruta completa. Las que ya pertenecen a un manifiesto aparecen bloqueadas.'}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap 2xl:flex-nowrap 2xl:flex-shrink-0">
+                <Button
+                  variant="outline"
+                  icon={ListChecks}
+                  onClick={handleSeleccionarCoincidentes}
+                  loading={seleccionandoTodas}
+                  disabled={loading || seleccionandoTodas || generandoManifiesto || pagination.total === 0}
+                  title="Selecciona las encomiendas En ruta que coinciden con los filtros, en todas las páginas"
+                >
+                  Seleccionar todas ({pagination.total})
+                </Button>
+                {resumenSeleccion.cantidad > 0 && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setSeleccionManifiesto({})}
+                    disabled={seleccionandoTodas || generandoManifiesto}
+                  >
+                    Quitar selección
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   onClick={handleCancelarManifiesto}
@@ -1509,6 +1492,7 @@ const EncomiendasIndexPage = () => {
             columns={columnasTabla}
             data={encomiendas}
             loading={loading}
+            compact
             emptyMessage="No hay encomiendas registradas"
             pagination={{
               page: pagination.page,
@@ -1915,6 +1899,15 @@ const EncomiendasIndexPage = () => {
               <span className="guia-cs-label">CODIGO</span>
               <span className="guia-cs-tracking">{printData.codigo}</span>
             </div>
+
+            {/* ═══════ CODIGO DE RASTREO (web) ═══════ */}
+            {printData.codigoRastreo && (
+              <div className="guia-cs-rastreo">
+                <span className="guia-cs-label">CODIGO DE RASTREO</span>
+                <span className="guia-cs-rastreo-codigo">{printData.codigoRastreo}</span>
+                <span className="guia-cs-rastreo-ayuda">Rastree su envio en nuestra web con este codigo</span>
+              </div>
+            )}
 
             {/* ═══════ RUTA ═══════ */}
             <div className="guia-cs-ruta">

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { TicketPrint, ComprobantePrint } from '../../components/common'
+import { TicketPrint, ComprobantePrint, ClienteBoletaFields } from '../../components/common'
 import rutasService from '../../services/rutasService'
 import viajesService from '../../services/viajesService'
 import ticketsService from '../../services/ticketsService'
@@ -24,6 +24,12 @@ import {
   obtenerTipoDocumento,
   siglaDocumento
 } from '../../utils/documentoIdentidad'
+import {
+  clienteBoletaVacio,
+  clienteBoletaDesdePersona,
+  esClienteBoletaValido,
+  clienteBoletaParaEnvio
+} from '../../utils/clienteBoleta'
 import { VentaInstantaneaModal, SelectorRuta } from '../../components/tickets'
 import {
   Ticket,
@@ -104,6 +110,8 @@ const VentaTicketPage = () => {
     razonSocial: '',
     direccion: ''
   })
+  // Cliente de la boleta (DNI, CE, RUC o sin documento); parte de los datos del pasajero
+  const [clienteBoleta, setClienteBoleta] = useState(clienteBoletaVacio)
 
   // Ticket vendido y comprobante interno
   const [ticketVendido, setTicketVendido] = useState(null)
@@ -398,6 +406,8 @@ const VentaTicketPage = () => {
 
       if (tipoDocumento === 'FACTURA') {
         payload.clienteFactura = clienteFactura
+      } else if (tipoDocumento === 'BOLETA') {
+        payload.clienteBoleta = clienteBoletaParaEnvio(clienteBoleta)
       }
 
       const response = await ticketsService.vender(payload)
@@ -454,6 +464,7 @@ const VentaTicketPage = () => {
     setPrecioManual(null)
     setTipoDocumento('')
     setClienteFactura({ ruc: '', razonSocial: '', direccion: '' })
+    setClienteBoleta(clienteBoletaVacio())
     setErrorBusquedaRuc('')
     setIncluyeIgv(configSunat?.exoneradoIgv ? false : true)
     setStep(1)
@@ -949,6 +960,21 @@ const VentaTicketPage = () => {
               </div>
             )}
 
+            {/* Datos del cliente para Boleta: DNI/RUC con búsqueda, CE o sin documento */}
+            {tipoDocumento === 'BOLETA' && (
+              <ClienteBoletaFields
+                value={clienteBoleta}
+                onChange={setClienteBoleta}
+                total={precioFinal}
+                sugerido={clienteBoletaDesdePersona({
+                  tipoDoc: formData.pasajero.tipoDocumento,
+                  numDoc: formData.pasajero.documentoIdentidad,
+                  nombre: formData.pasajero.nombreCompleto
+                })}
+                etiquetaSugerido="pasajero"
+              />
+            )}
+
             {/* Datos adicionales para Factura */}
             {tipoDocumento === 'FACTURA' && (
               <div className="bg-orange-50 rounded-lg p-4 border border-orange-200 space-y-3">
@@ -1187,7 +1213,8 @@ const VentaTicketPage = () => {
                   !esDocumentoValido(formData.pasajero.tipoDocumento, formData.pasajero.documentoIdentidad) ||
                   formData.pasajero.telefono.replace(/\s/g, '').length !== 9 ||
                   !tipoDocumento ||
-                  (tipoDocumento === 'FACTURA' && (clienteFactura.ruc.length !== 11 || !clienteFactura.razonSocial))
+                  (tipoDocumento === 'FACTURA' && (clienteFactura.ruc.length !== 11 || !clienteFactura.razonSocial)) ||
+                  (tipoDocumento === 'BOLETA' && !esClienteBoletaValido(clienteBoleta, precioFinal))
                 }
                 className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
               >

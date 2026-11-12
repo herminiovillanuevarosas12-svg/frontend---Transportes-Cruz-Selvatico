@@ -5,6 +5,7 @@
 
 import { formatDateOnly, formatTimeOnly, formatDateTimeCivil } from '../../utils/dateUtils'
 import { siglaDocumento } from '../../utils/documentoIdentidad'
+import { NUMERO_SIN_DOCUMENTO } from '../../utils/clienteBoleta'
 
 const TITULOS = {
   BOLETA: 'BOLETA DE VENTA',
@@ -84,12 +85,19 @@ const ComprobantePrint = ({ comprobante, empresa, encomiendaDetalle }) => {
               {comprobante.clienteNombre}
             </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-sm text-gray-600">
-              {siglaDocumento(comprobante.clienteDocumento)}:
-            </span>
-            <span className="text-sm font-medium text-gray-900">{comprobante.clienteDocumento}</span>
-          </div>
+          {comprobante.clienteDocumento === NUMERO_SIN_DOCUMENTO ? (
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">Documento:</span>
+              <span className="text-sm font-medium text-gray-900">Sin documento</span>
+            </div>
+          ) : (
+            <div className="flex justify-between">
+              <span className="text-sm text-gray-600">
+                {siglaDocumento(comprobante.clienteDocumento)}:
+              </span>
+              <span className="text-sm font-medium text-gray-900">{comprobante.clienteDocumento}</span>
+            </div>
+          )}
           {tipo === 'FACTURA' && comprobante.clienteDireccion && (
             <div className="flex justify-between">
               <span className="text-sm text-gray-600">Direccion:</span>

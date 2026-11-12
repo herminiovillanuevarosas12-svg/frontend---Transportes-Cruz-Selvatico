@@ -1,45 +1,36 @@
 /**
  * Encomiendas Info - Pagina publica informativa
  * Ruta: /encomiendas-info
- * Secciones: Por que elegirnos (carousel), Servicios/Flota (tabs), Como funciona (3 pasos), CTA tracking
- * Datos dinamicos desde API: ventajas, secciones, imagen hero, whatsapp
+ * Secciones: Hero (carrusel de imagenes), secciones de cards dinamicas (ej. "¿Por qué elegirnos?"),
+ * Servicios/Flota (tabs), Como funciona (3 pasos), CTA tracking
+ * Datos dinamicos desde API: secciones de cards, secciones Servicios/Flota, imagenes hero, whatsapp
  */
 
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { PageHeroBanner } from '../components/public'
 import PublicLayout from '../components/layout/PublicLayout'
+import SeccionCards, { SeccionCardsSkeleton } from '../components/public/encomiendas/SeccionCards'
 import { getUploadUrl } from '../services/apiClient'
 import publicService from '../services/publicService'
-import {
-  Truck,
-  Globe,
-  Shield,
-  Package,
-  MapPin,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Zap,
-  Heart,
-  Star,
-  Eye,
-} from 'lucide-react'
+import { useAuthStore } from '../features/auth/authStore'
+import { PARAM_MODO_EDICION, importarConRespaldo, puedeEditarPagina } from '../utils/seccionesCards'
+import { toast } from 'react-hot-toast'
+import { Truck, Package, MapPin, Search, Clock, Pencil, X } from 'lucide-react'
 
-const ICONOS_MAP = {
-  Truck,
-  Globe,
-  Shield,
-  Package,
-  MapPin,
-  Search,
-  Clock,
-  Zap,
-  Heart,
-  Star,
-  Eye,
+// Editor inline (solo superadmin): se descarga únicamente al activar el modo edición
+// Si el editor no se puede descargar (p. ej. tras un nuevo deploy), avisa y vuelve a la vista pública
+const EditorNoDisponible = ({ onSalir }) => {
+  useEffect(() => {
+    toast.error('No se pudo cargar el editor. Recarga la página e inténtalo de nuevo.', { id: 'editor-no-disponible' })
+    onSalir()
+  }, [onSalir])
+  return null
 }
+
+const EditorSeccionesCards = lazy(
+  importarConRespaldo(() => import('../components/public/encomiendas/editor/EditorSeccionesCards'), EditorNoDisponible)
+)
 
 const WhatsAppIcon = ({ className }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
@@ -48,10 +39,14 @@ const WhatsAppIcon = ({ className }) => (
 )
 
 const EncomiendasInfoPage = () => {
-  const [carouselIndex, setCarouselIndex] = useState(0)
-  const [ventajas, setVentajas] = useState([])
-  const [heroImagen, setHeroImagen] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [heroImagenes, setHeroImagenes] = useState([])
+  // Secciones de cards (ej. "¿Por qué elegirnos?")
+  const [seccionesCards, setSeccionesCards] = useState([])
+  const [loadingCards, setLoadingCards] = useState(true)
+  // Modo edición (superadmin)
+  const puedeEditar = puedeEditarPagina(useAuthStore((state) => state.user))
+  const [modoEdicion, setModoEdicion] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
   // Secciones Servicios/Flota
   const [seccionesServicios, setSeccionesServicios] = useState([])
   const [seccionesFlota, setSeccionesFlota] = useState([])
@@ -60,20 +55,38 @@ const EncomiendasInfoPage = () => {
   // WhatsApp
   const [whatsapp, setWhatsapp] = useState(null)
 
-  useEffect(() => {
-    // Cargar ventajas
+  const cargarSeccionesCards = useCallback(() => {
     publicService
-      .getEncomiendasVentajas()
+      .getEncomiendasSeccionesCards()
+      .then((res) => setSeccionesCards(res.secciones || []))
+      .catch(() => {})
+      .finally(() => setLoadingCards(false))
+  }, [])
+
+  // ?editar=1 (desde el panel admin) abre el modo edición si el usuario es superadmin
+  useEffect(() => {
+    if (!searchParams.has(PARAM_MODO_EDICION)) return
+    if (puedeEditar) setModoEdicion(true)
+    searchParams.delete(PARAM_MODO_EDICION)
+    setSearchParams(searchParams, { replace: true })
+  }, [searchParams, setSearchParams, puedeEditar])
+
+  const salirModoEdicion = useCallback(() => {
+    setModoEdicion(false)
+    cargarSeccionesCards()
+  }, [cargarSeccionesCards])
+
+  useEffect(() => {
+    // Cargar carrusel de portada
+    publicService
+      .getEncomiendasHeroImagenes()
       .then((res) => {
-        if (res.ventajas && res.ventajas.length > 0) {
-          setVentajas(res.ventajas)
-        }
-        if (res.heroImagen) {
-          setHeroImagen(res.heroImagen)
-        }
+        setHeroImagenes((res.heroImagenes || []).map((img) => getUploadUrl(img.imagenPath)))
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
+
+    // Cargar secciones de cards
+    cargarSeccionesCards()
 
     // Cargar secciones Servicios/Flota
     publicService
@@ -96,14 +109,6 @@ const EncomiendasInfoPage = () => {
       .catch(() => {})
   }, [])
 
-  const handlePrev = () => {
-    setCarouselIndex((prev) => (prev === 0 ? ventajas.length - 1 : prev - 1))
-  }
-
-  const handleNext = () => {
-    setCarouselIndex((prev) => (prev === ventajas.length - 1 ? 0 : prev + 1))
-  }
-
   const getWhatsAppUrl = () => {
     if (!whatsapp) return '#'
     const numero = whatsapp.replace(/\D/g, '')
@@ -114,152 +119,22 @@ const EncomiendasInfoPage = () => {
   const haySecciones = seccionesServicios.length > 0 || seccionesFlota.length > 0
 
   return (
-    <PublicLayout>
+    <PublicLayout searchBarLabel="Envío de encomiendas" searchBarIcon={Package}>
       <PageHeroBanner
         titulo="Encomiendas"
-        imagenFondo={heroImagen ? getUploadUrl(heroImagen) : null}
+        imagenesFondo={heroImagenes}
         showSearchBar={false}
       />
 
-      {/* Seccion: Por que elegirnos */}
-      {ventajas.length > 0 && (
-        <section className="bg-white py-16 lg:py-20">
-          <div className="max-w-7xl mx-auto px-4">
-            {/* Titulo con borde izquierdo + flechas */}
-            <div className="flex items-center justify-between mb-10">
-              <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 border-l-4 border-secondary-500 pl-4">
-                Por que elegirnos?
-              </h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrev}
-                  className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-500 hover:border-secondary-500 hover:text-secondary-500 transition-colors"
-                  aria-label="Anterior"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-500 hover:border-secondary-500 hover:text-secondary-500 transition-colors"
-                  aria-label="Siguiente"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="rounded-xl border border-gray-200 overflow-hidden animate-pulse">
-                    <div className="h-48 bg-gray-200" />
-                    <div className="p-6 space-y-3">
-                      <div className="h-5 bg-gray-200 rounded w-3/4" />
-                      <div className="h-3 bg-gray-200 rounded w-full" />
-                      <div className="h-3 bg-gray-200 rounded w-5/6" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <>
-                {/* Grid de cards - desktop muestra las 3, mobile carousel */}
-                <div className="hidden md:grid md:grid-cols-3 gap-8">
-                  {ventajas.map((v, idx) => {
-                    const Icono = ICONOS_MAP[v.icono] || Package
-                    return (
-                      <div
-                        key={v.id || idx}
-                        className="rounded-xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-300"
-                      >
-                        {v.imagenPath ? (
-                          <div className="h-60 overflow-hidden">
-                            <img
-                              src={getUploadUrl(v.imagenPath)}
-                              alt={v.titulo}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="h-60 bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
-                            <div className="w-20 h-20 rounded-full border-2 border-secondary-500 flex items-center justify-center">
-                              <Icono className="w-10 h-10 text-secondary-500" />
-                            </div>
-                          </div>
-                        )}
-                        <div className="p-6">
-                          <h3 className="text-lg font-bold text-secondary-500 mb-2">
-                            {v.titulo}
-                          </h3>
-                          <p className="text-gray-500 text-sm leading-relaxed">
-                            {v.descripcion}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Mobile carousel - una card a la vez */}
-                <div className="md:hidden">
-                  {ventajas.map((v, idx) => {
-                    const Icono = ICONOS_MAP[v.icono] || Package
-                    if (idx !== carouselIndex) return null
-
-                    return (
-                      <div
-                        key={v.id || idx}
-                        className="rounded-xl border border-gray-200 overflow-hidden animate-fade-in"
-                      >
-                        {v.imagenPath ? (
-                          <div className="h-60 overflow-hidden">
-                            <img
-                              src={getUploadUrl(v.imagenPath)}
-                              alt={v.titulo}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="h-60 bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center">
-                            <div className="w-20 h-20 rounded-full border-2 border-secondary-500 flex items-center justify-center">
-                              <Icono className="w-10 h-10 text-secondary-500" />
-                            </div>
-                          </div>
-                        )}
-                        <div className="p-6">
-                          <h3 className="text-lg font-bold text-secondary-500 mb-2">
-                            {v.titulo}
-                          </h3>
-                          <p className="text-gray-500 text-sm leading-relaxed">
-                            {v.descripcion}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {/* Indicadores de carousel */}
-                  {ventajas.length > 1 && (
-                    <div className="flex items-center justify-center gap-2 mt-6">
-                      {ventajas.map((_, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setCarouselIndex(idx)}
-                          className={`w-2.5 h-2.5 rounded-full transition-all ${
-                            idx === carouselIndex
-                              ? 'bg-secondary-500 w-6'
-                              : 'bg-gray-300 hover:bg-gray-400'
-                          }`}
-                          aria-label={`Ventaja ${idx + 1}`}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </section>
+      {/* Secciones de cards (dinamicas); el superadmin las edita en el lugar */}
+      {modoEdicion && puedeEditar ? (
+        <Suspense fallback={<SeccionCardsSkeleton />}>
+          <EditorSeccionesCards onSalir={salirModoEdicion} />
+        </Suspense>
+      ) : loadingCards ? (
+        <SeccionCardsSkeleton />
+      ) : (
+        seccionesCards.map((seccion) => <SeccionCards key={seccion.id} seccion={seccion} />)
       )}
 
       {/* Seccion: Servicios / Flota (tabs) */}
@@ -414,6 +289,16 @@ const EncomiendasInfoPage = () => {
           </div>
         </div>
       </section>
+      {puedeEditar && (
+        <button
+          type="button"
+          onClick={modoEdicion ? salirModoEdicion : () => setModoEdicion(true)}
+          className="fixed bottom-6 left-6 z-40 flex items-center gap-2 px-5 py-3 rounded-full bg-gray-900 text-white text-sm font-semibold shadow-xl hover:bg-gray-800 transition-colors"
+        >
+          {modoEdicion ? <X className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
+          {modoEdicion ? 'Salir de edición' : 'Modo edición'}
+        </button>
+      )}
     </PublicLayout>
   )
 }

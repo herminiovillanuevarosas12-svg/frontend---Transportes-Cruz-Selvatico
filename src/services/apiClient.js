@@ -120,7 +120,8 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // skipAuthRedirect: quien hace la peticion maneja el 401 (ej. modo edicion en paginas publicas)
+    if (error.response?.status === 401 && !error.config?.skipAuthRedirect) {
       // Token expirado o invalido - limpiar storage y redirigir
       localStorage.removeItem('auth-storage')
       window.location.href = '/login'
