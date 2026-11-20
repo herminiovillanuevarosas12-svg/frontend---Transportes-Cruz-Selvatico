@@ -35,7 +35,7 @@ const mismoCliente = (a, b) =>
   Boolean(a && b) && a.tipoDoc === b.tipoDoc && a.numDoc === b.numDoc && a.razonSocial === b.razonSocial
 
 const ClienteBoletaFields = ({ value, onChange, total, sugerido = null, etiquetaSugerido = 'pasajero' }) => {
-  const { loading: buscando, consultarDocumento, reset: resetLookup } = useDocLookup()
+  const { loading: buscando, consultarDocumento, obtenerErrorServicio, reset: resetLookup } = useDocLookup()
   const [aviso, setAviso] = useState('')
   // Número vigente: descarta respuestas de búsquedas de un número que ya se cambió
   const numeroVigenteRef = useRef(value.numDoc)
@@ -89,9 +89,9 @@ const ClienteBoletaFields = ({ value, onChange, total, sugerido = null, etiqueta
         direccion: resultado.direccion || ''
       })
     } else {
-      setAviso(tipoDoc === CODIGO_RUC
+      setAviso(obtenerErrorServicio() || (tipoDoc === CODIGO_RUC
         ? 'RUC no encontrado en SUNAT. Verifique que el número sea correcto.'
-        : 'DNI no encontrado. Escriba el nombre manualmente.')
+        : 'DNI no encontrado. Escriba el nombre manualmente.'))
     }
   }
 

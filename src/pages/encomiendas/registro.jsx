@@ -118,7 +118,7 @@ const RegistroEncomiendaPage = () => {
   const [printTarget, setPrintTarget] = useState(null) // 'guia' | 'comprobante'
 
   // Hook para auto-busqueda de DNI/RUC
-  const { loading: buscandoDoc, consultarDni, consultarRuc, reset: resetDocLookup } = useDocLookup()
+  const { loading: buscandoDoc, consultarDni, consultarRuc, obtenerErrorServicio, reset: resetDocLookup } = useDocLookup()
 
   // Consultas diferidas de DNI: se espera a que el usuario deje de escribir para no consultar
   // como DNI los 8 primeros dígitos de un RUC (existen DNIs reales que empiezan en 10 y 20).
@@ -402,7 +402,8 @@ const RegistroEncomiendaPage = () => {
         }
       } else {
         const queIngresar = tipo === CODIGO_RUC ? 'la razón social' : 'el nombre'
-        setErrorBusquedaDestinatario(`${obtenerTipoDocumento(tipo).nombre} no encontrado. Ingrese ${queIngresar} manualmente.`)
+        setErrorBusquedaDestinatario(obtenerErrorServicio()
+          || `${obtenerTipoDocumento(tipo).nombre} no encontrado. Ingrese ${queIngresar} manualmente.`)
       }
     } finally {
       setBuscandoDestinatario(false)
@@ -1284,7 +1285,7 @@ const RegistroEncomiendaPage = () => {
                                     direccion: ''  // Sin dirección disponible
                                   }))
                                 } else {
-                                  setErrorBusquedaRuc('RUC no encontrado. Verifique que el número sea correcto.')
+                                  setErrorBusquedaRuc(obtenerErrorServicio() || 'RUC no encontrado. Verifique que el número sea correcto.')
                                 }
                               }
                             }

@@ -79,7 +79,7 @@ const TicketsIndexPage = () => {
   })
   const [configSunat, setConfigSunat] = useState(null)
   const [procesandoFactura, setProcesandoFactura] = useState(false)
-  const { loading: buscandoDoc, consultarDocumentoDiferido } = useDocLookup()
+  const { loading: buscandoDoc, consultarDocumentoDiferido, obtenerErrorServicio } = useDocLookup()
   const [errorBusquedaDoc, setErrorBusquedaDoc] = useState('')
 
   // Modal de ver comprobante
@@ -269,9 +269,9 @@ const TicketsIndexPage = () => {
     const result = await consultarDocumentoDiferido(numDoc)
     if (result === undefined) return // cancelada por una escritura posterior
     if (!result) {
-      setErrorBusquedaDoc(tipoDoc === CODIGO_RUC
+      setErrorBusquedaDoc(obtenerErrorServicio() || (tipoDoc === CODIGO_RUC
         ? 'RUC no encontrado. Verifique que el número sea correcto.'
-        : 'DNI no encontrado. Ingrese el nombre manualmente.')
+        : 'DNI no encontrado. Ingrese el nombre manualmente.'))
       return
     }
     setFacturarForm(prev => ({

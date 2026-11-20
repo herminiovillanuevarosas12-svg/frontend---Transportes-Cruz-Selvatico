@@ -14,6 +14,11 @@
  *
  * Con `tipo` explicito (selector DNI/CE/RUC) se respeta ese tipo: el carnet de
  * extranjeria no tiene API externa, solo se busca entre los clientes registrados.
+ *
+ * Las consultas devuelven null tanto si el documento no existe como si fallo el
+ * servicio (cuota de API Peru agotada, token, red). En el segundo caso el hook
+ * muestra un toast con la causa y obtenerErrorServicio() la devuelve, para que la
+ * pantalla no diga "no encontrado".
  */
 
 /**
@@ -28,16 +33,38 @@ const mapearResultadoRuc = (result) => result ? {
 } : null
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import consultaDocService from '../services/consultaDocService'
 import clientesService from '../services/clientesService'
 import { CODIGO_DNI, CODIGO_RUC, esDocumentoValido } from '../utils/documentoIdentidad'
+import { mensajeFalloServicioConsulta, DURACION_TOAST_FALLO_MS } from '../utils/consultaDoc'
 
 export const DELAY_CONSULTA_DIFERIDA_MS = 600
+// Un solo toast aunque se consulten varios documentos seguidos
+const TOAST_ID_FALLO_SERVICIO = 'consulta-doc-fallo-servicio'
 
 const useDocLookup = () => {
   const [loading, setLoading] = useState(false)
   const timerRef = useRef(null)
   const resolverPendienteRef = useRef(null)
+  const errorServicioRef = useRef(null)
+
+  /**
+   * Causa de la ultima consulta fallida por el servicio (no por documento inexistente)
+   * @returns {string|null}
+   */
+  const obtenerErrorServicio = useCallback(() => errorServicioRef.current, [])
+
+  /**
+   * Registra el error de una consulta a la API. Documento no encontrado no es un error.
+   */
+  const registrarFalloConsulta = useCallback((error, documento) => {
+    const mensaje = mensajeFalloServicioConsulta(error)
+    if (!mensaje) return
+    console.error(`Error consultando ${documento}:`, error)
+    errorServicioRef.current = mensaje
+    toast.error(mensaje, { id: TOAST_ID_FALLO_SERVICIO, duration: DURACION_TOAST_FALLO_MS })
+  }, [])
 
   /**
    * Cancela una consulta diferida en espera (resuelve su promesa con undefined)
@@ -84,6 +111,7 @@ const useDocLookup = () => {
    * @returns {Object|null} { nombre_completo, nombres, apellido_paterno, apellido_materno, source } o null si error
    */
   const consultarDni = useCallback(async (dni, skipLocal = false) => {
+    errorServicioRef.current = null
     // Validar formato
     if (!dni || !/^\d{8}$/.test(dni)) {
       return null
@@ -109,12 +137,12 @@ const useDocLookup = () => {
 
       return null
     } catch (error) {
-      console.error('Error consultando DNI:', error)
+      registrarFalloConsulta(error, 'DNI')
       return null
     } finally {
       setLoading(false)
     }
-  }, [buscarClienteLocal])
+  }, [buscarClienteLocal, registrarFalloConsulta])
 
   /**
    * Consultar RUC (directo a API, no hay BD local de empresas)
@@ -122,6 +150,7 @@ const useDocLookup = () => {
    * @returns {Object|null} { ruc, razon_social, nombre_comercial, estado, condicion, domicilio, ubigeo, source } o null si error
    */
   const consultarRuc = useCallback(async (ruc) => {
+    errorServicioRef.current = null
     // Validar formato
     if (!ruc || !/^\d{11}$/.test(ruc)) {
       return null
@@ -140,12 +169,12 @@ const useDocLookup = () => {
 
       return null
     } catch (error) {
-      console.error('Error consultando RUC:', error)
+      registrarFalloConsulta(error, 'RUC')
       return null
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [registrarFalloConsulta])
 
   /**
    * Consultar documento generico.
@@ -158,6 +187,7 @@ const useDocLookup = () => {
    * @returns {Object|null} { nombre_completo, razon_social, telefono, tipoDoc, source } o null si error
    */
   const consultarDocumento = useCallback(async (numero, skipLocal = false, tipo = null) => {
+    errorServicioRef.current = null
     if (!numero) return null
 
     if (tipo) {
@@ -213,6 +243,7 @@ const useDocLookup = () => {
    */
   const reset = useCallback(() => {
     cancelarDiferida()
+    errorServicioRef.current = null
     setLoading(false)
   }, [cancelarDiferida])
 
@@ -222,6 +253,7 @@ const useDocLookup = () => {
     consultarRuc,
     consultarDocumento,
     consultarDocumentoDiferido,
+    obtenerErrorServicio,
     reset
   }
 }

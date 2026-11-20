@@ -189,7 +189,7 @@ const FacturacionPage = () => {
   const [confirmandoSinPasajero, setConfirmandoSinPasajero] = useState(false)
 
   // Hook para auto-busqueda de DNI/RUC
-  const { loading: buscandoDoc, consultarDni, consultarRuc, reset: resetDocLookup } = useDocLookup()
+  const { loading: buscandoDoc, consultarDni, consultarRuc, obtenerErrorServicio, reset: resetDocLookup } = useDocLookup()
   // Búsqueda del pasajero (clientes registrados primero; el DNI también en API)
   const {
     loading: buscandoPasajero,
@@ -1271,7 +1271,7 @@ const FacturacionPage = () => {
                             }
                           }))
                         } else {
-                          setErrorBusquedaDoc('RUC no encontrado. Verifique que el número sea correcto.')
+                          setErrorBusquedaDoc(obtenerErrorServicio() || 'RUC no encontrado. Verifique que el número sea correcto.')
                         }
                       } else if (tipoDoc === CODIGO_DNI && value.length === 8) {
                         const result = await consultarDni(value)
@@ -1285,7 +1285,7 @@ const FacturacionPage = () => {
                             }
                           }))
                         } else {
-                          setErrorBusquedaDoc('DNI no encontrado. Verifique que el número sea correcto.')
+                          setErrorBusquedaDoc(obtenerErrorServicio() || 'DNI no encontrado. Verifique que el número sea correcto.')
                         }
                       }
                     }}

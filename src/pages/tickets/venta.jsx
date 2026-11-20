@@ -79,7 +79,7 @@ const VentaTicketPage = () => {
   const [precioManual, setPrecioManual] = useState(null)
 
   // Hook para auto-busqueda de DNI/RUC
-  const { loading: buscandoDoc, consultarRuc, consultarDocumentoDiferido, reset: resetDocLookup } = useDocLookup()
+  const { loading: buscandoDoc, consultarRuc, consultarDocumentoDiferido, obtenerErrorServicio, reset: resetDocLookup } = useDocLookup()
   const [errorBusquedaRuc, setErrorBusquedaRuc] = useState('')
 
   // Datos de empresa para impresión
@@ -304,7 +304,8 @@ const VentaTicketPage = () => {
         }
       }))
       toast.success(tipoDoc === CODIGO_RUC ? 'Datos obtenidos de SUNAT' : 'Datos obtenidos de RENIEC')
-    } else if (!result && obtenerTipoDocumento(tipoDoc).consultaApi) {
+    } else if (!result && obtenerTipoDocumento(tipoDoc).consultaApi && !obtenerErrorServicio()) {
+      // Si falló el servicio el hook ya avisó la causa
       toast('Documento no encontrado. Ingrese los datos manualmente.')
     }
   }
@@ -1022,7 +1023,7 @@ const VentaTicketPage = () => {
                                   direccion: direccionFiscal
                                 }))
                               } else {
-                                setErrorBusquedaRuc('RUC no encontrado. Verifique que el número sea correcto.')
+                                setErrorBusquedaRuc(obtenerErrorServicio() || 'RUC no encontrado. Verifique que el número sea correcto.')
                               }
                             }
                           }

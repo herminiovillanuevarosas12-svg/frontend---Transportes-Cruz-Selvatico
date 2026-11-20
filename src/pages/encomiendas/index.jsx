@@ -175,7 +175,7 @@ const EncomiendasIndexPage = () => {
   const [procesandoGuia, setProcesandoGuia] = useState(false)
 
   // Hook para auto-busqueda de DNI/RUC
-  const { loading: buscandoDoc, consultarDni, consultarRuc, consultarDocumentoDiferido, reset: resetDocLookup } = useDocLookup()
+  const { loading: buscandoDoc, consultarDni, consultarRuc, consultarDocumentoDiferido, obtenerErrorServicio, reset: resetDocLookup } = useDocLookup()
   const [errorBusquedaDoc, setErrorBusquedaDoc] = useState('')
 
   // Datos de empresa para impresión
@@ -965,9 +965,9 @@ const EncomiendasIndexPage = () => {
     if (result === undefined) return // cancelada por una escritura posterior
     if (!result) {
       if (obtenerTipoDocumento(tipoDoc).consultaApi) {
-        setErrorBusquedaDoc(tipoDoc === CODIGO_RUC
+        setErrorBusquedaDoc(obtenerErrorServicio() || (tipoDoc === CODIGO_RUC
           ? 'RUC no encontrado. Verifique que el número sea correcto.'
-          : 'DNI no encontrado. Ingrese el nombre manualmente.')
+          : 'DNI no encontrado. Ingrese el nombre manualmente.'))
       }
       return
     }

@@ -117,7 +117,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
   const [incluyeIgv, setIncluyeIgv] = useState(true)
 
   // Hook para busqueda de DNI/RUC en SUNAT
-  const { loading: buscandoDoc, consultarRuc, consultarDocumentoDiferido, reset: resetDocLookup } = useDocLookup()
+  const { loading: buscandoDoc, consultarRuc, consultarDocumentoDiferido, obtenerErrorServicio, reset: resetDocLookup } = useDocLookup()
 
   const documentoInputRef = useRef(null)
 
@@ -245,7 +245,8 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
       if (result) {
         setNombreCompleto(result.nombre_completo || result.razon_social || result.nombre_o_razon_social || '')
         toast.success(tipoDoc === CODIGO_RUC ? 'Datos obtenidos de SUNAT' : 'Datos obtenidos de RENIEC')
-      } else if (obtenerTipoDocumento(tipoDoc).consultaApi) {
+      } else if (obtenerTipoDocumento(tipoDoc).consultaApi && !obtenerErrorServicio()) {
+        // Si falló el servicio el hook ya avisó la causa
         // react-hot-toast no tiene toast.info: usar toast() neutro
         toast('Documento no encontrado. Ingrese los datos manualmente.')
       }
@@ -320,7 +321,7 @@ const VentaInstantaneaModal = ({ isOpen, onClose, onVentaExitosa }) => {
         }))
         toast.success('Datos de empresa obtenidos de SUNAT')
       } else {
-        setErrorBusquedaRuc('RUC no encontrado. Verifique que el numero sea correcto.')
+        setErrorBusquedaRuc(obtenerErrorServicio() || 'RUC no encontrado. Verifique que el numero sea correcto.')
       }
     }
   }

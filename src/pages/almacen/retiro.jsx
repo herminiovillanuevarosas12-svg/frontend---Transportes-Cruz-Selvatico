@@ -64,7 +64,7 @@ const RetiroEncomiendaPage = () => {
   const [showCamera, setShowCamera] = useState(false)
 
   // Hook para auto-busqueda de DNI/RUC
-  const { loading: buscandoDoc, consultarRuc, consultarDocumentoDiferido, reset: resetDocLookup } = useDocLookup()
+  const { loading: buscandoDoc, consultarRuc, consultarDocumentoDiferido, obtenerErrorServicio, reset: resetDocLookup } = useDocLookup()
 
   // Clave de seguridad
   const [claveIngresada, setClaveIngresada] = useState('')
@@ -591,7 +591,7 @@ const RetiroEncomiendaPage = () => {
                                 direccion: result.direccion || result.domicilio_fiscal || ''
                               }))
                             } else {
-                              setErrorBusquedaRuc('RUC no encontrado. Verifique que el numero sea correcto.')
+                              setErrorBusquedaRuc(obtenerErrorServicio() || 'RUC no encontrado. Verifique que el numero sea correcto.')
                             }
                           }
                         }}
